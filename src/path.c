@@ -16,6 +16,9 @@ char *ct_basename(const char *file)
 			break;
 	}
 
+	if (n == 0)
+		return strdup(file);
+
 	return strndup(file + n + 1, l - n);
 }
 
