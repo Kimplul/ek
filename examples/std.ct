@@ -1,0 +1,35 @@
+type std {
+	init(mut * any);
+	deinit(mut * any);
+	copy(mut * any, * any);
+	move(mut * any, mut * any);
+}
+
+/* these as well could be way optimized for builtin types */
+type comparable {
+	equal(* any, * any) bool;
+	less_than(* any, * any) bool;
+}
+
+/* I'm imagining that if someone provides a specific function for these, it will
+ * be used rather than these ones, but that the minimum to implement comparable
+ * is as small as possible this should be fine */
+pub not_equal(a * comparable, b * comparable) bool
+{
+	return !equal(a, b);
+}
+
+pub greater_than(a * comparable. b * comparable) bool
+{
+	return !equal(a, b) && !less_than(a, b);
+}
+
+pub less_or_equal(a * comparable, b * comparable) bool
+{
+	return !greater_than(a, b);
+}
+
+pub greater_or_equal(a * comparable, b * comparable) bool
+{
+	return !less_than(a, b);
+}

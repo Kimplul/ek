@@ -1,0 +1,18 @@
+/* from c bindings */
+
+pub alloc(s usize) *void
+{
+	p *u8 = malloc(s);
+	assert(p, "memory allocation failed\n");
+	return p;
+}
+
+pub dealloc(p *void)
+{
+	free(p);
+}
+
+pub realloc(p *, s usize) *void
+{
+	realloc(p, s);
+}

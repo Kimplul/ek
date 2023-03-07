@@ -1,0 +1,62 @@
+typedef vectorable {
+	std;
+	/* this would be needed for comparisons like find() or something */
+	comparable;
+}
+
+typedef vec (t vectorable) {
+	void std_vector;
+	len usize;
+	buf *t;
+}
+
+pub define vec(t) { struct (vector[t]) }
+
+pub init(mut v *vector)
+{
+	v.len = 0;
+	v.buf = null;
+}
+
+pub length(v *vec) usize { return v.len; }
+
+pub index(v *vec, i usize) *#(v.buf)
+{
+	assert(i < v.len, "index %zu out of bounds\n", i);
+	return &v.buf[i];
+}
+
+pub index(v *vec, i isize) *#v.buf
+{
+	if i < 0 {
+		assert(-i < v.len, "reverse index %zi out of bounds\n", i);
+		return &v.buf[v.len + i];
+	}
+
+	assert(i < v.len, "index %zi out of bounds\n", i);
+	return &v.buf[i];
+}
+
+pub prepend(mut *vec, e *#v.buf) { insert(v, e, 0uz); }
+pub append(mut v *vec, e *#v.buf) { insert(v, e, v.len) }
+
+pub preplace(mut v *vec, e *#v.buf) { place(v, e, 0uz); }
+pub applace(mut v *vec, e *#v.buf) { place(v, e, v.len - 1); }
+
+pub place(mut v *vec, e *#v.buf, i usize)
+{
+}
+
+pub insert(mut v *vec, e *#v.buf, i usize)
+{
+}
+
+pub deinit(mut v *vec)
+{
+	for i usize : v {
+		deinit(v[i]);
+		v[i] = null;
+	}
+
+	dealloc(v.buf);
+}
