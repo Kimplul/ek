@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include <ct/res.h>
+#include <cu/res.h>
 
 /**
  * Grow resource manager buffer.

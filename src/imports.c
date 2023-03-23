@@ -1,5 +1,5 @@
-#include <ct/imports.h>
-#include <ct/debug.h>
+#include <cu/imports.h>
+#include <cu/debug.h>
 
 void add_import_path(const char *dir)
 {

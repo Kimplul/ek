@@ -2,18 +2,18 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include <ct/ctpp.h>
-#include <ct/debug.h>
-#include <ct/imports.h>
-#include <ct/compiler.h>
+#include <cu/debug.h>
+#include <cu/imports.h>
+#include <cu/compiler.h>
 
 static const char *cmdline_usage =
-"C with traits compiler usage:\n"
-" ct [-I <dir>...] [-D <var>...] infile...\n"
+"Copper compiler usage:\n"
+" cu [-I <dir>...] [-D <var>...] infile...\n"
 "	-h       Show usage (this)\n"
 "	-I <dir> Add directory to import path\n"
 "	-D <var> Add predefined variable\n"
-"	infile   Top file to compile\n"
+"	-o       Name of output\n"
+"	infile   Top file(s) to compile\n"
 ;
 
 static void usage()
@@ -24,14 +24,19 @@ static void usage()
 int main(int argc, char *argv[])
 {
 	int opt;
-	while ((opt = getopt(argc, argv, "hI:D:")) != -1) {
+	while ((opt = getopt(argc, argv, "hI:D:o:")) != -1) {
 		switch (opt) {
+		case 'o':
+			error("not yet implemented");
+			break;
+
 		case 'I':
 			add_import_path(optarg);
 			break;
 
 		case 'D':
-			add_predefined_variable(optarg);
+			/* TODO */
+			error("not yet implemented");
 			break;
 
 		case 'h':
@@ -44,13 +49,15 @@ int main(int argc, char *argv[])
 	}
 
 	if (optind >= argc) {
-		error("no input files\n");
+		error("no input files");
+		usage();
 		exit(EXIT_FAILURE);
 	}
 
 	for (int i = optind; i < argc; ++i) {
-		debug("starting compilation of '%s'\n", argv[i]);
-		compile(argv[i]);
+		debug("starting compilation of '%s'", argv[i]);
+		if (compile(argv[i]))
+			return -1;
 	}
 
 	return 0;

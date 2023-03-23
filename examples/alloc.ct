@@ -1,8 +1,8 @@
 /* from c bindings */
 
-pub alloc(s usize) *void
+pub alloc(s: usize) *void
 {
-	p *u8 = malloc(s);
+	p: *u8 = malloc(s);
 	assert(p, "memory allocation failed\n");
 	return p;
 }

@@ -1,32 +1,32 @@
-typedef vectorable {
+type vectorable {
 	std;
 	/* this would be needed for comparisons like find() or something */
 	comparable;
 }
 
-typedef vec (t vectorable) {
-	void std_vector;
-	len usize;
-	buf *t;
+type vec {t: vectorable} {
+	std_vector: void;
+	len: usize;
+	buf: 't;
 }
 
-pub define vec(t) { struct (vector[t]) }
+pub define vec(t) { struct (vec{t}) }
 
-pub init(mut v *vector)
+pub init(v: 'vector)
 {
 	v.len = 0;
 	v.buf = null;
 }
 
-pub length(v *vec) usize { return v.len; }
+pub length(v: *vec => usize) { return v.len; }
 
-pub index(v *vec, i usize) *#(v.buf)
+pub index(v: *vec, i: usize => '#v.buf)
 {
 	assert(i < v.len, "index %zu out of bounds\n", i);
 	return &v.buf[i];
 }
 
-pub index(v *vec, i isize) *#v.buf
+pub index(v: mut *vec, i: const isize => '#v.buf)
 {
 	if i < 0 {
 		assert(-i < v.len, "reverse index %zi out of bounds\n", i);
@@ -37,17 +37,17 @@ pub index(v *vec, i isize) *#v.buf
 	return &v.buf[i];
 }
 
-pub prepend(mut *vec, e *#v.buf) { insert(v, e, 0uz); }
-pub append(mut v *vec, e *#v.buf) { insert(v, e, v.len) }
+pub prepend(v: mut 'vec, e: '#v.buf) { insert(v, e, 0); }
+pub append(v: mut 'vec, e: '#v.buf) { insert(v, e, v.len); }
 
-pub preplace(mut v *vec, e *#v.buf) { place(v, e, 0uz); }
-pub applace(mut v *vec, e *#v.buf) { place(v, e, v.len - 1); }
+pub preplace(v: mut 'vec, e: '#v.buf) { place(v, e, 0); }
+pub applace(v: mut 'vec, e: '#v.buf) { place(v, e, v.len - 1); }
 
-pub place(mut v *vec, e *#v.buf, i usize)
+pub place(v: mut *vec, e: '#v.buf, i: usize)
 {
 }
 
-pub insert(mut v *vec, e *#v.buf, i usize)
+pub insert(v: mut *vec, e^ '#v.buf, i: usize)
 {
 }
 

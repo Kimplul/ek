@@ -1,9 +1,8 @@
 #include <errno.h>
 #include <stdlib.h>
 
-#include <ct/debug.h>
-#include <ct/string.h>
-
+#include <cu/debug.h>
+#include <cu/string.h>
 
 struct string *new_string(const char *s)
 {

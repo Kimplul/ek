@@ -1,4 +1,4 @@
 deps.mk
 docs/output
 build
-ct
+cu

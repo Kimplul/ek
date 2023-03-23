@@ -70,6 +70,59 @@ pub add(r *string, a *string, b *string)
 	r.len = len;
 }
 
+/* example of hygienic and recursive macros.
+   In macros, the last statement of the block is taken as the "return" value,
+   so the following two definitions would be enough to get the smallest
+   value of any number of parameters, without affecting any variables in
+   the parent context. If recursive blocks, the last of the blocks is taken.
+
+   In this case, the same thing could be done with functions of course.
+
+   Internally, if one of these macros is passed as a function argument, all
+   statements except the last (which has to be a certain type,
+   have to check exactly which rules I want to apply to it) will be moved
+   into the nearest "regular" context, i.e. not a function call in a function
+   call or something like that. The last variable's context is kept as the block
+   in which it was defined, but accessed "anonymously". In C, something like
+
+   // some counter to make sure we don't overlap some other variable
+   int min_res_12345;
+   {
+	const int _a = a;
+	const int _b = b;
+
+	const int _res = _a < _b ? _a : _b;
+	min_res_12345 = _res;
+   }
+   call(min_res_12345);
+
+   */
+define min(a, b) {{
+	_a const = a;
+	_b const = b;
+
+	_res const = if _a < _b {
+		_a
+	} else {
+		_b
+	};
+
+	_res;
+}}
+
+define min(a, b ...args) {{
+	_a const = a;
+	_b const = min(b, ...args);
+	
+	_res const = if _a < _b {
+		_a
+	} else {
+		_b
+	};
+
+	_res;
+}}
+
 pub define new(x ...args)
 {
 	x = alloc(sizeof(x));
