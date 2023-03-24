@@ -111,7 +111,7 @@
 %token FATARROW "=>"
 
 /* precedence */
-%left "," "typeof" "sizeof"
+%left ","
 %right "=" "+=" "-=" "*=" "/=" "%=" "<<=" ">>=" "&=" "^=" "|=" "^^="
 %left "^^"
 %left "||"
@@ -124,7 +124,7 @@
 %left "<<" ">>"
 %left "+" "-"
 %left "*" "/" "%"
-%left "as"
+%left "as" "sizeof" "typeof"
 %right "'" "!" "~"
 %left "." "=>" "(" ")"
 
@@ -132,11 +132,12 @@
 %nterm <node> import binary_op unary_op arg arg_list decl_list call expr
 %nterm <node> while do_while statement statement_list body macro_list macro
 %nterm <node> expr_list init_expr expr_if if for case case_list switch const
-%nterm <node> func_sign variadic_sign impl impl_list type var_decl var
+%nterm <node> func_sign variadic_sign type var_decl var
 %nterm <node> var_init proc lambda template_elem template_list type_list
 %nterm <node> type_alias type_template enum_val enum_list enum top unit id
 %nterm <node> embed param_decl union union_list union_elem struct struct_list
-%nterm <node> top_if const_if const_for defer goto
+%nterm <node> top_if const_if const_for defer goto assign
+%nterm <node> struct_construct struct_inits struct_init cond
 
 %destructor {} FLOAT INT STRING ID
 %destructor { destroy_ast_tree($$); } <*>
@@ -159,8 +160,11 @@ embed: "embed" "(" STRING ")" { $$ = gen_embed(clone_string($3));  }
 import: "import" STRING { $$ = gen_import(clone_string($2));  }
 	;
 
-binary_op: expr "=" expr { $$ = gen_binop(AST_ASSIGN, $1, $3); }
-	| expr "+" expr { $$ = gen_binop(AST_ADD, $1, $3);  }
+assign: expr "=" expr { $$ = gen_assign($1, $3); }
+	| expr "=" struct_construct { $$ = gen_assign($1, $3); }
+	;
+
+binary_op: expr "+" expr { $$ = gen_binop(AST_ADD, $1, $3);  }
 	| expr "-" expr { $$ = gen_binop(AST_SUB, $1, $3);  }
 	| expr "*" expr { $$ = gen_binop(AST_MUL, $1, $3);  }
 	| expr "/" expr { $$ = gen_binop(AST_DIV, $1, $3);  }
@@ -202,7 +206,7 @@ unary_op: "-" expr { $$ = gen_unop(AST_NEG, $2);  }
 	| "~" expr { $$ = gen_unop(AST_NOT, $2);  }
 	;
 
-arg: "&" var_decl { $$ = gen_unop(SQUOTE, $2);  }
+arg: "&" var_decl { $$ = gen_unop(AST_REF, $2);  }
 	| var_decl { $$ = $1; }
 	| init_expr { $$ = $1; }
 	;
@@ -240,6 +244,7 @@ expr: id { $$ = $1; }
 		$$->loc = to_src_loc(&yylloc);
 	}
 	| "(" expr ")" { $$ = $2; }
+	| assign { $$ = $1; }
 	| call { $$ = $1; }
 	| defer { $$ = $1; }
 	| binary_op { $$ = $1; }
@@ -264,7 +269,7 @@ do_while: "do" body "while" expr ";" {
 goto: "goto" id { $$ = gen_goto(gen_label($2));  }
 
 statement: expr ";" { $$ = $1; }
-	| "return" expr ";" { $$ = gen_return($2);  }
+	| "return" init_expr ";" { $$ = gen_return($2);  }
 	| "return" ";" { $$ = gen_return(NULL); }
 	| "break" ";" { $$ = gen_ctrl(AST_CTRL_BREAK, to_src_loc(&yylloc)); }
 	| "continue" ";" { $$ = gen_ctrl(AST_CTRL_CONTINUE,
@@ -335,23 +340,38 @@ expr_list: expr "," expr_list { $$ = $1; $1->next = $3; }
 	| expr { $$ = $1; }
 	;
 
+struct_init: init_expr { $$ = $1; }
+	| "." id "=" init_expr { $$ = gen_var($2, NULL, $4); }
+	;
+
+struct_inits: struct_init "," struct_inits { $$ = $1; $1->next = $3; }
+	| struct_init { $$ = $1; }
+	;
+
+struct_construct: "{" struct_inits "}" { $$ = gen_init($2); }
+	;
+
 init_expr: expr { $$ = $1; }
-	| var_init { $$ = $1; }
-	| "&" var_init { $$ = gen_unop(AND, $2);  }
 	| expr_if { $$ = $1; }
+	| struct_construct { $$ = $1; }
+	| struct_construct "as" type { $$ = gen_cast($1, $3); }
 	;
 
-expr_if: "if" init_expr body "else" body { $$ = gen_if($2, $3, $5);  }
-       | "if" init_expr body "else" expr_if { $$ = gen_if($2, $3, $5);  }
-       ;
-
-if: "if" init_expr body { $$ = gen_if($2, $3, NULL);  }
-	| "if" init_expr body "else" body { $$ = gen_if($2, $3, $5);  }
-	| "if" init_expr body "else" if { $$ = gen_if($2, $3, $5);  }
+cond: expr { $$ = $1; }
+	| "(" expr_if ")" { $$ = $2; }
+	/* note no struct construct */
 	;
 
-for: "for" arg ";" expr ";" expr body { $$ = gen_for($2, $4, $6, $7);
-    }
+expr_if: "if" cond body "else" body { $$ = gen_if($2, $3, $5);  }
+	| "if" cond body "else" expr_if { $$ = gen_if($2, $3, $5);  }
+	;
+
+if: "if" cond body { $$ = gen_if($2, $3, NULL);  }
+	| "if" cond body "else" body { $$ = gen_if($2, $3, $5);  }
+	| "if" cond body "else" if { $$ = gen_if($2, $3, $5);  }
+	;
+
+for: "for" arg ";" expr ";" expr body { $$ = gen_for($2, $4, $6, $7); }
 	;
 
 case: "case" expr ":" statement_list { $$ = gen_case($2, $4);  }
@@ -415,21 +435,12 @@ variadic_sign: func_sign { $$ = $1; }
 	}
 	;
 
-impl: id "{" type_list "}" { $$ = gen_type(AST_TYPE_IMPL, $1, $3, NULL);
-     }
-	| id { $$ = gen_type(AST_TYPE_IMPL, $1, NULL, NULL);  }
-	;
-
-impl_list: impl "," impl_list { $$ = $1; $1->next = $3;}
-	| impl { $$ = $1; }
-	;
-
 type: id { $$ = gen_type(AST_TYPE_ID, $1, NULL, NULL); }
 	| "'" func_sign {
 		$$ = gen_type(AST_TYPE_POINTER, NULL, NULL, NULL);
 		$$->next = $2;
 	}
-	| id "(" impl_list ")" {
+	| id "(" type_list ")" {
 		$$ = gen_type(AST_TYPE_STRUCT, $1, $3, NULL);
 	}
 	| "'" type {
@@ -504,12 +515,14 @@ struct_list: union_list { $$ = $1; }
 struct: "struct" id "{" struct_list "}" {
 		$$ = gen_struct($2, NULL, $4);
 	}
-	| "struct" id "(" type_list ")" "{" struct_list "}" {
+	| "struct" id "(" arg_list ")" "{" struct_list "}" {
 		$$ = gen_struct($2, $4, $7);
 	}
 	;
 
-template_elem: impl ";" { $$ = $1; }
+/* since traits aren't generic, they don't have to implement anything, meaning
+ * we can keep a pretty clean separation between procs and supertraits */
+template_elem: id ";" { $$ = $1; }
 	| id func_sign ";" { $$ = gen_proc($1, $2, NULL);  }
 	| var_decl ";" { $$ = $1; }
 	| union { $$ = $1; }

@@ -1312,12 +1312,21 @@ static int pointer_conversion(struct ast_node *a, struct ast_node *b)
 	return 0;
 }
 
+static int actualize_init_cast(struct act_state *state,
+		struct scope *scope, struct ast_node *cast)
+{
+	semantic_error(scope->fctx, cast, "structure init casts not yet implemented");
+	return -1;
+}
+
 static int actualize_cast(struct act_state *state,
 		struct scope *scope, struct ast_node *cast)
 {
 	assert(cast->node_type == AST_CAST);
-
 	struct ast_node *expr = cast->_cast.expr;
+	if (expr->node_type == AST_INIT)
+		return actualize_init_cast(state, scope, cast);
+
 	if (actualize(state, scope, expr))
 		return -1;
 

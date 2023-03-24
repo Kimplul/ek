@@ -47,7 +47,8 @@ static struct src_loc loc_span(struct ast_node *left, struct ast_node *right)
 	return loc;
 }
 
-struct ast_node *gen_binop(int op, struct ast_node *left, struct ast_node *right)
+struct ast_node *gen_binop(enum ast_binops op,
+		struct ast_node *left, struct ast_node *right)
 {
 	ALLOC_NODE(n, binop);
 	n->node_type = AST_BINOP;
@@ -66,7 +67,7 @@ void destroy_binop(struct ast_node *binop)
 	free(binop);
 }
 
-struct ast_node *gen_unop(int op, struct ast_node *expr)
+struct ast_node *gen_unop(enum ast_unops op, struct ast_node *expr)
 {
 	ALLOC_NODE(n, unop);
 	n->node_type = AST_UNOP;
@@ -115,6 +116,40 @@ void destroy_id(struct ast_node *id)
 	assert(id->node_type == AST_ID);
 	free((void *)id->_id.id);
 	free(id);
+}
+
+struct ast_node *gen_assign(struct ast_node *to, struct ast_node *from)
+{
+	ALLOC_NODE(n, assign);
+	n->node_type = AST_ASSIGN;
+	n->_assign.to = to;
+	n->_assign.from = from;
+	n->loc = loc_span(to, from);
+	return n;
+}
+
+static void destroy_assign(struct ast_node *assign)
+{
+	assert(assign->node_type == AST_ASSIGN);
+	destroy_ast_node(assign->_assign.to);
+	destroy_ast_node(assign->_assign.from);
+	free(assign);
+}
+
+struct ast_node *gen_init(struct ast_node *body)
+{
+	ALLOC_NODE(n, struct init);
+	n->node_type = AST_INIT;
+	n->_init.body = body;
+	n->loc = body->loc;
+	return n;
+}
+
+static void destroy_init(struct ast_node *init)
+{
+	assert(init->node_type == AST_INIT);
+	DESTROY_LIST(init->_init.body);
+	free(init);
 }
 
 struct ast_node *gen_int(long long integer)
@@ -405,9 +440,9 @@ struct ast_node *gen_type(enum ast_type_kind kind, struct ast_node *id,
 		break;
 
 	case AST_TYPE_STRUCT:
-		n->_type.struc.struc = expr;
-		n->_type.struc.impls = ret;
-		n->loc = expr->loc;
+		n->_type.struc.struc = id;
+		n->_type.struc.impls = expr;
+		n->loc = id->loc;
 		break;
 
 	case AST_TYPE_SIGN:
@@ -467,10 +502,7 @@ void destroy_type(struct ast_node *type)
 		break;
 
 	case AST_TYPE_STRUCT:
-		/* struc is reference, I think, so don't free it */
-		/* TODO: should structure types clone the whole body for each
-		 * node, or maybe for each implementation of generics one
-		 * instance shared between all of the same type? hmm */
+		destroy_ast_node(type->_type.struc.struc);
 		DESTROY_LIST(type->_type.struc.impls);
 		break;
 
@@ -834,6 +866,8 @@ void destroy_ast_node(struct ast_node *node)
 	assert(node->node_type);
 
 	switch (node->node_type) {
+	case AST_ASSIGN: destroy_assign(node); break;
+	case AST_INIT: destroy_init(node); break;
 	case AST_SIZEOF: destroy_sizeof(node); break;
 	case AST_DOT: destroy_dot(node); break;
 	case AST_BINOP: destroy_binop(node); break;
@@ -895,7 +929,6 @@ void ast_append(struct ast_node *list, struct ast_node *elem)
 static const char *binop_symbol(int op)
 {
 	switch (op) {
-	case AST_ASSIGN: return "=";
 	case AST_ADD: return "+";
 	case AST_SUB: return "-";
 	case AST_MUL: return "*";
@@ -989,6 +1022,27 @@ static void dump_flags(struct ast_node *node)
 static void __dump_ast(int depth, struct ast_node *node)
 {
 	switch (node->node_type) {
+	case AST_ASSIGN:
+		dump(depth, "{ASSIGN:");
+		dump_flags(node);
+		putchar('\n');
+
+		dump_ast(depth + 1, node->_assign.to);
+		dump_ast(depth + 1, node->_assign.from);
+
+		dump(depth, "}\n");
+		break;
+
+	case AST_INIT:
+		dump(depth, "{INIT:");
+		dump_flags(node);
+		putchar('\n');
+
+		dump_ast(depth + 1, node->_init.body);
+
+		dump(depth, "}\n");
+		break;
+
 	case AST_SIZEOF:
 		dump(depth, "{SIZEOF:");
 		dump_flags(node);
@@ -1207,7 +1261,9 @@ static void __dump_ast(int depth, struct ast_node *node)
 
 		case AST_TYPE_STRUCT:
 			printf(" STRUCT\n");
-			dump_ast(depth + 1, node->_type.struc.struc->_struct.id);
+			/* oh yeah, struc is at least right now just an ID that
+			 * we can use to fetch the actual struct with. */
+			dump_ast(depth + 1, node->_type.struc.struc);
 			dump_ast(depth + 1, node->_type.struc.impls);
 			break;
 
@@ -1438,6 +1494,14 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 	assert(node->node_type);
 	struct ast_node *new = NULL;
 	switch (node->node_type) {
+	case AST_ASSIGN:
+		new = gen_assign(clone_ast_node(node->_assign.to),
+				clone_ast_node(node->_assign.from));
+		break;
+
+	case AST_INIT: new = gen_init(clone_ast_node(node->_init.body));
+		       break;
+
 	case AST_SIZEOF: new = gen_sizeof(clone_ast_node(node->_sizeof.expr));
 			 break;
 
@@ -1554,11 +1618,10 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 				 break;
 
 			 case AST_TYPE_STRUCT:
-				 new = gen_type(AST_TYPE_STRUCT, NULL,
-						 /* reference */
-						 node->_type.struc.struc,
-						 clone_ast_node(node->_type.struc.impls)
-						 );
+				 new = gen_type(AST_TYPE_STRUCT,
+						 clone_ast_node(node->_type.struc.struc),
+						 clone_ast_node(node->_type.struc.impls),
+						 NULL);
 				 break;
 
 			 case AST_TYPE_UNION:
@@ -1751,6 +1814,18 @@ int identical_ast_nodes(int exact, struct ast_node *left, struct ast_node *right
 		return 0;
 
 	switch (left->node_type) {
+	case AST_ASSIGN:
+		if (!identical_ast_nodes(exact, left->_assign.to, right->_assign.to))
+			return 0;
+
+		if (!identical_ast_nodes(exact, left->_assign.from, right->_assign.from))
+			return 0;
+		break;
+
+	case AST_INIT:
+		if (!identical_ast_nodes(exact, left->_init.body, right->_init.body))
+			return 0;
+		break;
 	case AST_SIZEOF:
 		if (!identical_ast_nodes(exact, left->_sizeof.expr, right->_sizeof.expr))
 			return 0;
@@ -2192,6 +2267,15 @@ int ast_call_on(int (*call)(struct ast_node *, void *data),
 		return ret;
 
 	switch (node->node_type) {
+	case AST_ASSIGN:
+		ret |= call(node->_assign.to, data);
+		ret |= call(node->_assign.from, data);
+		break;
+
+	case AST_INIT:
+		ret |= call(node->_init.body, data);
+		break;
+
 	case AST_SIZEOF:
 		ret |= call(node->_sizeof.expr, data);
 		break;

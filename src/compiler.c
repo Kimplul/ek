@@ -55,6 +55,14 @@ static int process(struct scope **parent, int public, const char *file)
 	if (!p)
 		return -1;
 	parse(p, file, buf);
+	struct ast_node *tree = p->tree;
+	bool failed = p->failed;
+	destroy_parser(p);
+
+	if (failed)
+		return -1;
+
+	dump_ast(0, tree);
 
 	struct scope *scope = create_scope();
 	if (!scope)
@@ -73,10 +81,8 @@ static int process(struct scope **parent, int public, const char *file)
 	else
 		*parent = scope;
 
-	if (analyze_root(scope, p->tree))
+	if (analyze_root(scope, tree))
 		return -1;
-
-	destroy_parser(p);
 
 	return 0;
 }
