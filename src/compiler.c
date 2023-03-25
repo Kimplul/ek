@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+
 #include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
@@ -114,7 +116,8 @@ int process_file(struct scope **scope, int public, const char *file)
 	debug("(cwd:%s)(dir:%s)(base:%s)", cwd, dir, base);
 
 	if (*dir != 0 && chdir(dir)) {
-		error("couldn't change to directory %s: %s", dir, strerror(errno));
+		error("couldn't change to directory %s: %s", dir, strerror(
+			      errno));
 		goto out;
 	}
 
@@ -122,7 +125,8 @@ int process_file(struct scope **scope, int public, const char *file)
 		goto out;
 
 	if (chdir(cwd)) {
-		error("couldn't change back to directory %s: %s\n", cwd, strerror(errno));
+		error("couldn't change back to directory %s: %s\n", cwd, strerror(
+			      errno));
 		goto out;
 	}
 

@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+
 #include <stddef.h>
 #include <string.h>
 #include <stdio.h>
@@ -119,7 +121,8 @@ int scope_flags(struct scope *scope, enum scope_flags flags)
 	return scope->flags & flags;
 }
 
-static struct visible *create_visible(struct scope *owner, struct ast_node *node)
+static struct visible *create_visible(struct scope *owner,
+                                      struct ast_node *node)
 {
 	struct visible *visible = calloc(1, sizeof(struct visible));
 	visible->node = node;
@@ -135,15 +138,15 @@ static struct scratch *create_scratch(struct ast_node *scratch)
 }
 
 /* set newest member as head of linked list */
-#define CREATE_VISIBLE(name, type, ast_type)\
-static struct visible *name(struct scope *owner, struct ast_node *node)\
-{\
-	assert(node->node_type == ast_type);\
-	struct visible *visible = create_visible(owner, node);\
-	visible->next = owner->type;\
-	owner->type = visible;\
-	return visible;\
-}
+#define CREATE_VISIBLE(name, type, ast_type)                                    \
+	static struct visible *name(struct scope *owner, struct ast_node *node) \
+	{                                                                       \
+		assert(node->node_type == ast_type);                            \
+		struct visible *visible = create_visible(owner, node);          \
+		visible->next = owner->type;                                    \
+		owner->type = visible;                                          \
+		return visible;                                                 \
+	}
 
 CREATE_VISIBLE(create_var, vars, AST_VAR);
 CREATE_VISIBLE(create_proc, procs, AST_PROC);
@@ -156,19 +159,19 @@ CREATE_VISIBLE(create_builtin, builtins, AST_TYPE);
 CREATE_VISIBLE(create_template, templates, AST_TEMPLATE);
 
 /* TODO: check for identical names in the scope? */
-#define REFERENCE_VISIBLE(name, list, ast_type)\
-static int name(int public, struct scope *scope, struct visible *obj)\
-{\
-	if (!scope)\
-		return 0;\
-	assert(obj->node->node_type == ast_type);\
-	struct visible *ref = create_visible(obj->owner, obj->node);\
-	ref->next = scope->list;\
-	scope->list = ref;\
-	if (scope_flags(scope, SCOPE_FILE) && public)\
-		name(scope_flags(scope, SCOPE_PUBLIC), scope->parent, obj);\
-	return 0;\
-}
+#define REFERENCE_VISIBLE(name, list, ast_type)                               \
+	static int name(int public, struct scope *scope, struct visible *obj) \
+	{                                                                     \
+		if (!scope)                                                   \
+		return 0;                                                     \
+		assert(obj->node->node_type == ast_type);                     \
+		struct visible *ref = create_visible(obj->owner, obj->node);  \
+		ref->next = scope->list;                                      \
+		scope->list = ref;                                            \
+		if (scope_flags(scope, SCOPE_FILE) && public)                 \
+		name(scope_flags(scope, SCOPE_PUBLIC), scope->parent, obj);   \
+		return 0;                                                     \
+	}
 
 REFERENCE_VISIBLE(reference_var, vars, AST_VAR);
 REFERENCE_VISIBLE(reference_proc, procs, AST_PROC);
@@ -183,19 +186,23 @@ REFERENCE_VISIBLE(reference_template, templates, AST_TEMPLATE);
 
 /* does NOT walk the scope tree upward if it doesn't find the var in the scope
  * */
-#define FIND_VISIBLE(name, list, ast_type, ast_name)\
-struct ast_node *name(struct scope *scope, struct ast_node *id)\
-{\
-	assert(id->node_type == AST_ID);\
-	struct visible *prev = scope->list, *cur;\
-	if (prev)\
-		do {\
-			cur = prev->next;\
-			if (identical_ast_nodes(0, prev->node->ast_name.id, id))\
-				return prev->node;\
-		} while ((prev = cur));\
-	return NULL;\
-}
+#define FIND_VISIBLE(name, list, ast_type, ast_name)                             \
+	struct ast_node *name(struct scope *scope, struct ast_node *id)          \
+	{                                                                        \
+		assert(id->node_type == AST_ID);                                 \
+		struct visible *prev = scope->list, *cur;                        \
+		if (prev) {                                                      \
+			do {                                                     \
+				cur = prev->next;                                \
+				if (identical_ast_nodes(0,                       \
+				                        prev->node->ast_name.id, \
+				                        id)) {                   \
+					return prev->node;                       \
+				}                                                \
+			} while ((prev = cur));                                  \
+		}                                                                \
+		return NULL;                                                     \
+	}
 
 FIND_VISIBLE(scope_find_enum, enums, AST_ENUM, _enum);
 FIND_VISIBLE(scope_find_alias, aliases, AST_ALIAS, _alias);
@@ -238,22 +245,26 @@ struct ast_node *scope_find(struct scope *scope, struct ast_node *id)
 
 /* procedure adding requires a bit of tweaking, as a different number of
  * arguments effectively means different functions, not just the name */
-#define ADD_VISIBLE(name, obj_type, ast_type, ast_name)\
-int name(struct scope *scope, struct ast_node *node)\
-{\
-	assert(node->node_type == ast_type);\
-	struct ast_node *shadow = file_scope_find(scope, node->ast_name.id);\
-	if (shadow) {\
-		semantic_error(scope->fctx, node, "shadowing is not allowed");\
-		semantic_info(scope->fctx, shadow, "previous declaration was here");\
-		return -1;\
-	}\
-	int public = scope_flags(scope, SCOPE_PUBLIC);\
-	struct visible *visible = create_##obj_type(scope, node);\
-	if (scope_flags(scope, SCOPE_FILE) && ast_flags(node, AST_FLAG_PUBLIC))\
-		return reference_##obj_type(public, scope->parent, visible);\
-	return 0;\
-}
+#define ADD_VISIBLE(name, obj_type, ast_type, ast_name)                          \
+	int name(struct scope *scope, struct ast_node *node)                     \
+	{                                                                        \
+		assert(node->node_type == ast_type);                             \
+		struct ast_node *shadow = file_scope_find(scope,                 \
+		                                          node->ast_name.id);    \
+		if (shadow) {                                                    \
+			semantic_error(scope->fctx, node,                        \
+			               "shadowing is not allowed");              \
+			semantic_info(scope->fctx, shadow,                       \
+			              "previous declaration was here");          \
+			return -1;                                               \
+		}                                                                \
+		int public = scope_flags(scope, SCOPE_PUBLIC);                   \
+		struct visible *visible = create_##obj_type(scope, node);        \
+		if (scope_flags(scope,                                           \
+		                SCOPE_FILE) && ast_flags(node, AST_FLAG_PUBLIC)) \
+		return reference_##obj_type(public, scope->parent, visible);     \
+		return 0;                                                        \
+	}
 
 struct visible *create_type(struct scope *scope, struct ast_node *type)
 {
@@ -264,8 +275,8 @@ struct visible *create_type(struct scope *scope, struct ast_node *type)
 	case AST_ENUM: return create_enum(scope, type);
 	case AST_STRUCT: return create_struct(scope, type);
 	default:
-			 semantic_error(scope->fctx, type, "unknown type");
-			 return NULL;
+		semantic_error(scope->fctx, type, "unknown type");
+		return NULL;
 	}
 }
 
@@ -278,8 +289,8 @@ int reference_type(int public, struct scope *scope, struct visible *visible)
 	case AST_ENUM: return reference_enum(public, scope, visible);
 	case AST_STRUCT: return reference_struct(public, scope, visible);
 	default:
-			 semantic_error(scope->fctx, visible->node, "unknown type");
-			 return 1;
+		semantic_error(scope->fctx, visible->node, "unknown type");
+		return 1;
 	}
 }
 
@@ -338,7 +349,9 @@ ADD_VISIBLE(scope_add_template, template, AST_TEMPLATE, _template);
 
 static int add_implementation(struct ast_node *template, struct ast_node *type)
 {
-	assert(template->node_type == AST_TEMPLATE && type->node_type == AST_TYPE);
+	assert(
+		template->node_type == AST_TEMPLATE &&
+		type->node_type == AST_TYPE);
 	struct template_implemented *by = calloc(1, sizeof(*type));
 	if (!by) {
 		internal_error("failed allocating memory for implementation");
@@ -351,7 +364,8 @@ static int add_implementation(struct ast_node *template, struct ast_node *type)
 	return 0;
 }
 
-static void remove_implementation(struct ast_node *template, struct ast_node *type)
+static void remove_implementation(struct ast_node *template,
+                                  struct ast_node *type)
 {
 	assert(template->node_type == AST_TEMPLATE);
 	struct template_implemented *prev = template->_template.impl_by, *cur;
@@ -386,7 +400,7 @@ static int find_implementation(struct ast_node *template, struct ast_node *type)
 }
 
 static struct ast_node *match_macro(int global, struct scope *scope,
-		struct ast_node *id, struct ast_node *args)
+                                    struct ast_node *id, struct ast_node *args)
 {
 	const size_t arg_count = ast_list_len(args);
 	struct visible *prev = scope->macros, *cur;
@@ -398,7 +412,8 @@ static struct ast_node *match_macro(int global, struct scope *scope,
 			if (!identical_ast_nodes(0, macro->_macro.id, id))
 				continue;
 
-			const size_t param_count = ast_list_len(macro->_macro.params);
+			const size_t param_count = ast_list_len(
+				macro->_macro.params);
 
 			/* if macros have the same number of arguments, they
 			 * match */
@@ -408,7 +423,7 @@ static struct ast_node *match_macro(int global, struct scope *scope,
 			/* if we have a variadic macro, a longer list of args is
 			 * a match */
 			if (ast_flags(macro, AST_FLAG_VARIADIC)
-					&& param_count < arg_count)
+			    && param_count < arg_count)
 				return macro;
 
 		} while ((prev = cur));
@@ -420,10 +435,10 @@ static struct ast_node *match_macro(int global, struct scope *scope,
 }
 
 static struct ast_node *match_proc(int global, struct scope *scope,
-		struct ast_node *id, struct ast_node *args);
+                                   struct ast_node *id, struct ast_node *args);
 
 static int implements_proc(struct scope *scope, struct ast_node *arg_type,
-		struct ast_node *param_type, struct ast_node *proc)
+                           struct ast_node *param_type, struct ast_node *proc)
 {
 	assert(proc->node_type == AST_PROC);
 	/* temp */
@@ -451,8 +466,9 @@ static int implements_proc(struct scope *scope, struct ast_node *arg_type,
 		char *irt = type_str(impl_ret);
 		char *prt = type_str(ret);
 		semantic_error(scope->fctx, proc, "return type mismatch");
-		semantic_info(scope->fctx, impl, "found return type %s, expected %s",
-				irt, prt);
+		semantic_info(scope->fctx, impl,
+		              "found return type %s, expected %s",
+		              irt, prt);
 		free(irt);
 		free(prt);
 		impl = NULL;
@@ -464,7 +480,7 @@ out:
 }
 
 static int implements_var(struct scope *scope, struct ast_node *arg_type,
-		struct ast_node *param_type, struct ast_node *var)
+                          struct ast_node *param_type, struct ast_node *var)
 {
 	assert(var->node_type == AST_VAR);
 	/* temp */
@@ -472,7 +488,7 @@ static int implements_var(struct scope *scope, struct ast_node *arg_type,
 }
 
 static int implements_template(struct scope *scope, struct ast_node *arg_type,
-		struct ast_node *param_type)
+                               struct ast_node *param_type)
 {
 	assert(param_type->_type.kind == AST_TYPE_TEMPLATE);
 	struct ast_node *template = param_type->_type.template.template;
@@ -495,34 +511,36 @@ static int implements_template(struct scope *scope, struct ast_node *arg_type,
 	if (elem)
 		do {
 			if (elem->node_type == AST_VAR) {
-				if (implements_var(scope, arg_type, param_type, elem))
+				if (implements_var(scope, arg_type, param_type,
+				                   elem))
 					continue;
 
 				char *type = type_str(arg_type);
 				struct ast_node *id = elem->_proc.id;
 				semantic_error(scope->fctx, elem,
-						"%s does not have member %s",
-						type, id->_id.id);
+				               "%s does not have member %s",
+				               type, id->_id.id);
 				free(type);
 				goto not_implemented;
 			}
 
 			else if (elem->node_type == AST_PROC) {
-				if (implements_proc(scope, arg_type, param_type, elem))
+				if (implements_proc(scope, arg_type, param_type,
+				                    elem))
 					continue;
 
 				char *type = type_str(arg_type);
 				struct ast_node *id = elem->_proc.id;
 				semantic_error(scope->fctx, elem,
-						"%s does not implement %s",
-						type, id->_id.id);
+				               "%s does not implement %s",
+				               type, id->_id.id);
 				free(type);
 				goto not_implemented;
 			}
 
 			else {
 				semantic_error(scope->fctx, elem,
-						"illegal template element");
+				               "illegal template element");
 				goto not_implemented;
 			}
 		} while ((elem = elem->next));
@@ -535,7 +553,7 @@ not_implemented:
 }
 
 int implements(struct scope *scope,
-		struct ast_node *arg_type, struct ast_node *param_type)
+               struct ast_node *arg_type, struct ast_node *param_type)
 {
 	/* if both types are null, they are uninitialized and we'll assume they
 	 * don't implement eachother. This essentially means that during the
@@ -572,9 +590,9 @@ int implements(struct scope *scope,
 		/* the argument type must at this point be templateable, i.e.
 		 * 'i64 does not implement some_type, but would implement
 		 * 'some_type
-		if (!is_templateable(arg_type))
-			return 0;
-		*/
+		   if (!is_templateable(arg_type))
+		        return 0;
+		 */
 
 		return implements_template(scope, arg_type, param_type);
 	}
@@ -584,7 +602,8 @@ int implements(struct scope *scope,
 
 	/* if both types have next elements in them, analyze them as well */
 	if (arg_type->_type.next && param_type->_type.next)
-		return implements(scope, arg_type->_type.next, param_type->_type.next);
+		return implements(scope, arg_type->_type.next,
+		                  param_type->_type.next);
 
 	/* if this is the last type element in both types, they match */
 	if (!arg_type->_type.next && !param_type->_type.next)
@@ -595,7 +614,8 @@ int implements(struct scope *scope,
 }
 
 static int match_args(struct scope *scope, int variadic,
-		const struct ast_node *args, const struct ast_node *params)
+                      const struct ast_node *args,
+                      const struct ast_node *params)
 {
 	/* no arguments matches to no parameters */
 	if (!params && !args)
@@ -630,7 +650,7 @@ static int match_args(struct scope *scope, int variadic,
 }
 
 static struct ast_node *iter_procs(struct scope *scope, struct visible *first,
-		struct ast_node *id, struct ast_node *args)
+                                   struct ast_node *id, struct ast_node *args)
 {
 	struct visible *prev = first, *cur;
 	if (prev)
@@ -653,9 +673,10 @@ static struct ast_node *iter_procs(struct scope *scope, struct visible *first,
 }
 
 static struct ast_node *match_proc(int global, struct scope *scope,
-		struct ast_node *id, struct ast_node *args)
+                                   struct ast_node *id, struct ast_node *args)
 {
-	struct ast_node *override = iter_procs(scope, scope->overrides, id, args);
+	struct ast_node *override =
+		iter_procs(scope, scope->overrides, id, args);
 	if (override)
 		return override;
 
@@ -731,7 +752,8 @@ int scope_add_existing_var(struct scope *scope, struct visible *visible)
 	struct ast_node *shadow = file_scope_find(scope, node->_var.id);
 	if (shadow) {
 		semantic_error(scope->fctx, node, "shadowing is not allowed\n");
-		semantic_info(scope->fctx, shadow, "previous declaration was here\n");
+		semantic_info(scope->fctx, shadow,
+		              "previous declaration was here\n");
 		return -1;
 	}
 
@@ -782,7 +804,8 @@ int scope_add_existing_proc(struct scope *scope, struct visible *visible)
 	}
 
 	int public = scope_flags(scope, SCOPE_PUBLIC);
-	if (scope_flags(scope, SCOPE_FILE) && ast_flags(proc, AST_FLAG_PUBLIC)) {
+	if (scope_flags(scope,
+	                SCOPE_FILE) && ast_flags(proc, AST_FLAG_PUBLIC)) {
 		if (template)
 			return reference_proc(public, scope->parent, visible);
 
@@ -792,19 +815,20 @@ int scope_add_existing_proc(struct scope *scope, struct visible *visible)
 	return 0;
 }
 
-#define FIND_FILE_VISIBLE(name, obj_type)\
-struct ast_node *name(struct scope *scope, struct ast_node *id)\
-{\
-	assert(id->node_type == AST_ID);\
-	struct ast_node *found = scope_find_##obj_type(scope, id);\
-	if (found)\
-		return found;\
-	if (!scope_flags(scope, SCOPE_FILE))\
-		return file_scope_find_##obj_type(scope->parent, id);\
-	return NULL;\
-}
+#define FIND_FILE_VISIBLE(name, obj_type)                                  \
+	struct ast_node *name(struct scope *scope, struct ast_node *id)    \
+	{                                                                  \
+		assert(id->node_type == AST_ID);                           \
+		struct ast_node *found = scope_find_##obj_type(scope, id); \
+		if (found)                                                 \
+		return found;                                              \
+		if (!scope_flags(scope, SCOPE_FILE))                       \
+		return file_scope_find_##obj_type(scope->parent, id);      \
+		return NULL;                                               \
+	}
 
-struct ast_node *file_scope_find_type(struct scope *scope, struct ast_node *type)
+struct ast_node *file_scope_find_type(struct scope *scope,
+                                      struct ast_node *type)
 {
 	assert(type->node_type == AST_ID);
 	struct ast_node *found = scope_find_type(scope, type);
@@ -861,8 +885,9 @@ struct ast_node *scope_resolve_macro(struct scope *scope, struct ast_node *call)
 	return match_macro(0, scope, id, args);
 }
 
-static int template_contains_proc(struct scope *scope, struct ast_node *template,
-		struct ast_node *id, struct ast_node *args)
+static int template_contains_proc(struct scope *scope,
+                                  struct ast_node *template,
+                                  struct ast_node *id, struct ast_node *args)
 {
 	assert(template->_type.kind == AST_TYPE_TEMPLATE);
 	template = template->_type.template.template;
@@ -911,9 +936,10 @@ struct ast_node *scope_resolve_proc(struct scope *scope, struct ast_node *call)
 		if (!template_contains_proc(scope, template, id, args)) {
 			char *cstr = call_str(call);
 			char *tstr = type_str(arg);
-			semantic_error(scope->fctx, arg, "%s not associated with %s",
-					cstr,
-					tstr);
+			semantic_error(scope->fctx, arg,
+			               "%s not associated with %s",
+			               cstr,
+			               tstr);
 			free(cstr);
 			free(tstr);
 			return NULL;
@@ -930,7 +956,8 @@ next:
 	return proc;
 }
 
-struct ast_node *scope_resolve_actual(struct scope *scope, struct ast_node *call)
+struct ast_node *scope_resolve_actual(struct scope *scope,
+                                      struct ast_node *call)
 {
 	assert(call->node_type == AST_CALL);
 	struct actual *prev = scope->actuals, *cur;
@@ -942,7 +969,8 @@ struct ast_node *scope_resolve_actual(struct scope *scope, struct ast_node *call
 			if (!actual)
 				continue;
 
-			if (!identical_ast_nodes(0, actual->_proc.id, call->_call.id))
+			if (!identical_ast_nodes(0, actual->_proc.id,
+			                         call->_call.id))
 				continue;
 
 			assert(!ast_flags(actual, AST_FLAG_VARIADIC));
@@ -1002,7 +1030,8 @@ struct ast_node *scope_resolve_call(struct scope *scope, struct ast_node *call)
 	return NULL;
 }
 
-struct ast_node *file_scope_resolve_call(struct scope *scope, struct ast_node *call)
+struct ast_node *file_scope_resolve_call(struct scope *scope,
+                                         struct ast_node *call)
 {
 	struct ast_node *found = scope_resolve_call(scope, call);
 	if (found)
@@ -1020,35 +1049,36 @@ struct ast_node *scope_resolve_type(struct scope *scope, struct ast_node *type)
 	switch (type->node_type) {
 	case AST_ID: id = type; break;
 	case AST_TYPE:
-		     assert(type->_type.kind == AST_TYPE_ID);
-		     id = type->_type.id;
-		     break;
+		assert(type->_type.kind == AST_TYPE_ID);
+		id = type->_type.id;
+		break;
 
 	case AST_ALIAS:
-		     id = type->_alias.id;
-		     break;
+		id = type->_alias.id;
+		break;
 
 	case AST_TEMPLATE:
-		     id = type->_template.id;
-		     break;
+		id = type->_template.id;
+		break;
 
 	case AST_STRUCT:
-		     id = type->_struct.id;
-		     break;
+		id = type->_struct.id;
+		break;
 
 	case AST_ENUM:
-		     id = type->_enum.id;
-		     break;
+		id = type->_enum.id;
+		break;
 
 	default:
-		     semantic_error(scope->fctx, type, "unknown type");
-		     return NULL;
+		semantic_error(scope->fctx, type, "unknown type");
+		return NULL;
 	}
 
 	return scope_find_type(scope, id);
 }
 
-struct ast_node *file_scope_resolve_type(struct scope *scope, struct ast_node *type)
+struct ast_node *file_scope_resolve_type(struct scope *scope,
+                                         struct ast_node *type)
 {
 	struct ast_node *found = scope_resolve_type(scope, type);
 	if (found)
@@ -1062,13 +1092,14 @@ struct ast_node *file_scope_resolve_type(struct scope *scope, struct ast_node *t
 
 /* this might be useful somewhere else as well */
 static const char *default_types[] = {"u8", "u16", "u32", "u64",
-	"i8" "i16", "i32", "i64",
-	"usize", "isize", "f32", "f64", "void"};
+	                              "i8" "i16", "i32", "i64",
+	                              "usize", "isize", "f32", "f64", "void"};
 
 /* TODO: add error checking */
 int scope_add_defaults(struct scope *root)
 {
-	for (size_t i = 0; i < sizeof(default_types) / sizeof(default_types[0]); ++i) {
+	for (size_t i = 0; i < sizeof(default_types) / sizeof(default_types[0]);
+	     ++i) {
 		const char *type = default_types[i];
 		struct ast_node *n = gen_id(strdup(type));
 		if (!n)
@@ -1090,7 +1121,8 @@ void scope_destroy_defaults(struct scope *scope)
 	struct ast_node type = {0};
 	type.node_type = AST_ID;
 
-	for (size_t i = 0; i < sizeof(default_types) / sizeof(default_types[0]); ++i) {
+	for (size_t i = 0; i < sizeof(default_types) / sizeof(default_types[0]);
+	     ++i) {
 		type._id.id = default_types[i];
 		struct ast_node *n = scope_find_alias(scope, &type);
 		/* something is afoot, but at least try to free the rest */
@@ -1134,7 +1166,8 @@ int scope_add_actual(struct scope *scope, struct ast_node *node)
 	return add_actual(scope->actuals, node);
 }
 
-static struct ast_node *find_actual(struct actual *actuals, struct ast_node *node)
+static struct ast_node *find_actual(struct actual *actuals,
+                                    struct ast_node *node)
 {
 	/* TODO */
 	internal_error("finding actuals not yet implemented");

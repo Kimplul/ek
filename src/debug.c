@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -40,7 +42,8 @@ static const char *find_lineno(const char *buf, size_t no)
 static void _issue(struct src_issue issue, const char *fmt, va_list args)
 {
 	/* get start and end of current line in buffer */
-	const char *line_start = find_lineno(issue.fctx.fbuf, issue.loc.first_line);
+	const char *line_start = find_lineno(issue.fctx.fbuf,
+	                                     issue.loc.first_line);
 	const char *line_end = strchr(line_start, '\n');
 	if (!line_end)
 		line_end = strchr(line_start, 0);
@@ -48,9 +51,9 @@ static void _issue(struct src_issue issue, const char *fmt, va_list args)
 	const int line_len = line_end - line_start;
 
 	fprintf(stderr, "%s:%i:%i: %s: ", issue.fctx.fname,
-			issue.loc.first_line,
-			issue.loc.first_col,
-			issue_level_str(issue.level));
+	        issue.loc.first_line,
+	        issue.loc.first_col,
+	        issue_level_str(issue.level));
 
 	vfprintf(stderr, fmt, args);
 	fputc('\n', stderr);
@@ -89,7 +92,8 @@ void src_issue(struct src_issue issue, const char *err_msg, ...)
 
 /* TODO: should really implement these better, the bad error messages are
  * starting to play a role in debugging */
-void semantic_error(struct file_ctx fctx, struct ast_node *node, const char *fmt, ...)
+void semantic_error(struct file_ctx fctx, struct ast_node *node,
+                    const char *fmt, ...)
 {
 	va_list args;
 	va_start(args, fmt);
@@ -101,7 +105,8 @@ void semantic_error(struct file_ctx fctx, struct ast_node *node, const char *fmt
 	va_end(args);
 }
 
-void semantic_warn(struct file_ctx fctx, struct ast_node *node, const char *fmt, ...)
+void semantic_warn(struct file_ctx fctx, struct ast_node *node, const char *fmt,
+                   ...)
 {
 	va_list args;
 	va_start(args, fmt);
@@ -113,7 +118,8 @@ void semantic_warn(struct file_ctx fctx, struct ast_node *node, const char *fmt,
 	va_end(args);
 }
 
-void semantic_info(struct file_ctx fctx, struct ast_node *node, const char *fmt, ...)
+void semantic_info(struct file_ctx fctx, struct ast_node *node, const char *fmt,
+                   ...)
 {
 	va_list args;
 	va_start(args, fmt);

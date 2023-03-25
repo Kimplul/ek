@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+
 #include <stdarg.h>
 
 #include <cu/parser.h>
@@ -31,7 +33,7 @@ void parse(struct parser *p, const char *fname, const char *buf)
 
 /* I'm not convinced this is foolproof quite yet, more testing would be nice. */
 int next_interesting_feature(YYSTYPE *yylval, YYLTYPE *yylloc, void *scanner,
-		struct parser *parser)
+                             struct parser *parser)
 {
 	size_t depth = 0;
 	while (1) {
@@ -68,7 +70,8 @@ struct src_loc to_src_loc(YYLTYPE *yylloc)
 	return loc;
 }
 
-void yyerror(YYLTYPE *yylloc, void *lexer, struct parser *parser, const char *msg)
+void yyerror(YYLTYPE *yylloc, void *lexer, struct parser *parser,
+             const char *msg)
 {
 	(void)lexer;
 

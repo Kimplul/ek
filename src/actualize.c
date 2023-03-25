@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+
 #include <assert.h>
 #include <string.h>
 #include <stdlib.h>
@@ -110,7 +112,8 @@ static int push_label(struct act_state *state, struct ast_node *label)
 	return 0;
 }
 
-static struct ast_node *find_label(struct act_state *state, struct ast_node *label)
+static struct ast_node *find_label(struct act_state *state,
+                                   struct ast_node *label)
 {
 	assert(label->node_type == AST_LABEL);
 	struct act_stack *prev = state->label_stack, *cur;
@@ -138,7 +141,8 @@ static int push_goto(struct act_state *state, struct ast_node *got)
 	return 0;
 }
 
-static struct ast_node *clone_defers(struct act_state *state, struct act_stack *to)
+static struct ast_node *clone_defers(struct act_state *state,
+                                     struct act_stack *to)
 {
 	struct act_stack *from = state->defer_stack;
 
@@ -197,27 +201,28 @@ static void destroy_act_state(struct act_state *state)
 	clear_gotos(state, NULL);
 }
 
-static int actualize(struct act_state *state, struct scope *scope, struct ast_node *node);
+static int actualize(struct act_state *state, struct scope *scope,
+                     struct ast_node *node);
 static int analyze(struct scope *scope, struct ast_node *tree);
 
 static int eval_const_if(struct scope *scope, struct ast_node *node)
 {
 	assert(node
-			&& node->node_type == AST_IF
-			&& ast_flags(node, AST_FLAG_CONST));
+	       && node->node_type == AST_IF
+	       && ast_flags(node, AST_FLAG_CONST));
 
 	int eval = 0;
 	struct ast_node *cond = node->_if.cond;
 	struct ast_node *next = node->next;
 
 	switch (cond->node_type) {
-		/* for now just check if the variable exists, might change in
-		 * the future */
+	/* for now just check if the variable exists, might change in
+	 * the future */
 	case AST_ID: eval = file_scope_find_var(scope, cond) != NULL;
-		     break;
+		break;
 	default: semantic_error(scope->fctx, node,
-				 "const if conditional at file scope unimplemented");
-		 return -1;
+		                "const if conditional at file scope unimplemented");
+		return -1;
 	}
 
 	destroy_ast_tree(cond);
@@ -282,7 +287,8 @@ static int analyze_file_visibility(struct scope *scope, struct ast_node *node)
 
 	case AST_IMPORT: {
 		const char *file = node->_import.file;
-		ret |= process_file(&scope, ast_flags(node, AST_FLAG_PUBLIC), file);
+		ret |= process_file(&scope, ast_flags(node,
+		                                      AST_FLAG_PUBLIC), file);
 		destroy_ast_tree(node);
 		break;
 	}
@@ -478,13 +484,15 @@ int types_match(struct ast_node *a, struct ast_node *b)
 	assert(b->node_type == AST_TYPE);
 
 	/* handle special cases that should match even with different type kinds */
-	if (a->_type.kind == AST_TYPE_TEMPLATE || b->_type.kind == AST_TYPE_TEMPLATE) {
+	if (a->_type.kind == AST_TYPE_TEMPLATE ||
+	    b->_type.kind == AST_TYPE_TEMPLATE) {
 		if (template_match(a, b))
 			return 1;
 		return 0;
 	}
 
-	if (a->_type.kind == AST_TYPE_ALIAS || b->_type.kind == AST_TYPE_ALIAS) {
+	if (a->_type.kind == AST_TYPE_ALIAS ||
+	    b->_type.kind == AST_TYPE_ALIAS) {
 		if (alias_match(a, b))
 			return 1;
 		return 0;
@@ -533,14 +541,15 @@ static int _replace_id(struct ast_node *node, void *data)
 	/* a succesful replacement needs no futher replacements, I think */
 	return 0;
 }
-static int replace_id(struct ast_node *body, struct ast_node *id, struct ast_node *expr)
+static int replace_id(struct ast_node *body, struct ast_node *id,
+                      struct ast_node *expr)
 {
 	struct ast_node *pair[2] = {id, expr};
 	return ast_call_on(_replace_id, body, pair);
 }
 
 static int actualize_macro(struct act_state *state,
-		struct scope *scope, struct ast_node *macro)
+                           struct scope *scope, struct ast_node *macro)
 {
 	UNUSED(state);
 	/* macro bodies, arguments, etc aren't expanded upon until the macro is
@@ -573,13 +582,15 @@ struct ast_node *extract_base(struct ast_node *type)
 	return extract_base(type->_type.next);
 }
 
-static void actualize_template_types(struct ast_node *params, struct ast_node *args)
+static void actualize_template_types(struct ast_node *params,
+                                     struct ast_node *args)
 {
 	/* replace parameter types with argument types */
 	if (args)
 		do {
 			assert(params->type);
-			struct ast_node *template = extract_template(params->type);
+			struct ast_node *template = extract_template(
+				params->type);
 			if (template) {
 				/* at this point we know that the types will
 				 * match, otherwise match_proc and friends
@@ -604,7 +615,8 @@ static void actualize_template_types(struct ast_node *params, struct ast_node *a
 }
 
 static int actualize_proc_call(struct act_state *state,
-		struct scope *scope, struct ast_node *call, struct ast_node *proc)
+                               struct scope *scope, struct ast_node *call,
+                               struct ast_node *proc)
 {
 	/* proc has already been actualized, so we don't have to do anything  */
 	if (ast_flags(proc, AST_FLAG_ACTUAL)) {
@@ -617,7 +629,8 @@ static int actualize_proc_call(struct act_state *state,
 	}
 
 	if (ast_flags(proc, AST_FLAG_VARIADIC)) {
-		semantic_error(scope->fctx, proc, "variadic procs not yet implemented");
+		semantic_error(scope->fctx, proc,
+		               "variadic procs not yet implemented");
 		return -1;
 	}
 
@@ -639,7 +652,8 @@ static int actualize_proc_call(struct act_state *state,
 
 		struct scope *tmp = create_scope();
 		if (!tmp) {
-			internal_error("failed creating temporary signature scope");
+			internal_error(
+				"failed creating temporary signature scope");
 			return -1;
 		}
 
@@ -680,12 +694,13 @@ static int actualize_proc_call(struct act_state *state,
 }
 
 static int actualize_macro_call(struct act_state *state,
-		struct scope *scope, struct ast_node *call,
-		struct ast_node *macro)
+                                struct scope *scope, struct ast_node *call,
+                                struct ast_node *macro)
 {
 	assert(call->node_type == AST_CALL && macro->node_type == AST_MACRO);
 	if (ast_flags(macro, AST_FLAG_VARIADIC)) {
-		semantic_error(scope->fctx, macro, "variadic macros not yet implemented");
+		semantic_error(scope->fctx, macro,
+		               "variadic macros not yet implemented");
 		return -1;
 	}
 
@@ -712,7 +727,7 @@ static int actualize_macro_call(struct act_state *state,
 
 		if (replace_id(body, param, arg)) {
 			semantic_error(scope->fctx, call,
-					"failed replacing params with args");
+			               "failed replacing params with args");
 			destroy_ast_tree(body);
 			arg->next = next_arg;
 			return -1;
@@ -740,7 +755,7 @@ static int actualize_macro_call(struct act_state *state,
 }
 
 static int actualize_call(struct act_state *state,
-		struct scope *scope, struct ast_node *call)
+                          struct scope *scope, struct ast_node *call)
 {
 	assert(call && call->node_type == AST_CALL);
 
@@ -765,7 +780,7 @@ get_callable:
 
 	if (act_flags(state, ACT_ONLY_TYPES)) {
 		if (callable->node_type == AST_PROC
-				&& !ast_flags(callable->_proc.sign, AST_FLAG_ACTUAL)) {
+		    && !ast_flags(callable->_proc.sign, AST_FLAG_ACTUAL)) {
 			/* since we're in types only mode, this should be fine */
 			if (actualize(state, scope, callable))
 				return -1;
@@ -782,7 +797,7 @@ get_callable:
 
 	/* TODO: add lambdas and arrays */
 	semantic_error(scope->fctx, call,
-			"currently only procedures and macros are callable");
+	               "currently only procedures and macros are callable");
 	return -1;
 }
 
@@ -793,7 +808,8 @@ static void warn_unused_labels(struct act_state *state, struct scope *scope)
 		do {
 			struct ast_node *label = labels->node;
 			if (!ast_flags(label, AST_FLAG_ACTUAL))
-				semantic_warn(scope->fctx, label, "unused label");
+				semantic_warn(scope->fctx, label,
+				              "unused label");
 
 		} while ((labels = labels->next));
 }
@@ -806,7 +822,8 @@ static int undefined_gotos(struct act_state *state, struct scope *scope)
 		do {
 			struct ast_node *got = gotos->node;
 			if (!ast_flags(got, AST_FLAG_ACTUAL)) {
-				semantic_warn(scope->fctx, got, "undefined label");
+				semantic_warn(scope->fctx, got,
+				              "undefined label");
 				ret = -1;
 			}
 
@@ -818,7 +835,7 @@ static int undefined_gotos(struct act_state *state, struct scope *scope)
 /* TODO: add in some kind of subsystem for keeping track of which procedure
  * we're in, what the last defined var is, possibly more? */
 static int actualize_proc(struct act_state *state,
-		struct scope *scope, struct ast_node *proc)
+                          struct scope *scope, struct ast_node *proc)
 {
 	/* actualize_proc is called on template procs as well, but I believe
 	 * that's fine? */
@@ -865,7 +882,7 @@ static int actualize_proc(struct act_state *state,
 
 	   params = params->next;
 	   }
-	   */
+	 */
 
 	/* we don't have to maintain the same flags as the parent state, I don't
 	 * think */
@@ -876,14 +893,14 @@ static int actualize_proc(struct act_state *state,
 	if (!act_flags(&new_state, ACT_HAS_RETURN)) {
 		if (!is_void(sign->_type.sign.ret)) {
 			semantic_error(scope->fctx, actual,
-					"no return with non-void return type");
+			               "no return with non-void return type");
 			ret = -1;
 		}
 	}
 	else if (ast_block_last(actual->_proc.body)->node_type != AST_RETURN) {
 		/* TODO: something more sophisticated than this */
 		semantic_warn(scope->fctx, actual,
-				"unable to determine explicit return for all branches");
+		              "unable to determine explicit return for all branches");
 	}
 
 	warn_unused_labels(&new_state, scope);
@@ -905,7 +922,7 @@ static int actualize_proc(struct act_state *state,
 }
 
 static int actualize_binop(struct act_state *state,
-		struct scope *scope, struct ast_node *binop)
+                           struct scope *scope, struct ast_node *binop)
 {
 	assert(binop && binop->node_type == AST_BINOP);
 
@@ -919,12 +936,14 @@ static int actualize_binop(struct act_state *state,
 		return ret;
 
 	if (!left->type) {
-		semantic_error(scope->fctx, binop, "unable to detect lefthand type");
+		semantic_error(scope->fctx, binop,
+		               "unable to detect lefthand type");
 		return -1;
 	}
 
 	if (!right->type) {
-		semantic_error(scope->fctx, binop, "unable to detect righthand type");
+		semantic_error(scope->fctx, binop,
+		               "unable to detect righthand type");
 		return -1;
 	}
 
@@ -934,7 +953,8 @@ static int actualize_binop(struct act_state *state,
 		char *left_type = type_str(left);
 		char *right_type = type_str(right);
 		semantic_error(scope->fctx, binop,
-				"type mismatch (%s vs %s)", left_type, right_type);
+		               "type mismatch (%s vs %s)", left_type,
+		               right_type);
 		free(left_type);
 		free(right_type);
 		return -1;
@@ -952,7 +972,7 @@ static int actualize_binop(struct act_state *state,
 
 
 static int actualize_block(struct act_state *state,
-		struct scope *scope, struct ast_node *node)
+                           struct scope *scope, struct ast_node *node)
 {
 	struct scope *block_scope = scope;
 	if (!ast_flags(node, AST_FLAG_UNHYGIENIC)) {
@@ -972,7 +992,8 @@ static int actualize_block(struct act_state *state,
 	/* the block type is the last statement in the block's type */
 	node->type = ast_last_node(node->_block.body)->type;
 	if (!node->type) {
-		semantic_error(scope->fctx, node, "unable to detect block type");
+		semantic_error(scope->fctx, node,
+		               "unable to detect block type");
 		return -1;
 	}
 
@@ -992,7 +1013,7 @@ static int actualize_block(struct act_state *state,
 }
 
 static int actualize_id(struct act_state *state,
-		struct scope *scope, struct ast_node *id)
+                        struct scope *scope, struct ast_node *id)
 {
 	UNUSED(state);
 	assert(id && id->node_type == AST_ID);
@@ -1003,7 +1024,8 @@ static int actualize_id(struct act_state *state,
 	}
 
 	if (!decl->type) {
-		semantic_error(scope->fctx, id, "no type associated with object");
+		semantic_error(scope->fctx, id,
+		               "no type associated with object");
 		return -1;
 	}
 
@@ -1012,7 +1034,7 @@ static int actualize_id(struct act_state *state,
 }
 
 static int actualize_var(struct act_state *state,
-		struct scope *scope, struct ast_node *var)
+                         struct scope *scope, struct ast_node *var)
 {
 	assert(var && var->node_type == AST_VAR);
 	struct ast_node *init = var->_var.init;
@@ -1039,8 +1061,9 @@ static int actualize_var(struct act_state *state,
 		if (!types_match(init->type, type)) {
 			char *init_type = type_str(init->type);
 			char *req_type = type_str(type);
-			semantic_error(scope->fctx, var, "type mismatch (%s vs %s)",
-					req_type, init_type);
+			semantic_error(scope->fctx, var,
+			               "type mismatch (%s vs %s)",
+			               req_type, init_type);
 			free(init_type);
 			free(req_type);
 			return -1;
@@ -1065,19 +1088,19 @@ static int actualize_var(struct act_state *state,
 	return 0;
 }
 
-#define ENTER_ACT()\
-enum act_flags old_flags = state->flags;\
-struct ast_node *old_template = state->cur_template;
+#define ENTER_ACT()                              \
+	enum act_flags old_flags = state->flags; \
+	struct ast_node *old_template = state->cur_template;
 
-#define EXIT_ACT(r)\
-do {\
-	state->cur_template = old_template;\
-	state->flags = old_flags;\
-	return r;\
-} while (0);
+#define EXIT_ACT(r)                                 \
+	do {                                        \
+		state->cur_template = old_template; \
+		state->flags = old_flags;           \
+		return r;                           \
+	} while (0);
 
 static int actualize_type(struct act_state *state,
-		struct scope *scope, struct ast_node *type)
+                          struct scope *scope, struct ast_node *type)
 {
 	/* TODO: there's gotta be a better way to handle flags. Maybe macros
 	 * like ENTER_ACTUALIZE and EXIT_ACTUALIZE? */
@@ -1087,7 +1110,8 @@ static int actualize_type(struct act_state *state,
 	ENTER_ACT();
 	act_set_flags(state, ACT_ONLY_TYPES);
 
-	if (ast_flags(type, AST_FLAG_INIT) && !ast_flags(type, AST_FLAG_ACTUAL)) {
+	if (ast_flags(type,
+	              AST_FLAG_INIT) && !ast_flags(type, AST_FLAG_ACTUAL)) {
 		semantic_error(scope->fctx, type, "detected type loop");
 		EXIT_ACT(-1);
 	}
@@ -1122,9 +1146,9 @@ static int actualize_type(struct act_state *state,
 			break;
 
 		assert(exists->node_type == AST_ALIAS
-				|| exists->node_type == AST_TEMPLATE
-				|| exists->node_type == AST_STRUCT
-				|| exists->node_type == AST_ENUM);
+		       || exists->node_type == AST_TEMPLATE
+		       || exists->node_type == AST_STRUCT
+		       || exists->node_type == AST_ENUM);
 		/* actualize whatever type we have on demand, either alias or
 		 * template */
 		if (!ast_flags(exists, AST_FLAG_ACTUAL))
@@ -1152,7 +1176,8 @@ static int actualize_type(struct act_state *state,
 			destroy_ast_node(type->_type.id);
 			assert(type->_type.next == NULL);
 			type->_type.kind = AST_TYPE_STRUCT;
-			type->_type.struc.struc = clone_ast_node(exists->_struct.id);
+			type->_type.struc.struc = clone_ast_node(
+				exists->_struct.id);
 			/* should be populated later */
 			type->_type.struc.impls = NULL;
 		}
@@ -1177,7 +1202,7 @@ static int actualize_type(struct act_state *state,
 		 * this is a decent starting point */
 		if (expr->type->_type.kind == AST_TYPE_TYPEOF) {
 			semantic_error(scope->fctx, type,
-					"couldn't actualize type expression\n");
+			               "couldn't actualize type expression\n");
 			EXIT_ACT(-1);
 		}
 
@@ -1235,7 +1260,8 @@ static int actualize_type(struct act_state *state,
 	ast_set_flags(type, AST_FLAG_ACTUAL);
 
 	if (type->_type.kind == AST_TYPE_TYPEOF) {
-		semantic_error(scope->fctx, type, "couldn't convert expression to type");
+		semantic_error(scope->fctx, type,
+		               "couldn't convert expression to type");
 		EXIT_ACT(-1);
 	}
 
@@ -1244,7 +1270,7 @@ static int actualize_type(struct act_state *state,
 }
 
 static int actualize_empty(struct act_state *state,
-		struct scope *scope, struct ast_node *node)
+                           struct scope *scope, struct ast_node *node)
 {
 	UNUSED(state);
 	/* TODO: converting to void is common enough that it might be worth
@@ -1339,7 +1365,7 @@ static int pointer_conversion(struct ast_node *a, struct ast_node *b)
 }
 
 static int check_impls(struct scope *scope, struct ast_node *target,
-		struct ast_node *exists)
+                       struct ast_node *exists)
 {
 	struct ast_node *args = target->_type.struc.impls;
 	struct ast_node *params = exists->_struct.generics;
@@ -1351,8 +1377,9 @@ static int check_impls(struct scope *scope, struct ast_node *target,
 		if (!implements(scope, args, alias_actual)) {
 			char *astr = type_str(args);
 			char *pstr = type_str(params->type);
-			semantic_error(scope->fctx, args, "%s does not implement %s",
-					astr, pstr);
+			semantic_error(scope->fctx, args,
+			               "%s does not implement %s",
+			               astr, pstr);
 			free(astr);
 			free(pstr);
 			return -1;
@@ -1363,7 +1390,8 @@ static int check_impls(struct scope *scope, struct ast_node *target,
 	}
 
 	if (args || params) {
-		semantic_error(scope->fctx, target, "wrong number of type arguments");
+		semantic_error(scope->fctx, target,
+		               "wrong number of type arguments");
 		return -1;
 	}
 
@@ -1371,7 +1399,7 @@ static int check_impls(struct scope *scope, struct ast_node *target,
 }
 
 static int actualize_init_cast(struct act_state *state,
-		struct scope *scope, struct ast_node *cast)
+                               struct scope *scope, struct ast_node *cast)
 {
 	struct ast_node *target = cast->_cast.type;
 	if (actualize(state, scope, target))
@@ -1402,7 +1430,7 @@ static int actualize_init_cast(struct act_state *state,
 }
 
 static int actualize_cast(struct act_state *state,
-		struct scope *scope, struct ast_node *cast)
+                          struct scope *scope, struct ast_node *cast)
 {
 	assert(cast->node_type == AST_CAST);
 	struct ast_node *expr = cast->_cast.expr;
@@ -1432,7 +1460,7 @@ static int actualize_cast(struct act_state *state,
 	}
 
 	if (pointer_conversion(expr->type, type)
-			|| pointer_conversion(type, expr->type)) {
+	    || pointer_conversion(type, expr->type)) {
 		cast->type = type;
 		return 0;
 	}
@@ -1442,21 +1470,21 @@ static int actualize_cast(struct act_state *state,
 	char *left_type = type_str(expr);
 	char *right_type = type_str(type);
 	semantic_error(scope->fctx, cast, "illegal cast (%s vs %s)",
-			left_type, right_type);
+	               left_type, right_type);
 	free(left_type);
 	free(right_type);
 	return -1;
 }
 
 static int actualize_const(struct act_state *state, struct scope *scope,
-		struct ast_node *cons)
+                           struct ast_node *cons)
 {
 	UNUSED(state);
 	assert(cons->node_type == AST_CONST);
 	if (cons->_const.kind == AST_CONST_INTEGER) {
 		/* error checking would be doog */
 		cons->type = gen_type(AST_TYPE_ID, gen_id(strdup("i64")),
-				NULL, NULL);
+		                      NULL, NULL);
 		scope_add_scratch(scope, cons->type);
 		return 0;
 	}
@@ -1466,7 +1494,7 @@ static int actualize_const(struct act_state *state, struct scope *scope,
 }
 
 static int actualize_alias(struct act_state *state, struct scope *scope,
-		struct ast_node *alias)
+                           struct ast_node *alias)
 {
 	/* I shall have to think about things, as currently very deeply nested
 	 * aliases might be a bit cumbersome to work with. Still, this works
@@ -1490,13 +1518,13 @@ static int actualize_alias(struct act_state *state, struct scope *scope,
 
 	ast_set_flags(alias, AST_FLAG_ACTUAL);
 	alias->type = gen_type(AST_TYPE_ALIAS, NULL,
-			alias->_alias.id, alias->_alias.type);
+	                       alias->_alias.id, alias->_alias.type);
 	scope_add_scratch(scope, alias->type);
 	return 0;
 }
 
 static int actualize_template(struct act_state *state, struct scope *scope,
-		struct ast_node *template)
+                              struct ast_node *template)
 {
 	assert(template->node_type == AST_TEMPLATE);
 	ast_set_flags(template, AST_FLAG_ACTUAL);
@@ -1508,7 +1536,8 @@ static int actualize_template(struct act_state *state, struct scope *scope,
 	 * testing for */
 	act_set_flags(state, ACT_ONLY_TYPES);
 	if (actualize(state, template->scope, template->_template.body)) {
-		semantic_error(scope->fctx, template, "failed actualizing template");
+		semantic_error(scope->fctx, template,
+		               "failed actualizing template");
 		EXIT_ACT(-1);
 	}
 
@@ -1525,7 +1554,7 @@ static int actualize_template(struct act_state *state, struct scope *scope,
 }
 
 static int actualize_defer(struct act_state *state,
-		struct scope *scope, struct ast_node *node)
+                           struct scope *scope, struct ast_node *node)
 {
 	struct ast_node *expr = node->_defer.expr;
 	/* TODO: should the actualization only happen when the defers are
@@ -1542,7 +1571,7 @@ static int actualize_defer(struct act_state *state,
 }
 
 static int actualize_return(struct act_state *state, struct scope *scope,
-		struct ast_node *node)
+                            struct ast_node *node)
 {
 	act_set_flags(state, ACT_HAS_RETURN);
 	struct ast_node *expr = node->_return.expr;
@@ -1564,8 +1593,9 @@ static int actualize_return(struct act_state *state, struct scope *scope,
 	if (!types_match(node->type, ret)) {
 		char *rt = type_str(ret);
 		char *et = type_str(node);
-		semantic_error(scope->fctx, node, "return type mismatch: %s vs %s",
-				rt, et);
+		semantic_error(scope->fctx, node,
+		               "return type mismatch: %s vs %s",
+		               rt, et);
 		free(rt);
 		free(et);
 		return -1;
@@ -1633,7 +1663,7 @@ static void actualize_goto_defer(struct ast_node *got, struct ast_node *label)
 
 
 static int actualize_goto(struct act_state *state, struct scope *scope,
-		struct ast_node *node)
+                          struct ast_node *node)
 {
 	assert(node->node_type == AST_GOTO);
 	push_goto(state, node);
@@ -1652,7 +1682,8 @@ static int actualize_goto(struct act_state *state, struct scope *scope,
 	return 0;
 }
 
-static void actualize_goto_defers(struct act_state *state, struct ast_node *label)
+static void actualize_goto_defers(struct act_state *state,
+                                  struct ast_node *label)
 {
 	struct act_stack *prev = state->goto_stack, *cur;
 	if (prev)
@@ -1666,7 +1697,7 @@ static void actualize_goto_defers(struct act_state *state, struct ast_node *labe
 }
 
 static int actualize_label(struct act_state *state, struct scope *scope,
-		struct ast_node *node)
+                           struct ast_node *node)
 {
 	assert(node->node_type == AST_LABEL);
 	struct ast_node *prev = find_label(state, node);
@@ -1687,7 +1718,7 @@ static int actualize_label(struct act_state *state, struct scope *scope,
 }
 
 static int actualize_unop(struct act_state *state,
-		struct scope *scope, struct ast_node *node)
+                          struct scope *scope, struct ast_node *node)
 {
 	assert(node->node_type == AST_UNOP);
 	struct ast_node *expr = node->_unop.expr;
@@ -1703,7 +1734,7 @@ static int actualize_unop(struct act_state *state,
 		if (type->_type.kind != AST_TYPE_POINTER) {
 			/* TODO: or array */
 			semantic_error(scope->fctx, expr,
-					"trying to dereference something that's not a pointer");
+			               "trying to dereference something that's not a pointer");
 			return -1;
 		}
 
@@ -1712,19 +1743,21 @@ static int actualize_unop(struct act_state *state,
 		break;
 	}
 
-	default: semantic_error(scope->fctx, node, "unimplemented unary operation");
-		 return -1;
+	default: semantic_error(scope->fctx, node,
+		                "unimplemented unary operation");
+		return -1;
 	}
 
 	return 0;
 }
 
 static int actualize_as(struct act_state *state,
-		struct scope *scope, struct ast_node *as)
+                        struct scope *scope, struct ast_node *as)
 {
 	assert(as->node_type == AST_AS);
 	if (!act_flags(state, ACT_ONLY_TYPES)) {
-		semantic_error(scope->fctx, as, "as used outside of type context");
+		semantic_error(scope->fctx, as,
+		               "as used outside of type context");
 		return -1;
 	}
 
@@ -1737,7 +1770,7 @@ static int actualize_as(struct act_state *state,
 }
 
 static int actualize_struct(struct act_state *state,
-		struct scope *scope, struct ast_node *node)
+                            struct scope *scope, struct ast_node *node)
 {
 	assert(node->node_type == AST_STRUCT);
 	ast_set_flags(node, AST_FLAG_INIT);
@@ -1783,7 +1816,7 @@ static int has_members(struct ast_node *type)
 }
 
 static int actualize_dot(struct act_state *state,
-		struct scope *scope, struct ast_node *node)
+                         struct scope *scope, struct ast_node *node)
 {
 	assert(node->node_type == AST_DOT);
 	struct ast_node *expr = node->_dot.expr;
@@ -1794,7 +1827,7 @@ static int actualize_dot(struct act_state *state,
 	if (!has_members(expr->type)) {
 		char *tstr = type_str(expr->type);
 		semantic_error(scope->fctx, node, "%s does not have member %s",
-				tstr, id->_id.id);
+		               tstr, id->_id.id);
 		free(tstr);
 		return -1;
 	}
@@ -1805,7 +1838,7 @@ static int actualize_dot(struct act_state *state,
 }
 
 static int actualize_init(struct act_state *state,
-		struct scope *scope, struct ast_node *node)
+                          struct scope *scope, struct ast_node *node)
 {
 	assert(node->node_type == AST_INIT);
 	/* for now just do the types, the named stuff will be checked later */
@@ -1819,7 +1852,7 @@ static int actualize_init(struct act_state *state,
 }
 
 static int actualize_assign(struct act_state *state, struct scope *scope,
-		struct ast_node *node)
+                            struct ast_node *node)
 {
 	assert(node->node_type == AST_ASSIGN);
 	struct ast_node *to = node->_assign.to;
@@ -1840,7 +1873,7 @@ static int actualize_assign(struct act_state *state, struct scope *scope,
 		char *tostr = type_str(to->type);
 		char *fromstr = type_str(from->type);
 		semantic_error(scope->fctx, node, "type mismatch (%s vs %s)",
-				tostr, fromstr);
+		               tostr, fromstr);
 		free(tostr);
 		free(fromstr);
 		return -1;
@@ -1850,7 +1883,8 @@ static int actualize_assign(struct act_state *state, struct scope *scope,
 	return 0;
 }
 
-static int actualize(struct act_state *state, struct scope *scope, struct ast_node *node)
+static int actualize(struct act_state *state, struct scope *scope,
+                     struct ast_node *node)
 {
 	int ret = 0;
 	if (!node)
@@ -1890,9 +1924,10 @@ static int actualize(struct act_state *state, struct scope *scope, struct ast_no
 	case AST_ASSIGN: ret |= actualize_assign(state, scope, node); break;
 
 	default:
-		      /* more like internal_error, maybe? */
-		      semantic_error(scope->fctx, node, "unimplemented actualization");
-		      break;
+		/* more like internal_error, maybe? */
+		semantic_error(scope->fctx, node,
+		               "unimplemented actualization");
+		break;
 	}
 
 	/* should it automatically handle next nodes or should it be saved to
@@ -1923,7 +1958,8 @@ int actualize_main(struct scope *root)
 	return ret;
 }
 
-void replace_type(struct ast_node *type, struct ast_node *from, struct ast_node *to)
+void replace_type(struct ast_node *type, struct ast_node *from,
+                  struct ast_node *to)
 {
 	if (!type)
 		return;
@@ -1944,7 +1980,7 @@ void replace_type(struct ast_node *type, struct ast_node *from, struct ast_node 
 }
 
 void replace_param_types(struct ast_node *param, struct ast_node *param_type,
-		struct ast_node *arg_type)
+                         struct ast_node *arg_type)
 {
 	while (param) {
 		replace_type(param->type, param_type, arg_type);

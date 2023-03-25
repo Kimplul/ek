@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+
 /* A Bison parser, made by GNU Bison 3.8.2.  */
 
 /* Bison interface for Yacc-like parsers in C
@@ -35,8 +37,8 @@
    especially those whose name start with YY_ or yy_.  They are
    private implementation details that can be changed or removed.  */
 
-#ifndef YY_YY_SRC_GEN_PARSER_H_INCLUDED
-# define YY_YY_SRC_GEN_PARSER_H_INCLUDED
+#ifndef YY_YY_GEN_GEN_PARSER_H_INCLUDED
+# define YY_YY_GEN_GEN_PARSER_H_INCLUDED
 /* Debug traces.  */
 #ifndef YYDEBUG
 # define YYDEBUG 1
@@ -147,7 +149,7 @@ union YYSTYPE
 	double dbl;
 	char *str;
 
-#line 151 "src/gen_parser.h"
+#line 151 "gen/gen_parser.h"
 
 };
 typedef union YYSTYPE YYSTYPE;
@@ -175,4 +177,4 @@ struct YYLTYPE
 int yyparse (void *scanner, struct parser* parser);
 
 
-#endif /* !YY_YY_SRC_GEN_PARSER_H_INCLUDED  */
+#endif /* !YY_YY_GEN_GEN_PARSER_H_INCLUDED  */

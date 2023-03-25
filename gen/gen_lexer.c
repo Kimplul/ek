@@ -1,6 +1,8 @@
-#line 2 "src/gen_lexer.c"
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 
-#line 4 "src/gen_lexer.c"
+#line 2 "gen/gen_lexer.c"
+
+#line 4 "gen/gen_lexer.c"
 
 #define  YY_INT_ALIGNED short int
 
@@ -616,9 +618,9 @@ static void update_yylloc(struct parser *parser, YYLTYPE *lloc, const char *text
 }
 
 #define YY_USER_ACTION update_yylloc(parser, yylloc, yytext);
-#line 620 "src/gen_lexer.c"
+#line 620 "gen/gen_lexer.c"
 
-#line 622 "src/gen_lexer.c"
+#line 622 "gen/gen_lexer.c"
 
 #define INITIAL 0
 #define SC_COMMENT 1
@@ -879,7 +881,7 @@ YY_DECL
 	{
 #line 44 "src/lexer.l"
 
-#line 883 "src/gen_lexer.c"
+#line 883 "gen/gen_lexer.c"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -1457,7 +1459,7 @@ YY_RULE_SETUP
 #line 212 "src/lexer.l"
 YY_FATAL_ERROR( "flex scanner jammed" );
 	YY_BREAK
-#line 1461 "src/gen_lexer.c"
+#line 1461 "gen/gen_lexer.c"
 case YY_STATE_EOF(INITIAL):
 case YY_STATE_EOF(SC_COMMENT):
 	yyterminate();

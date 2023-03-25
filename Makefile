@@ -19,6 +19,7 @@ CC		= gcc
 SOURCES		:=
 
 include src/source.mk
+include gen/source.mk
 
 COMPILE		= $(CROSS_COMPILE)$(CC) $(DEBUGFLAGS)\
 		  $(CFLAGS) $(DEPFLAGS) $(COMPILEFLAGS) $(INCLUDEFLAGS)
@@ -29,8 +30,10 @@ include deps.mk
 
 .PHONY: format
 format:
-	@find . -iname '*.[ch]' |\
-		xargs -n 10 -P 0 uncrustify -c uncrustify.conf --no-backup -F -
+	@cd src; find . -iname '*.[ch]' |\
+		xargs -n 10 -P 0 uncrustify -c ../uncrustify.conf --no-backup -F -
+	@cd include; find . -iname '*.[ch]' |\
+		xargs -n 10 -P 0 uncrustify -c ../uncrustify.conf --no-backup -F -
 
 .PHONY: license
 license:

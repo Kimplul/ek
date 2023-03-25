@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -7,13 +9,13 @@
 #include <cu/compiler.h>
 
 static const char *cmdline_usage =
-"Copper compiler usage:\n"
-" cu [-I <dir>...] [-D <var>...] infile...\n"
-"	-h       Show usage (this)\n"
-"	-I <dir> Add directory to import path\n"
-"	-D <var> Add predefined variable\n"
-"	-o       Name of output\n"
-"	infile   Top file(s) to compile\n"
+	"Copper compiler usage:\n"
+	" cu [-I <dir>...] [-D <var>...] infile...\n"
+	"	-h       Show usage (this)\n"
+	"	-I <dir> Add directory to import path\n"
+	"	-D <var> Add predefined variable\n"
+	"	-o       Name of output\n"
+	"	infile   Top file(s) to compile\n"
 ;
 
 static void usage()
