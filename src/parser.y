@@ -138,7 +138,7 @@
 %nterm <node> embed param_decl union struct struct_list struct_elem
 %nterm <node> top_if const_if const_for defer goto assign
 %nterm <node> struct_construct struct_inits struct_init cond
-%nterm <node> generic generic_list union_struct
+%nterm <node> generic generic_list
 
 %destructor {} FLOAT INT STRING ID
 %destructor { destroy_ast_tree($$); } <*>
@@ -235,7 +235,6 @@ defer: "defer" "(" expr ")" { $$ = gen_defer($3);  }
 /* TODO: concatenate multiple strings together */
 expr: id { $$ = $1; }
 	| expr "." id { $$ = gen_dot($1, $3); }
-	| id "##" id { $$ = gen_paste($1, $3);  }
 	| "..." id { $$ = $2; }
 	| "@" { $$ = gen_last();  }
 	| INT { $$ = gen_int($1); $$->loc = to_src_loc(&yylloc); }

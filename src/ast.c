@@ -460,11 +460,6 @@ struct ast_node *gen_type(enum ast_type_kind kind, struct ast_node *id,
 		n->_type.lambda.ret = ret;
 		n->loc = loc_span(expr, ret);
 		break;
-
-	case AST_TYPE_IMPL:
-		n->_type.impl.id = id;
-		n->loc = id->loc;
-		break;
 	}
 
 	return n;
@@ -518,10 +513,6 @@ void destroy_type(struct ast_node *type)
 	case AST_TYPE_SIGN:
 		DESTROY_LIST(type->_type.sign.params);
 		destroy_ast_node(type->_type.sign.ret);
-		break;
-
-	case AST_TYPE_IMPL:
-		destroy_ast_node(type->_type.impl.id);
 		break;
 	}
 
@@ -827,24 +818,6 @@ void destroy_import(struct ast_node *import)
 	free(import);
 }
 
-struct ast_node *gen_paste(struct ast_node *id1, struct ast_node *id2)
-{
-	ALLOC_NODE(n, paste);
-	n->node_type = AST_PASTE;
-	n->_paste.id1 = id1;
-	n->_paste.id2 = id2;
-	n->loc = loc_span(id1, id2);
-	return n;
-}
-
-void destroy_paste(struct ast_node *paste)
-{
-	assert(paste->node_type == AST_PASTE);
-	destroy_ast_node(paste->_paste.id1);
-	destroy_ast_node(paste->_paste.id2);
-	free(paste);
-}
-
 struct ast_node *gen_embed(const char *file)
 {
 	ALLOC_NODE(n, embed);
@@ -928,7 +901,6 @@ void destroy_ast_node(struct ast_node *node)
 	case AST_SWITCH: destroy_switch(node); break;
 	case AST_CASE: destroy_case(node); break;
 	case AST_CONST: destroy_const(node); break;
-	case AST_PASTE: destroy_paste(node); break;
 	case AST_ALIAS: destroy_alias(node); break;
 	case AST_TEMPLATE: destroy_template(node); break;
 	case AST_ID: destroy_id(node); break;
@@ -1321,10 +1293,6 @@ static void __dump_ast(int depth, struct ast_node *node)
 				    dump_ast(depth + 1, node->_type.sign.params);
 				    dump_ast(depth + 1, node->_type.sign.ret);
 				    break;
-
-		case AST_TYPE_IMPL: printf(" IMPLS\n");
-				    dump_ast(depth + 1, node->_type.impl.id);
-				    dump_ast(depth + 1, node->_type.impl.types);
 		}
 
 		dump_ast(depth + 1, node->_type.next);
@@ -1354,17 +1322,6 @@ static void __dump_ast(int depth, struct ast_node *node)
 		dump(depth, "{EMPTY:");
 		dump_flags(node);
 		printf("}\n");
-		break;
-
-	case AST_PASTE:
-		dump(depth, "{PASTE:");
-		dump_flags(node);
-		putchar('\n');
-
-		dump_ast(depth + 1, node->_paste.id1);
-		dump_ast(depth + 1, node->_paste.id2);
-
-		dump(depth, "}\n");
 		break;
 
 	case AST_FOR:
@@ -1601,8 +1558,8 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 	case AST_VAR: {
 		struct ast_node *type = clone_ast_node(node->_var.type);
 		new = gen_var(clone_ast_node(node->_var.id),
-				      type,
-				      clone_ast_node(node->_var.init));
+				type,
+				clone_ast_node(node->_var.init));
 		/* vars always reference the type associated with them? */
 		new->type = type;
 		break;
@@ -1699,11 +1656,6 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 						 clone_ast_node(node->_type.sign.ret));
 				 break;
 
-			 case AST_TYPE_IMPL:
-				 new = gen_type(AST_TYPE_IMPL,
-						 clone_ast_node(node->_type.impl.id),
-						 clone_ast_node(node->_type.impl.types),
-						 NULL);
 			 }
 			 new->_type.next = clone_ast_node(node->_type.next);
 			 break;
@@ -1719,11 +1671,6 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 
 	case AST_EMBED:
 			 new = gen_embed(strdup(node->_import.file));
-			 break;
-
-	case AST_PASTE:
-			 new = gen_paste(clone_ast_node(node->_paste.id1),
-					 clone_ast_node(node->_paste.id2));
 			 break;
 
 	case AST_ENUM:
@@ -1833,478 +1780,563 @@ static int identical_scope(void *left, void *right)
 	return left == right;
 }
 
-/* sort of unfortnate that we can't just do a direct memcmp... */
-int identical_ast_nodes(int exact, struct ast_node *left, struct ast_node *right)
+static int identical_union(int exact, struct ast_node *a, struct ast_node *b)
 {
-	/* both being NULL counts as identical */
-	if (!left && !right)
-		return 1;
-
-	/* the same node must be the same */
-	if (left == right)
-		return 1;
-
-	/* either one being null means not identical */
-	if (!left)
+	if (!identical_ast_nodes(exact, a->_union.id, b->_union.id))
 		return 0;
 
-	if (!right)
+	if (!identical_ast_nodes(exact, a->_union.generics, b->_union.generics))
 		return 0;
 
-	if (left->node_type != right->node_type)
+	if (!identical_ast_nodes(exact, a->_union.body, b->_union.body))
 		return 0;
 
-	if (exact && !identical_flags(left->flags, right->flags))
+	return 1;
+}
+
+static int identical_assign(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_assign.to, a->_assign.to))
 		return 0;
 
-	if (exact && !identical_loc(left->loc, right->loc))
+	if (!identical_ast_nodes(exact, b->_assign.from, b->_assign.from))
 		return 0;
 
-	if (exact && !identical_scope(left->scope, right->scope))
+	return 1;
+}
+
+static int identical_init(int exact, struct ast_node *a, struct ast_node *b)
+{
+	return identical_ast_nodes(exact, a->_init.body, b->_init.body);
+}
+
+static int identical_sizeof(int exact, struct ast_node *a, struct ast_node *b)
+{
+	return identical_ast_nodes(exact, a->_sizeof.expr, b->_sizeof.expr);
+}
+
+static int identical_dot(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_dot.expr, b->_dot.expr))
 		return 0;
 
-	switch (left->node_type) {
-	case AST_UNION:
-		if (!identical_ast_nodes(exact, left->_union.id, right->_union.id))
-			return 0;
+	if (!identical_ast_nodes(exact, a->_dot.id, b->_dot.id))
+		return 0;
 
-		if (!identical_ast_nodes(exact, left->_union.generics, right->_union.generics))
-			return 0;
+	return 1;
+}
 
-		if (!identical_ast_nodes(exact, left->_union.body, right->_union.body))
+static int identical_as(int exact, struct ast_node *a, struct ast_node *b)
+{
+	return identical_ast_nodes(exact, a->_as.type, b->_as.type);
+}
+
+static int identical_goto(int exact, struct ast_node *a, struct ast_node *b)
+{
+	return identical_ast_nodes(exact, a->_goto.label, b->_goto.label);
+}
+
+static int identical_label(int exact, struct ast_node *a, struct ast_node *b)
+{
+	return identical_ast_nodes(exact, a->_label.id, b->_label.id);
+}
+
+static int identical_binop(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (a->_binop.op != b->_binop.op)
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_binop.left, b->_binop.left))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_binop.right, b->_binop.right))
+		return 0;
+
+	return 1;
+}
+
+static int identical_unop(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (a->_unop.op != b->_unop.op)
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_unop.expr, b->_unop.expr))
+		return 0;
+
+	return 1;
+}
+
+static int identical_call(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_call.id, b->_call.id))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_call.args, b->_call.args))
+		return 0;
+
+	return 1;
+}
+
+static int identical_cast(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_cast.expr, b->_cast.expr))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_cast.type, b->_cast.type))
+		return 0;
+
+	return 1;
+}
+
+static int identical_defer(int exact, struct ast_node *a, struct ast_node *b)
+{
+	return identical_ast_nodes(exact, a->_defer.expr, b->_defer.expr);
+}
+
+static int identical_macro(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_macro.id, b->_macro.id))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_macro.params, b->_macro.params))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_macro.body, b->_macro.body))
+		return 0;
+
+	return 1;
+}
+
+static int identical_proc(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_proc.id, b->_proc.id))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_proc.sign, b->_proc.sign))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_proc.body, b->_proc.body))
+		return 0;
+
+	return 1;
+}
+
+static int identical_var(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_var.id, b->_var.id))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_var.type, b->_var.type))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_var.init, b->_var.init))
+		return 0;
+
+	return 1;
+}
+
+static int identical_lambda(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_lambda.captures, b->_lambda.captures))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_lambda.sign, b->_lambda.sign))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_lambda.body, b->_lambda.body))
+		return 0;
+
+	return 1;
+}
+
+static int identical_for(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_for.pre, b->_for.pre))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_for.cond, b->_for.cond))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_for.post, b->_for.post))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_for.body, b->_for.body))
+		return 0;
+
+	return 1;
+}
+
+static int identical_while(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_while.cond, b->_while.cond))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_while.body, b->_while.body))
+		return 0;
+
+	return 1;
+}
+
+static int identical_ctrl(int exact, struct ast_node *a, struct ast_node *b)
+{
+	(void)(exact);
+	return a->_ctrl.kind == b->_ctrl.kind;
+}
+
+static int identical_return(int exact, struct ast_node *a, struct ast_node *b)
+{
+	return identical_ast_nodes(exact, a->_return.expr, b->_return.expr);
+}
+
+static int identical_type_alias(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_type.alias.alias, b->_type.alias.alias))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_type.alias.actual, b->_type.alias.actual))
+		return 0;
+	return 1;
+}
+
+static int identical_type_template(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_type.template.template, b->_type.template.template))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_type.template.actual, b->_type.template.actual))
+		return 0;
+
+	return 1;
+}
+
+static int identical_type_id(int exact, struct ast_node *a, struct ast_node *b)
+{
+	return identical_ast_nodes(exact, a->_type.id, b->_type.id);
+}
+
+static int identical_type_arr(int exact, struct ast_node *a, struct ast_node *b)
+{
+	return identical_ast_nodes(exact, a->_type.arr.size, b->_type.arr.size);
+}
+
+static int identical_type_typeof(int exact, struct ast_node *a, struct ast_node *b)
+{
+	return identical_ast_nodes(exact, a->_type.typeo.expr, b->_type.typeo.expr);
+}
+
+static int identical_type_proc(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_type.proc.params, b->_type.proc.params))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_type.proc.ret, b->_type.proc.ret))
+		return 0;
+
+	return 1;
+}
+
+static int identical_type_lambda(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_type.lambda.params, b->_type.lambda.params))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_type.lambda.ret, b->_type.lambda.ret))
+		return 0;
+
+	return 1;
+}
+
+static int identical_type_sign(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_type.sign.params, b->_type.sign.params))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_type.sign.ret, b->_type.sign.ret))
+		return 0;
+
+	return 1;
+}
+
+static int identical_type_struct(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_type.struc.struc, b->_type.struc.struc))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_type.struc.impls, b->_type.struc.impls))
+		return 0;
+
+	return 1;
+}
+
+static int identical_type_union(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_type.unio.id, b->_type.unio.id))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_type.unio.body, b->_type.unio.body))
+		return 0;
+
+	return 1;
+}
+
+static int identical_type(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (a->_type.kind != b->_type.kind)
+		return 0;
+
+	int ret = 0;
+	switch (a->_type.kind) {
+	case AST_TYPE_ALIAS: ret = identical_type_alias(exact, a, b); break;
+	case AST_TYPE_TEMPLATE: ret = identical_type_template(exact, a, b); break;
+	case AST_TYPE_ID: ret = identical_type_id(exact, a, b); break;
+	case AST_TYPE_ARR: ret = identical_type_arr(exact, a, b); break;
+	case AST_TYPE_TYPEOF: ret = identical_type_typeof(exact, a, b); break;
+	case AST_TYPE_PROC: ret = identical_type_proc(exact, a, b); break;
+	case AST_TYPE_LAMBDA: ret = identical_type_lambda(exact, a, b); break;
+	case AST_TYPE_SIGN: ret = identical_type_sign(exact, a, b); break;
+	case AST_TYPE_STRUCT: ret = identical_type_struct(exact, a, b); break;
+	case AST_TYPE_UNION: ret = identical_type_union(exact, a, b); break;
+	case AST_TYPE_POINTER: break;
+	}
+
+	return ret;
+}
+
+static int identical_block(int exact, struct ast_node *a, struct ast_node *b)
+{
+	return identical_ast_nodes(exact, a->_block.body, b->_block.body);
+}
+
+static int identical_import(int exact, struct ast_node *a, struct ast_node *b)
+{
+	(void)(exact);
+	return strcmp(a->_import.file, b->_import.file) == 0;
+}
+
+static int identical_embed(int exact, struct ast_node *a, struct ast_node *b)
+{
+	(void)(exact);
+	return strcmp(a->_embed.file, b->_embed.file) == 0;
+}
+
+static int identical_enum(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_enum.id, b->_enum.id))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_enum.type, b->_enum.type))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_enum.body, b->_enum.body))
+		return 0;
+
+	return 1;
+}
+
+static int identical_struct(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_struct.id, b->_struct.id))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_struct.generics, b->_struct.generics))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_struct.body, b->_struct.body))
+		return 0;
+
+	return 1;
+}
+
+static int identical_val(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_val.id, b->_val.id))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_val.val, b->_val.val))
+		return 0;
+
+	return 1;
+}
+
+static int identical_switch(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_switch.cond, b->_switch.cond))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_switch.cases, b->_switch.cases))
+		return 0;
+
+	return 1;
+}
+
+static int identical_case(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_case.cond, b->_switch.cond))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_case.body, b->_case.body))
+		return 0;
+
+	return 1;
+}
+
+static int identical_const(int exact, struct ast_node *a, struct ast_node *b)
+{
+	(void)(exact);
+	if (a->_const.kind != b->_const.kind)
+		return 0;
+
+	/* these could potentially also be broken out to their own
+	 * procedures, but I don't think it's that important */
+	switch (a->_const.kind) {
+	case AST_CONST_INTEGER:
+		if (a->_const.integer != b->_const.integer)
 			return 0;
 
 		break;
 
-	case AST_ASSIGN:
-		if (!identical_ast_nodes(exact, left->_assign.to, right->_assign.to))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_assign.from, right->_assign.from))
-			return 0;
-		break;
-
-	case AST_INIT:
-		if (!identical_ast_nodes(exact, left->_init.body, right->_init.body))
-			return 0;
-		break;
-	case AST_SIZEOF:
-		if (!identical_ast_nodes(exact, left->_sizeof.expr, right->_sizeof.expr))
-			return 0;
-		break;
-
-	case AST_DOT:
-		if (!identical_ast_nodes(exact, left->_dot.expr, right->_dot.expr))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_dot.id, right->_dot.id))
-			return 0;
-		break;
-
-	case AST_AS:
-		if (!identical_ast_nodes(exact, left->_as.type, right->_as.type))
-			return 0;
-		break;
-
-	case AST_GOTO:
-		if (!identical_ast_nodes(exact, left->_goto.label, right->_goto.label))
-			return 0;
-
-		break;
-
-	case AST_LABEL:
-		if (!identical_ast_nodes(exact, left->_label.id, right->_label.id))
-			return 0;
-
-		break;
-
-	case AST_BINOP:
-		if (left->_binop.op != right->_binop.op)
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_binop.left, right->_binop.left))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_binop.right, right->_binop.right))
-			return 0;
-
-		break;
-
-	case AST_UNOP:
-		if (left->_unop.op != right->_unop.op)
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_unop.expr, right->_unop.expr))
-			return 0;
-
-		break;
-
-	case AST_CALL:
-		if (!identical_ast_nodes(exact, left->_call.id, right->_call.id))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_call.args, right->_call.args))
-			return 0;
-
-		break;
-
-	case AST_CAST:
-		if (!identical_ast_nodes(exact, left->_cast.expr, right->_cast.expr))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_cast.type, right->_cast.type))
-			return 0;
-
-		break;
-
-	case AST_DEFER:
-		if (!identical_ast_nodes(exact, left->_defer.expr, right->_defer.expr))
-			return 0;
-
-		break;
-
-	case AST_MACRO:
-		if (!identical_ast_nodes(exact, left->_macro.id, right->_macro.id))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_macro.params, right->_macro.params))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_macro.body, right->_macro.body))
-			return 0;
-
-		break;
-
-	case AST_PROC:
-		if (!identical_ast_nodes(exact, left->_proc.id, right->_proc.id))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_proc.sign, right->_proc.sign))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_proc.body, right->_proc.body))
-			return 0;
-
-		break;
-
-	case AST_VAR:
-		if (!identical_ast_nodes(exact, left->_var.id, right->_var.id))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_var.type, right->_var.type))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_var.init, right->_var.init))
-			return 0;
-
-		break;
-
-	case AST_LAMBDA:
-		if (!identical_ast_nodes(exact, left->_lambda.captures, right->_lambda.captures))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_lambda.sign, right->_lambda.sign))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_lambda.body, right->_lambda.body))
-			return 0;
-
-		break;
-
-	case AST_FOR:
-		if (!identical_ast_nodes(exact, left->_for.pre, right->_for.pre))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_for.cond, right->_for.cond))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_for.post, right->_for.post))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_for.body, right->_for.body))
-			return 0;
-
-		break;
-
-	case AST_WHILE:
-		if (!identical_ast_nodes(exact, left->_while.cond, right->_while.cond))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_while.body, right->_while.body))
-			return 0;
-
-		break;
-
-	case AST_CTRL:
-		if (left->_ctrl.kind != right->_ctrl.kind)
-			return 0;
-
-		break;
-
-	case AST_RETURN:
-		if (!identical_ast_nodes(exact, left->_return.expr, right->_return.expr))
-			return 0;
-
-		break;
-
-	case AST_TYPE:
-		if (left->_type.kind != right->_type.kind)
-			return 0;
-
-		switch (left->_type.kind) {
-		case AST_TYPE_ALIAS:
-			if (!identical_ast_nodes(exact, left->_type.alias.alias,
-						right->_type.alias.alias))
-				return 0;
-
-			if (!identical_ast_nodes(exact, left->_type.alias.actual,
-						right->_type.alias.actual))
-				return 0;
+	case AST_CONST_FLOAT:
+		/* NaNs aren't comparable */
+		if (isnan(a->_const.dbl) && isnan(b->_const.dbl))
 			break;
 
-		case AST_TYPE_TEMPLATE:
-			if (!identical_ast_nodes(exact, left->_type.template.template,
-						right->_type.template.template))
-				return 0;
-
-			if (!identical_ast_nodes(exact, left->_type.template.actual,
-						right->_type.template.actual))
-				return 0;
-			break;
-
-		case AST_TYPE_ID:
-			if (!identical_ast_nodes(exact, left->_type.id,
-						right->_type.id))
-				return 0;
-			break;
-
-		case AST_TYPE_ARR:
-			if (!identical_ast_nodes(exact, left->_type.arr.size,
-						right->_type.arr.size))
-				return 0;
-			break;
-
-		case AST_TYPE_TYPEOF:
-			if (!identical_ast_nodes(exact, left->_type.typeo.expr,
-						right->_type.typeo.expr))
-				return 0;
-			break;
-
-		case AST_TYPE_PROC:
-			if (!identical_ast_nodes(exact, left->_type.proc.params,
-						right->_type.proc.params))
-				return 0;
-
-			if (!identical_ast_nodes(exact, left->_type.proc.ret,
-						right->_type.proc.ret))
-				return 0;
-			break;
-
-		case AST_TYPE_LAMBDA:
-			if (!identical_ast_nodes(exact, left->_type.lambda.params,
-						right->_type.lambda.params))
-				return 0;
-
-			if (!identical_ast_nodes(exact, left->_type.lambda.ret,
-						right->_type.lambda.ret))
-				return 0;
-			break;
-
-		case AST_TYPE_SIGN:
-			if (!identical_ast_nodes(exact, left->_type.sign.params,
-						right->_type.sign.params))
-				return 0;
-
-			if (!identical_ast_nodes(exact, left->_type.sign.ret,
-						right->_type.sign.ret))
-				return 0;
-			break;
-
-		case AST_TYPE_IMPL:
-			if (!identical_ast_nodes(exact, left->_type.impl.id,
-						right->_type.impl.id))
-				return 0;
-
-			if (!identical_ast_nodes(exact, left->_type.impl.types,
-						right->_type.impl.types))
-				return 0;
-			break;
-
-		case AST_TYPE_STRUCT:
-			if (!identical_ast_nodes(exact, left->_type.struc.struc,
-						right->_type.struc.struc))
-				return 0;
-
-			if (!identical_ast_nodes(exact, left->_type.struc.impls,
-						right->_type.struc.impls))
-				return 0;
-			break;
-
-		case AST_TYPE_UNION:
-			if (!identical_ast_nodes(exact, left->_type.unio.id,
-						right->_type.unio.id))
-				return 0;
-
-			if (!identical_ast_nodes(exact, left->_type.unio.body,
-						right->_type.unio.body))
-				return 0;
-			break;
-
-		case AST_TYPE_POINTER:
-			break;
-		}
-
-		break;
-
-	case AST_BLOCK:
-		if (!identical_ast_nodes(exact, left->_block.body, right->_block.body))
-			return 0;
-		break;
-
-	case AST_IMPORT:
-		if (strcmp(left->_import.file, right->_import.file) != 0)
-			return 0;
-		break;
-
-	case AST_EMBED:
-		if (strcmp(left->_embed.file, right->_embed.file) != 0)
-			return 0;
-		break;
-
-	case AST_PASTE:
-		if (!identical_ast_nodes(exact, left->_paste.id1, right->_paste.id1))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_paste.id2, right->_paste.id2))
+		if (a->_const.dbl != b->_const.dbl)
 			return 0;
 
 		break;
 
-	case AST_ENUM:
-		if (!identical_ast_nodes(exact, left->_enum.id, right->_enum.id))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_enum.type, right->_enum.type))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_enum.body, right->_enum.body))
-			return 0;
-
-		break;
-
-	case AST_STRUCT:
-		if (!identical_ast_nodes(exact, left->_struct.id, right->_struct.id))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_struct.generics, right->_struct.generics))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_struct.body, right->_struct.body))
-			return 0;
-
-		break;
-
-	case AST_VAL:
-		if (!identical_ast_nodes(exact, left->_val.id, right->_val.id))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_val.val, right->_val.val))
-			return 0;
-
-		break;
-
-	case AST_SWITCH:
-		if (!identical_ast_nodes(exact, left->_switch.cond, right->_switch.cond))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_switch.cases, right->_switch.cases))
-			return 0;
-
-		break;
-
-	case AST_CASE:
-		if (!identical_ast_nodes(exact, left->_case.cond, right->_switch.cond))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_case.body, right->_case.body))
-			return 0;
-
-		break;
-
-	case AST_CONST:
-		if (left->_const.kind != right->_const.kind)
-			return 0;
-
-		switch (left->_const.kind) {
-		case AST_CONST_INTEGER:
-			if (left->_const.integer != right->_const.integer)
-				return 0;
-			break;
-
-		case AST_CONST_FLOAT:
-			/* NaNs aren't comparable */
-			if (isnan(left->_const.dbl) && isnan(left->_const.dbl))
-				break;
-
-			if (left->_const.dbl != right->_const.dbl)
-				return 0;
-			break;
-
-		case AST_CONST_STRING:
-			if (strcmp(left->_const.str, right->_const.str) != 0)
-				return 0;
-			break;
-		}
-		break;
-
-	case AST_ID:
-		if (strcmp(left->_id.id, right->_id.id) != 0)
-			return 0;
-		break;
-
-	case AST_EMPTY:
-		break;
-
-	case AST_LAST:
-		break;
-
-	case AST_ALIAS:
-		if (!identical_ast_nodes(exact, left->_alias.id, right->_alias.id))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_alias.type, right->_alias.type))
-			return 0;
-
-		break;
-
-	case AST_TEMPLATE:
-		if (!identical_ast_nodes(exact, left->_template.id, right->_template.id))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_template.body, right->_template.body))
-			return 0;
-
-		break;
-
-	case AST_IF:
-		if (!identical_ast_nodes(exact, left->_if.cond, right->_if.cond))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_if.body, right->_if.body))
-			return 0;
-
-		if (!identical_ast_nodes(exact, left->_if.els, right->_if.els))
+	case AST_CONST_STRING:
+		if (strcmp(a->_const.str, b->_const.str) != 0)
 			return 0;
 
 		break;
 	}
+
+	return 1;
+}
+
+static int identical_id(int exact, struct ast_node *a, struct ast_node *b)
+{
+	(void)(exact);
+	return strcmp(a->_id.id, b->_id.id) == 0;
+}
+
+static int identical_alias(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_alias.id, b->_alias.id))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_alias.type, b->_alias.type))
+		return 0;
+
+	return 1;
+}
+
+static int identical_template(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_template.id, b->_template.id))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_template.body, b->_template.body))
+		return 0;
+
+	return 1;
+}
+
+static int identical_if(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_if.cond, b->_if.cond))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_if.body, b->_if.body))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_if.els, b->_if.els))
+		return 0;
+
+	return 1;
+}
+
+/* sort of unfortnate that we can't just do a direct memcmp... */
+int identical_ast_nodes(int exact, struct ast_node *a, struct ast_node *b)
+{
+	/* both being NULL counts as identical */
+	if (!a && !b)
+		return 1;
+
+	/* the same node must be the same */
+	if (a == b)
+		return 1;
+
+	/* either one being null means not identical */
+	if (!a)
+		return 0;
+
+	if (!b)
+		return 0;
+
+	if (a->node_type != b->node_type)
+		return 0;
+
+	if (exact && !identical_flags(a->flags, b->flags))
+		return 0;
+
+	if (exact && !identical_loc(a->loc, b->loc))
+		return 0;
+
+	if (exact && !identical_scope(a->scope, b->scope))
+		return 0;
+
+	int ret = 0;
+	switch (a->node_type) {
+	case AST_UNION: ret = identical_union(exact, a, b); break;
+	case AST_ASSIGN: ret = identical_assign(exact, a, b); break;
+	case AST_INIT: ret = identical_init(exact, a, b); break;
+	case AST_SIZEOF: ret = identical_sizeof(exact, a, b); break;
+	case AST_DOT: ret = identical_dot(exact, a, b); break;
+	case AST_AS: ret = identical_as(exact, a, b); break;
+	case AST_GOTO: ret = identical_goto(exact, a, b); break;
+	case AST_LABEL: ret = identical_label(exact, a, b); break;
+	case AST_BINOP: ret = identical_binop(exact, a, b); break;
+	case AST_UNOP: ret = identical_unop(exact, a, b); break;
+	case AST_CALL: ret = identical_call(exact, a, b); break;
+	case AST_CAST: ret = identical_cast(exact, a, b); break;
+	case AST_DEFER: ret = identical_defer(exact, a, b); break;
+	case AST_MACRO: ret = identical_macro(exact, a, b); break;
+	case AST_PROC: ret = identical_proc(exact, a, b); break;
+	case AST_VAR: ret = identical_var(exact, a, b); break;
+	case AST_LAMBDA: ret = identical_lambda(exact, a, b); break;
+	case AST_FOR: ret = identical_for(exact, a, b); break;
+	case AST_WHILE: ret = identical_while(exact, a, b); break;
+	case AST_CTRL: ret = identical_ctrl(exact, a, b); break;
+	case AST_RETURN: ret = identical_return(exact, a, b); break;
+	case AST_TYPE: ret = identical_type(exact, a, b); break;
+	case AST_BLOCK: ret = identical_block(exact, a, b); break;
+	case AST_IMPORT: ret = identical_import(exact, a, b); break;
+	case AST_EMBED: ret = identical_embed(exact, a, b); break;
+	case AST_ENUM: ret = identical_enum(exact, a, b); break;
+	case AST_STRUCT: ret = identical_struct(exact, a, b); break;
+	case AST_VAL: ret = identical_val(exact, a, b); break;
+	case AST_SWITCH: ret = identical_switch(exact, a, b); break;
+	case AST_CASE: ret = identical_case(exact, a, b); break;
+	case AST_CONST: ret = identical_const(exact, a, b); break;
+	case AST_ID: ret = identical_id(exact, a, b); break;
+	case AST_ALIAS: ret = identical_alias(exact, a, b); break;
+	case AST_TEMPLATE: ret = identical_template(exact, a, b); break;
+	case AST_IF: ret = identical_if(exact, a, b); break;
+	case AST_EMPTY: break;
+	case AST_LAST: break;
+	}
+
+	if (ret == 0)
+		return 0;
 
 	/* Unsure if exact should be more of a flag or what,
 	 * but at least right now the issue is that the analyzer in some cases
 	 * has nodes that follow each other, i.e. next is populated, but we're
 	 * only interested in the current node. Calls, mainly. */
 	if (exact)
-		return identical_ast_nodes(exact, left->next, right->next);
+		return identical_ast_nodes(exact, a->next, b->next);
 
 	return 1;
 }
@@ -2314,6 +2346,313 @@ int ast_flags(struct ast_node *node, enum ast_flag flags)
 	return node->flags & flags;
 }
 
+static int call_on_union(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_union.id, data);
+	ret |= call(node->_union.generics, data);
+	ret |= call(node->_union.body, data);
+	return ret;
+}
+
+static int call_on_assign(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_assign.to, data);
+	ret |= call(node->_assign.from, data);
+	return ret;
+}
+
+static int call_on_init(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	return call(node->_init.body, data);
+}
+
+static int call_on_sizeof(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	return call(node->_sizeof.expr, data);
+}
+
+static int call_on_dot(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_dot.expr, data);
+	ret |= call(node->_dot.id, data);
+	return ret;
+}
+
+static int call_on_as(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	return call(node->_as.type, data);
+}
+
+static int call_on_cast(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_cast.expr, data);
+	ret |= call(node->_cast.type, data);
+	return ret;
+}
+
+static int call_on_defer(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	return call(node->_defer.expr, data);
+}
+
+static int call_on_var(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_var.id, data);
+	ret |= call(node->_var.type, data);
+	ret |= call(node->_var.init, data);
+	return ret;
+}
+
+static int call_on_lambda(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_lambda.captures, data);
+	ret |= call(node->_lambda.sign, data);
+	ret |= call(node->_lambda.body, data);
+	return ret;
+}
+
+static int call_on_for(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_for.pre, data);
+	ret |= call(node->_for.cond, data);
+	ret |= call(node->_for.post, data);
+	ret |= call(node->_for.body, data);
+	return ret;
+}
+
+static int call_on_while(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_while.cond, data);
+	ret |= call(node->_while.body, data);
+	return ret;
+}
+
+static int call_on_return(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	return call(node->_return.expr, data);
+}
+
+static int call_on_alias(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_alias.id, data);
+	ret |= call(node->_alias.type, data);
+	return ret;
+}
+
+static int call_on_template(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_template.id, data);
+	ret |= call(node->_template.body, data);
+	return ret;
+}
+
+static int call_on_if(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_if.cond, data);
+	ret |= call(node->_if.body, data);
+	ret |= call(node->_if.els, data);
+	return ret;
+}
+
+static int call_on_enum(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_enum.id, data);
+	ret |= call(node->_enum.type, data);
+	ret |= call(node->_enum.body, data);
+	return ret;
+}
+
+static int call_on_struct(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_struct.id, data);
+	ret |= call(node->_struct.generics, data);
+	ret |= call(node->_struct.body, data);
+	return ret;
+}
+
+static int call_on_val(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_val.id, data);
+	ret |= call(node->_val.val, data);
+	return ret;
+}
+
+static int call_on_switch(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_switch.cond, data);
+	ret |= call(node->_switch.cases, data);
+	return ret;
+}
+
+static int call_on_case(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_case.cond, data);
+	ret |= call(node->_case.body, data);
+	return ret;
+}
+
+static int call_on_type_alias(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_type.alias.alias, data);
+	ret |= call(node->_type.alias.actual, data);
+	return ret;
+}
+
+static int call_on_type_template(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_type.template.template, data);
+	ret |= call(node->_type.template.actual, data);
+	return ret;
+}
+
+static int call_on_type_id(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	return call(node->_type.id, data);
+}
+
+static int call_on_type_arr(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	return call(node->_type.arr.size, data);
+}
+
+static int call_on_type_typeof(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	return call(node->_type.typeo.expr, data);
+}
+
+static int call_on_type_union(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_type.unio.id, data);
+	ret |= call(node->_type.unio.body, data);
+	return ret;
+}
+
+static int call_on_type_struct(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_type.struc.struc, data);
+	ret |= call(node->_type.struc.impls, data);
+	return ret;
+}
+
+static int call_on_type_proc(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_type.proc.id, data);
+	ret |= call(node->_type.proc.params, data);
+	ret |= call(node->_type.proc.ret, data);
+	return ret;
+}
+
+static int call_on_type_lambda(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_type.lambda.params, data);
+	ret |= call(node->_type.lambda.ret, data);
+	return ret;
+}
+
+static int call_on_type_sign(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_type.sign.params, data);
+	ret |= call(node->_type.sign.ret, data);
+	return ret;
+}
+
+static int call_on_type(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	switch (node->_type.kind) {
+	case AST_TYPE_ALIAS: ret = call_on_type_alias(call, node, data); break;
+	case AST_TYPE_TEMPLATE: ret = call_on_type_template(call, node, data); break;
+	case AST_TYPE_ID: ret = call_on_type_id(call, node, data); break;
+	case AST_TYPE_ARR: ret = call_on_type_arr(call, node, data); break;
+	case AST_TYPE_TYPEOF: ret = call_on_type_typeof(call, node, data); break;
+	case AST_TYPE_UNION: ret = call_on_type_union(call, node, data); break;
+	case AST_TYPE_STRUCT: ret = call_on_type_struct(call, node, data); break;
+	case AST_TYPE_PROC: ret = call_on_type_proc(call, node, data); break;
+	case AST_TYPE_LAMBDA: ret = call_on_type_lambda(call, node, data); break;
+	case AST_TYPE_SIGN: ret = call_on_type_sign(call, node, data); break;
+	case AST_TYPE_POINTER: break;
+	}
+
+	return ret;
+}
+
+static int call_on_goto(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	return call(node->_goto.label, data);
+}
+
+static int call_on_label(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	return call(node->_label.id, data);
+}
+
+static int call_on_binop(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_binop.left, data);
+	ret |= call(node->_binop.right, data);
+	return ret;
+}
+
+static int call_on_unop(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	return call(node->_unop.expr, data);
+}
+
+static int call_on_call(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_call.id, data);
+	ret |= call(node->_call.args, data);
+	return ret;
+}
+
+static int call_on_macro(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_macro.id, data);
+	ret |= call(node->_macro.params, data);
+	ret |= call(node->_macro.body, data);
+	return ret;
+}
+
+static int call_on_proc(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_proc.id, data);
+	ret |= call(node->_proc.sign, data);
+	ret |= call(node->_proc.body, data);
+	return ret;
+}
+
+static int call_on_block(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	return call(node->_block.body, data);
+}
+
 /* I guess this works, but it's not exactly optimal as the caller sort of has to
  * know when to continue to call on, and when it would cause an infinite loop.
  * I.e. a call on an ID that is forwarded results in an infinite loop.
@@ -2321,245 +2660,50 @@ int ast_flags(struct ast_node *node, enum ast_flag flags)
  * Maybe add in something like ast_continue_call_on() that can check for the
  * user if there's any point in continuing?
  */
-int ast_call_on(int (*call)(struct ast_node *, void *data),
-		struct ast_node *node, void *data)
+int ast_call_on(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
 {
 	int ret = 0;
 	if (!node)
 		return ret;
 
 	switch (node->node_type) {
-	case AST_UNION:
-		ret |= call(node->_union.id, data);
-		ret |= call(node->_union.generics, data);
-		ret |= call(node->_union.body, data);
-		break;
-
-	case AST_ASSIGN:
-		ret |= call(node->_assign.to, data);
-		ret |= call(node->_assign.from, data);
-		break;
-
-	case AST_INIT:
-		ret |= call(node->_init.body, data);
-		break;
-
-	case AST_SIZEOF:
-		ret |= call(node->_sizeof.expr, data);
-		break;
-
-	case AST_DOT:
-		ret |= call(node->_dot.expr, data);
-		ret |= call(node->_dot.id, data);
-		break;
-
-	case AST_AS:
-		ret |= call(node->_as.type, data);
-		break;
-
-	case AST_CAST:
-		ret |= call(node->_cast.expr, data);
-		ret |= call(node->_cast.type, data);
-		break;
-
-	case AST_DEFER:
-		ret |= call(node->_defer.expr, data);
-		break;
-
-	case AST_LAST:
-		break;
-
-	case AST_VAR:
-		ret |= call(node->_var.id, data);
-		ret |= call(node->_var.type, data);
-		ret |= call(node->_var.init, data);
-		break;
-
-	case AST_LAMBDA:
-		ret |= call(node->_lambda.captures, data);
-		ret |= call(node->_lambda.sign, data);
-		ret |= call(node->_lambda.body, data);
-		break;
-
-	case AST_PASTE:
-		ret |= call(node->_paste.id1, data);
-		ret |= call(node->_paste.id2, data);
-		break;
-
-	case AST_FOR:
-		ret |= call(node->_for.pre, data);
-		ret |= call(node->_for.cond, data);
-		ret |= call(node->_for.post, data);
-		ret |= call(node->_for.body, data);
-		break;
-
-	case AST_EMBED:
-		break;
-
-	case AST_WHILE:
-		ret |= call(node->_while.cond, data);
-		ret |= call(node->_while.body, data);
-		break;
-
-	case AST_CTRL:
-		break;
-
-	case AST_RETURN:
-		ret |= call(node->_return.expr, data);
-		break;
-
-	case AST_ALIAS:
-		ret |= call(node->_alias.id, data);
-		ret |= call(node->_alias.type, data);
-		break;
-
-	case AST_TEMPLATE:
-		ret |= call(node->_template.id, data);
-		ret |= call(node->_template.body, data);
-		break;
-
-	case AST_IF:
-		ret |= call(node->_if.cond, data);
-		ret |= call(node->_if.body, data);
-		ret |= call(node->_if.els, data);
-		break;
-
-	case AST_IMPORT:
-		break;
-
-	case AST_ENUM:
-		ret |= call(node->_enum.id, data);
-		ret |= call(node->_enum.type, data);
-		ret |= call(node->_enum.body, data);
-		break;
-
-	case AST_STRUCT:
-		ret |= call(node->_struct.id, data);
-		ret |= call(node->_struct.generics, data);
-		ret |= call(node->_struct.body, data);
-		break;
-
-	case AST_VAL:
-		ret |= call(node->_val.id, data);
-		ret |= call(node->_val.val, data);
-		break;
-
-	case AST_SWITCH:
-		ret |= call(node->_switch.cond, data);
-		ret |= call(node->_switch.cases, data);
-		break;
-
-	case AST_CASE:
-		ret |= call(node->_case.cond, data);
-		ret |= call(node->_case.body, data);
-		break;
-
-	case AST_CONST:
-		break;
-
-	case AST_ID:
-		break;
-
-	case AST_EMPTY:
-		break;
-
-	case AST_TYPE:
-		switch (node->_type.kind) {
-		case AST_TYPE_ALIAS:
-			ret |= call(node->_type.alias.alias, data);
-			ret |= call(node->_type.alias.actual, data);
-			break;
-
-		case AST_TYPE_TEMPLATE:
-			ret |= call(node->_type.template.template, data);
-			ret |= call(node->_type.template.actual, data);
-			break;
-
-		case AST_TYPE_ID:
-			ret |= call(node->_type.id, data);
-			break;
-
-		case AST_TYPE_ARR:
-			ret |= call(node->_type.arr.size, data);
-			break;
-
-		case AST_TYPE_TYPEOF:
-			ret |= call(node->_type.typeo.expr, data);
-			break;
-
-		case AST_TYPE_POINTER:
-			break;
-
-		case AST_TYPE_UNION:
-			ret |= call(node->_type.unio.id, data);
-			ret |= call(node->_type.unio.body, data);
-			break;
-
-		case AST_TYPE_STRUCT:
-			ret |= call(node->_type.struc.struc, data);
-			ret |= call(node->_type.struc.impls, data);
-			break;
-
-		case AST_TYPE_PROC:
-			ret |= call(node->_type.proc.id, data);
-			ret |= call(node->_type.proc.params, data);
-			ret |= call(node->_type.proc.ret, data);
-			break;
-
-		case AST_TYPE_LAMBDA:
-			ret |= call(node->_type.lambda.params, data);
-			ret |= call(node->_type.lambda.ret, data);
-			break;
-
-		case AST_TYPE_SIGN:
-			ret |= call(node->_type.sign.params, data);
-			ret |= call(node->_type.sign.ret, data);
-			break;
-
-		case AST_TYPE_IMPL:
-			ret |= call(node->_type.impl.id, data);
-			ret |= call(node->_type.impl.types, data);
-			break;
-		}
-		break;
-
-	case AST_GOTO:
-		ret |= call(node->_goto.label, data);
-		break;
-
-	case AST_LABEL:
-		ret |= call(node->_label.id, data);
-		break;
-
-	case AST_BINOP:
-		ret |= call(node->_binop.left, data);
-		ret |= call(node->_binop.right, data);
-		break;
-
-	case AST_UNOP:
-		ret |= call(node->_unop.expr, data);
-		break;
-
-	case AST_CALL:
-		ret |= call(node->_call.id, data);
-		ret |= call(node->_call.args, data);
-		break;
-
-	case AST_MACRO:
-		ret |= call(node->_macro.id, data);
-		ret |= call(node->_macro.params, data);
-		ret |= call(node->_macro.body, data);
-		break;
-
-	case AST_PROC:
-		ret |= call(node->_proc.id, data);
-		ret |= call(node->_proc.sign, data);
-		ret |= call(node->_proc.body, data);
-		break;
-
-	case AST_BLOCK:
-		ret |= call(node->_block.body, data);
-		break;
+	case AST_UNION: ret = call_on_union(call, node, data); break;
+	case AST_ASSIGN: ret = call_on_assign(call, node, data); break;
+	case AST_INIT: ret = call_on_init(call, node, data); break;
+	case AST_SIZEOF: ret = call_on_sizeof(call, node, data); break;
+	case AST_DOT: ret = call_on_dot(call, node, data); break;
+	case AST_AS: ret = call_on_as(call, node, data); break;
+	case AST_CAST: ret = call_on_cast(call, node, data); break;
+	case AST_DEFER: ret = call_on_defer(call, node, data); break;
+	case AST_VAR: ret = call_on_var(call, node, data); break;
+	case AST_LAMBDA: ret = call_on_lambda(call, node, data); break;
+	case AST_FOR: ret = call_on_for(call, node, data); break;
+	case AST_WHILE: ret = call_on_while(call, node, data); break;
+	case AST_RETURN: ret = call_on_return(call, node, data); break;
+	case AST_ALIAS: ret = call_on_alias(call, node, data); break;
+	case AST_TEMPLATE: ret = call_on_template(call, node, data); break;
+	case AST_IF: ret = call_on_if(call, node, data); break;
+	case AST_ENUM: ret = call_on_enum(call, node, data); break;
+	case AST_STRUCT: ret = call_on_struct(call, node, data); break;
+	case AST_VAL: ret = call_on_val(call, node, data); break;
+	case AST_SWITCH: ret = call_on_switch(call, node, data); break;
+	case AST_CASE: ret = call_on_case(call, node, data); break;
+	case AST_TYPE: ret = call_on_type(call, node, data); break;
+	case AST_GOTO: ret = call_on_goto(call, node, data); break;
+	case AST_LABEL: ret = call_on_label(call, node, data); break;
+	case AST_BINOP: ret = call_on_binop(call, node, data); break;
+	case AST_UNOP: ret = call_on_unop(call, node, data); break;
+	case AST_CALL: ret = call_on_call(call, node, data); break;
+	case AST_MACRO: ret = call_on_macro(call, node, data); break;
+	case AST_PROC: ret = call_on_proc(call, node, data); break;
+	case AST_BLOCK: ret = call_on_block(call, node, data); break;
+	case AST_LAST: break;
+	case AST_EMBED: break;
+	case AST_CTRL: break;
+	case AST_IMPORT: break;
+	case AST_CONST: break;
+	case AST_ID: break;
+	case AST_EMPTY: break;
 	}
 
 	ret |= call(node->next, data);
