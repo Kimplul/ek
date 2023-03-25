@@ -436,7 +436,11 @@ struct ast_node *gen_type(enum ast_type_kind kind, struct ast_node *id,
 	case AST_TYPE_UNION:
 		n->_type.unio.id = id;
 		n->_type.unio.body = expr;
-		n->loc = id->loc;
+		if (id)
+			n->loc = id->loc;
+		else
+			n->loc = expr->loc;
+
 		break;
 
 	case AST_TYPE_STRUCT:
@@ -666,7 +670,10 @@ struct ast_node *gen_struct(struct ast_node *id,
 	n->_struct.id = id;
 	n->_struct.generics = generics;
 	n->_struct.body = body;
-	n->loc = id->loc;
+	if (id)
+		n->loc = id->loc;
+	else
+		n->loc = body->loc;
 	return n;
 }
 
@@ -677,6 +684,30 @@ void destroy_struct(struct ast_node *struc)
 	DESTROY_LIST(struc->_struct.generics);
 	DESTROY_LIST(struc->_struct.body);
 	free(struc);
+}
+
+struct ast_node *gen_union(struct ast_node *id,
+		struct ast_node *generics, struct ast_node *body)
+{
+	ALLOC_NODE(n, struct);
+	n->node_type = AST_UNION;
+	n->_union.id = id;
+	n->_union.generics = generics;
+	n->_union.body = body;
+	if (id)
+		n->loc = id->loc;
+	else
+		n->loc = body->loc;
+	return n;
+}
+
+void destroy_union(struct ast_node *unio)
+{
+	assert(unio->node_type == AST_UNION);
+	destroy_ast_node(unio->_union.id);
+	DESTROY_LIST(unio->_union.generics);
+	DESTROY_LIST(unio->_union.body);
+	free(unio);
 }
 
 struct ast_node *gen_enum(struct ast_node *id, struct ast_node *type,
@@ -866,6 +897,7 @@ void destroy_ast_node(struct ast_node *node)
 	assert(node->node_type);
 
 	switch (node->node_type) {
+	case AST_UNION: destroy_union(node); break;
 	case AST_ASSIGN: destroy_assign(node); break;
 	case AST_INIT: destroy_init(node); break;
 	case AST_SIZEOF: destroy_sizeof(node); break;
@@ -1022,6 +1054,18 @@ static void dump_flags(struct ast_node *node)
 static void __dump_ast(int depth, struct ast_node *node)
 {
 	switch (node->node_type) {
+	case AST_UNION:
+		dump(depth, "{UNION:");
+		dump_flags(node);
+		putchar('\n');
+
+		dump_ast(depth + 1, node->_union.id);
+		dump_ast(depth + 1, node->_union.generics);
+		dump_ast(depth + 1, node->_union.body);
+
+		dump(depth, "}\n");
+		break;
+
 	case AST_ASSIGN:
 		dump(depth, "{ASSIGN:");
 		dump_flags(node);
@@ -1494,6 +1538,12 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 	assert(node->node_type);
 	struct ast_node *new = NULL;
 	switch (node->node_type) {
+	case AST_UNION:
+		new = gen_union(clone_ast_node(node->_union.id),
+				clone_ast_node(node->_union.generics),
+				clone_ast_node(node->_union.body));
+		break;
+
 	case AST_ASSIGN:
 		new = gen_assign(clone_ast_node(node->_assign.to),
 				clone_ast_node(node->_assign.from));
@@ -1814,6 +1864,18 @@ int identical_ast_nodes(int exact, struct ast_node *left, struct ast_node *right
 		return 0;
 
 	switch (left->node_type) {
+	case AST_UNION:
+		if (!identical_ast_nodes(exact, left->_union.id, right->_union.id))
+			return 0;
+
+		if (!identical_ast_nodes(exact, left->_union.generics, right->_union.generics))
+			return 0;
+
+		if (!identical_ast_nodes(exact, left->_union.body, right->_union.body))
+			return 0;
+
+		break;
+
 	case AST_ASSIGN:
 		if (!identical_ast_nodes(exact, left->_assign.to, right->_assign.to))
 			return 0;
@@ -2267,6 +2329,12 @@ int ast_call_on(int (*call)(struct ast_node *, void *data),
 		return ret;
 
 	switch (node->node_type) {
+	case AST_UNION:
+		ret |= call(node->_union.id, data);
+		ret |= call(node->_union.generics, data);
+		ret |= call(node->_union.body, data);
+		break;
+
 	case AST_ASSIGN:
 		ret |= call(node->_assign.to, data);
 		ret |= call(node->_assign.from, data);

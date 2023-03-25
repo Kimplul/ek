@@ -11,3 +11,9 @@ to be used to interface with C
 
 + Come up with some better file extension, .cu seems to be used by cuda
 	- In fact Copper is already taken :(
+
+OPTIMIZATIONS:
++ Use hashmaps or something similar for lookups for types and calls
++ Output one procedure at a time through the backend, would allow us to free
+actualized procs immediately instead of keeping them around in memory
++ Simplify IDs to just char arrays, would save on memory

@@ -135,10 +135,10 @@
 %nterm <node> func_sign variadic_sign type var_decl var
 %nterm <node> var_init proc lambda template_elem template_list type_list
 %nterm <node> type_alias type_template enum_val enum_list enum top unit id
-%nterm <node> embed param_decl union union_list union_elem struct struct_list
+%nterm <node> embed param_decl union struct struct_list struct_elem
 %nterm <node> top_if const_if const_for defer goto assign
 %nterm <node> struct_construct struct_inits struct_init cond
-%nterm <node> generic generic_list
+%nterm <node> generic generic_list union_struct
 
 %destructor {} FLOAT INT STRING ID
 %destructor { destroy_ast_tree($$); } <*>
@@ -493,27 +493,22 @@ proc: id variadic_sign body {
 	}
 	;
 
-lambda: "[" macro_list "]" func_sign body { $$ = gen_lambda($2, $4, $5);
-       }
+lambda: "[" macro_list "]" func_sign body { $$ = gen_lambda($2, $4, $5); }
 	;
 
-union_elem: union { $$ = $1; }
-	| var_decl { $$ = $1; }
+struct_elem: var_decl { $$ = $1; }
 	;
 
-union_list: union_elem ";" union_list { $$ = $1; $1->next = $3; }
-	| union_elem ";" { $$ = $1; }
+struct_list: struct_elem ";" struct_list { $$ = $1; $1->next = $3; }
+	| struct_elem ";" { $$ = $1; }
 	;
 
-union: "union" id "{" union_list "}" {
-		$$ = gen_type(AST_TYPE_UNION, $2, $4, NULL);
+union: "union" id "{" struct_list "}" {
+		$$ = gen_union($2, NULL, $4);
 	}
-	| "union" "{" union_list "}" {
-		$$ = gen_type(AST_TYPE_UNION, NULL, $3, NULL);  }
-	;
-
-/* alias I guess, might try and name things better */
-struct_list: union_list { $$ = $1; }
+	| "union" id "(" generic_list ")" "{" struct_list "}" {
+		$$ = gen_union($2, $4, $7);
+	}
 	;
 
 generic: id type { $$ = gen_alias($1, $2); }
