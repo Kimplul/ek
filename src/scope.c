@@ -419,9 +419,6 @@ static struct ast_node *match_macro(int global, struct scope *scope,
 	return NULL;
 }
 
-static int implements(struct scope *scope,
-		struct ast_node *arg_type, struct ast_node *param_type);
-
 static struct ast_node *match_proc(int global, struct scope *scope,
 		struct ast_node *id, struct ast_node *args);
 
@@ -537,7 +534,7 @@ not_implemented:
 	return 0;
 }
 
-static int implements(struct scope *scope,
+int implements(struct scope *scope,
 		struct ast_node *arg_type, struct ast_node *param_type)
 {
 	/* if both types are null, they are uninitialized and we'll assume they
@@ -555,6 +552,16 @@ static int implements(struct scope *scope,
 
 	/* at this point, we should always have some type for the argument */
 	assert(arg_type);
+
+	if (param_type->_type.kind == AST_TYPE_ALIAS) {
+		if (implements(scope, arg_type, param_type->_type.alias.actual))
+			return 0;
+	}
+
+	if (arg_type->_type.kind == AST_TYPE_ALIAS) {
+		if (implements(scope, arg_type->_type.alias.actual, param_type))
+			return 0;
+	}
 
 	/* TODO: do aliases and templates have to be converted to types? Are
 	 * there any situations where a template will have to be followed by

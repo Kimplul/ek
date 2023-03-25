@@ -1,4 +1,4 @@
-type any {}
+typedef any {}
 
 struct basic_struct {
 	a i64;
@@ -21,7 +21,7 @@ main()
 
 	complex_named const = {.a = 1, .b = 2, .c = 3} as complex_struct;
 	/* should parentheses be required around typeof? */
-	complex_ordinal const = {1, 2, 3} as complex_named;
+	complex_ordinal const = {1, 2, 3} as typeof complex_named;
 	complex_mixed const = {1, .b = 2, 3} as complex_struct;
 
 	/* force types */

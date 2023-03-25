@@ -1,0 +1,13 @@
++ Refactor ast.c and give each operation its own proc, i.e. instead of huge
+node_type switches call a corresponding procedure. Should help with debugging,
+stack traces etc.
+
++ Add const and volatile attributes to types
+
++ Add const to procedures
+
++ Add external to procedures, essentially disables templates and name mangling,
+to be used to interface with C
+
++ Come up with some better file extension, .cu seems to be used by cuda
+	- In fact Copper is already taken :(

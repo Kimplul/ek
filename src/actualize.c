@@ -1028,10 +1028,16 @@ static int actualize_var(struct act_state *state,
 		ret |= actualize(state, scope, type);
 
 
+	if (init && init->node_type == AST_INIT) {
+		assert(!init->type);
+		init->type = type;
+		/* TODO: some kind of check_init() */
+	}
+
 	if (init && type) {
 		/* make sure the asked type and the actualized types match */
-		if (!types_match(init->type, type->type)) {
-			char *init_type = type_str(init);
+		if (!types_match(init->type, type)) {
+			char *init_type = type_str(init->type);
 			char *req_type = type_str(type);
 			semantic_error(scope->fctx, var, "type mismatch (%s vs %s)",
 					req_type, init_type);
@@ -1053,7 +1059,7 @@ static int actualize_var(struct act_state *state,
 	/* an unnamed var is a var in a signature that should not produce a
 	 * warning on not being used (if I ever get around to adding those kinds
 	 * of warnings) */
-	if (var->_var.id)
+	if (var->_var.id && !ast_flags(var, AST_FLAG_MEMBER))
 		return scope_add_var(scope, var);
 
 	return 0;
@@ -1122,7 +1128,7 @@ static int actualize_type(struct act_state *state,
 		/* actualize whatever type we have on demand, either alias or
 		 * template */
 		if (!ast_flags(exists, AST_FLAG_ACTUAL))
-			if (actualize(state, scope, exists))
+			if (actualize(state, exists->scope, exists))
 				EXIT_ACT(-1);
 
 		if (exists->node_type == AST_ALIAS) {
@@ -1146,10 +1152,12 @@ static int actualize_type(struct act_state *state,
 			destroy_ast_node(type->_type.id);
 			assert(type->_type.next == NULL);
 			type->_type.kind = AST_TYPE_STRUCT;
-			type->_type.struc.struc = exists;
-			type->_type.struc.impls
-				= clone_ast_node(exists->_struct.generics);
+			type->_type.struc.struc = clone_ast_node(exists->_struct.id);
+			/* should be populated later */
+			type->_type.struc.impls = NULL;
 		}
+
+		/* TODO: what about enums? */
 		break;
 	}
 
@@ -1201,6 +1209,24 @@ static int actualize_type(struct act_state *state,
 		if (actualize(state, scope, ret))
 			EXIT_ACT(-1);
 
+		break;
+	}
+
+	case AST_TYPE_STRUCT: {
+		struct ast_node *struc = type->_type.struc.struc;
+		struct ast_node *exists = file_scope_resolve_type(scope, struc);
+		if (!exists || exists->node_type != AST_STRUCT) {
+			semantic_error(scope->fctx, type, "no such struct");
+			EXIT_ACT(-1);
+		}
+
+		if (!ast_flags(exists, AST_FLAG_ACTUAL))
+			if (actualize(state, exists->scope, exists))
+				return -1;
+
+		struct ast_node *types = type->_type.struc.impls;
+		if (actualize(state, scope, types))
+			EXIT_ACT(-1);
 		break;
 	}
 
@@ -1312,11 +1338,67 @@ static int pointer_conversion(struct ast_node *a, struct ast_node *b)
 	return 0;
 }
 
+static int check_impls(struct scope *scope, struct ast_node *target,
+		struct ast_node *exists)
+{
+	struct ast_node *args = target->_type.struc.impls;
+	struct ast_node *params = exists->_struct.generics;
+	while (args && params) {
+		assert(params->node_type == AST_ALIAS);
+		assert(args->node_type == AST_TYPE);
+
+		struct ast_node *alias_actual = params->_alias.type;
+		if (!implements(scope, args, alias_actual)) {
+			char *astr = type_str(args);
+			char *pstr = type_str(params->type);
+			semantic_error(scope->fctx, args, "%s does not implement %s",
+					astr, pstr);
+			free(astr);
+			free(pstr);
+			return -1;
+		}
+
+		params = params->next;
+		args = args->next;
+	}
+
+	if (args || params) {
+		semantic_error(scope->fctx, target, "wrong number of type arguments");
+		return -1;
+	}
+
+	return 0;
+}
+
 static int actualize_init_cast(struct act_state *state,
 		struct scope *scope, struct ast_node *cast)
 {
-	semantic_error(scope->fctx, cast, "structure init casts not yet implemented");
-	return -1;
+	struct ast_node *target = cast->_cast.type;
+	if (actualize(state, scope, target))
+		return -1;
+
+	if (target->_type.kind != AST_TYPE_STRUCT) {
+		semantic_error(scope->fctx, target, "type is not a structure");
+		return -1;
+	}
+
+	struct ast_node *id = target->_type.struc.struc;
+	struct ast_node *exists = file_scope_resolve_type(scope, id);
+	assert(exists);
+
+	struct ast_node *init = cast->_cast.expr;
+	if (actualize(state, exists->scope, init))
+		return -1;
+
+	/* TODO: this only handles unnamed initializers for now */
+	if (target->_type.struc.impls) {
+		if (check_impls(scope, target, exists))
+			return -1;
+	}
+
+	/* TODO: check that types match */
+	cast->type = target;
+	return 0;
 }
 
 static int actualize_cast(struct act_state *state,
@@ -1400,7 +1482,16 @@ static int actualize_alias(struct act_state *state, struct scope *scope,
 		return -1;
 	}
 
+	/* TODO: is this hacky? */
+	if (!scope_flags(scope, SCOPE_FILE)) {
+		if (scope_add_alias(scope, alias))
+			return -1;
+	}
+
 	ast_set_flags(alias, AST_FLAG_ACTUAL);
+	alias->type = gen_type(AST_TYPE_ALIAS, NULL,
+			alias->_alias.id, alias->_alias.type);
+	scope_add_scratch(scope, alias->type);
 	return 0;
 }
 
@@ -1649,16 +1740,24 @@ static int actualize_struct(struct act_state *state,
 		struct scope *scope, struct ast_node *node)
 {
 	assert(node->node_type == AST_STRUCT);
+	ast_set_flags(node, AST_FLAG_INIT);
 	struct ast_node *generics = node->_struct.generics;
+	struct scope *struct_scope = create_scope();
+	if (!struct_scope)
+		return -1;
+
+	scope_add_scope(node->scope, struct_scope);
+
 	/* TODO: some IDs should be handles as just placeholders, I think? */
-	if (actualize(state, scope, generics))
+	if (actualize(state, struct_scope, generics))
 		return -1;
 
 	struct ast_node *body = node->_struct.body;
-	if (actualize(state, scope, body))
+	if (actualize(state, struct_scope, body))
 		return -1;
 
 	node->type = node;
+	ast_set_flags(node, AST_FLAG_ACTUAL);
 	return 0;
 }
 
@@ -1705,6 +1804,52 @@ static int actualize_dot(struct act_state *state,
 	return 0;
 }
 
+static int actualize_init(struct act_state *state,
+		struct scope *scope, struct ast_node *node)
+{
+	assert(node->node_type == AST_INIT);
+	/* for now just do the types, the named stuff will be checked later */
+	/* TODO: how to make sure all members are initialized? */
+	int ret = 0;
+	enum act_flags old_flags = state->flags;
+	act_set_flags(state, ACT_ONLY_TYPES);
+	ret = actualize(state, scope, node->_init.body);
+	state->flags = old_flags;
+	return ret;
+}
+
+static int actualize_assign(struct act_state *state, struct scope *scope,
+		struct ast_node *node)
+{
+	assert(node->node_type == AST_ASSIGN);
+	struct ast_node *to = node->_assign.to;
+	if (actualize(state, scope, to))
+		return -1;
+
+	struct ast_node *from = node->_assign.from;
+	if (actualize(state, scope, from))
+		return -1;
+
+	if (from->node_type == AST_INIT) {
+		assert(!from->type);
+		from->type = to->type;
+		/* TODO: some kind of check_init() */
+	}
+
+	if (!types_match(to->type, from->type)) {
+		char *tostr = type_str(to->type);
+		char *fromstr = type_str(from->type);
+		semantic_error(scope->fctx, node, "type mismatch (%s vs %s)",
+				tostr, fromstr);
+		free(tostr);
+		free(fromstr);
+		return -1;
+	}
+
+	node->type = to->type;
+	return 0;
+}
+
 static int actualize(struct act_state *state, struct scope *scope, struct ast_node *node)
 {
 	int ret = 0;
@@ -1741,6 +1886,8 @@ static int actualize(struct act_state *state, struct scope *scope, struct ast_no
 	case AST_AS: ret |= actualize_as(state, scope, node); break;
 	case AST_STRUCT: ret |= actualize_struct(state, scope, node); break;
 	case AST_DOT: ret |= actualize_dot(state, scope, node); break;
+	case AST_INIT: ret |= actualize_init(state, scope, node); break;
+	case AST_ASSIGN: ret |= actualize_assign(state, scope, node); break;
 
 	default:
 		      /* more like internal_error, maybe? */

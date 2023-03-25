@@ -1,6 +1,6 @@
 DO	!= echo -n > deps.mk
 
-DEBUGFLAGS	!= [ $(RELEASE) ] && echo "-flto -O2 -DNODEBUG" || echo "-O0 -g -DDEBUG"
+DEBUGFLAGS	!= [ $(RELEASE) ] && echo "-flto=auto -O2 -DNODEBUG" || echo "-O0 -g -DDEBUG"
 CFLAGS		= -Wall -Wextra
 DEPFLAGS	= -MT $@ -MMD -MP -MF $@.d
 INCLUDEFLAGS	= -Iinclude

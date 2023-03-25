@@ -152,7 +152,7 @@ STRING		\"(\\.|[^"\\])*\"
 "defer"		{return DEFER;}
 "union"		{return UNION;}
 "struct"	{return STRUCT;}
-"type"		{return TYPEDEF;}
+"typedef"	{return TYPEDEF;}
 "import"	{return IMPORT;}
 "typeof"	{return TYPEOF;}
 "sizeof"	{return SIZEOF;}

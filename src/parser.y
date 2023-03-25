@@ -138,6 +138,7 @@
 %nterm <node> embed param_decl union union_list union_elem struct struct_list
 %nterm <node> top_if const_if const_for defer goto assign
 %nterm <node> struct_construct struct_inits struct_init cond
+%nterm <node> generic generic_list
 
 %destructor {} FLOAT INT STRING ID
 %destructor { destroy_ast_tree($$); } <*>
@@ -341,7 +342,10 @@ expr_list: expr "," expr_list { $$ = $1; $1->next = $3; }
 	;
 
 struct_init: init_expr { $$ = $1; }
-	| "." id "=" init_expr { $$ = gen_var($2, NULL, $4); }
+	| "." id "=" init_expr {
+		$$ = gen_var($2, NULL, $4);
+		ast_set_flags($$, AST_FLAG_MEMBER);
+	}
 	;
 
 struct_inits: struct_init "," struct_inits { $$ = $1; $1->next = $3; }
@@ -512,10 +516,15 @@ union: "union" id "{" union_list "}" {
 struct_list: union_list { $$ = $1; }
 	;
 
+generic: id type { $$ = gen_alias($1, $2); }
+generic_list: generic "," generic_list { $$ = $1; $$->next = $3; }
+	| generic { $$ = $1; }
+	;
+
 struct: "struct" id "{" struct_list "}" {
 		$$ = gen_struct($2, NULL, $4);
 	}
-	| "struct" id "(" arg_list ")" "{" struct_list "}" {
+	| "struct" id "(" generic_list ")" "{" struct_list "}" {
 		$$ = gen_struct($2, $4, $7);
 	}
 	;
