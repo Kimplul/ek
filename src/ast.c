@@ -310,6 +310,24 @@ void destroy_ctrl(struct ast_node *ctrl)
 	free(ctrl);
 }
 
+struct ast_node *gen_fetch(struct ast_node *id, struct ast_node *type)
+{
+	ALLOC_NODE(n, "fetch");
+	n->node_type = AST_FETCH;
+	n->_fetch.id = id;
+	n->_fetch.type = type;
+	n->loc = id->loc;
+	return n;
+}
+
+static void destroy_fetch(struct ast_node *fetch)
+{
+	assert(fetch->node_type == AST_FETCH);
+	destroy_ast_node(fetch->_fetch.id);
+	destroy_ast_node(fetch->_fetch.type);
+	free(fetch);
+}
+
 struct ast_node *gen_macro(struct ast_node *id, struct ast_node *params,
                            struct ast_node *body)
 {
@@ -437,16 +455,19 @@ struct ast_node *gen_type(enum ast_type_kind kind, struct ast_node *id,
 
 	case AST_TYPE_UNION:
 		n->_type.unio.id = id;
-		n->_type.unio.body = expr;
-		if (id)
-			n->loc = id->loc;
-		else
-			n->loc = expr->loc;
+		n->_type.unio.impls = expr;
+		n->loc = id->loc;
 
 		break;
 
 	case AST_TYPE_STRUCT:
-		n->_type.struc.struc = id;
+		n->_type.struc.id = id;
+		n->_type.struc.impls = expr;
+		n->loc = id->loc;
+		break;
+
+	case AST_TYPE_ENUM:
+		n->_type.enu.id = id;
 		n->_type.struc.impls = expr;
 		n->loc = id->loc;
 		break;
@@ -503,13 +524,18 @@ void destroy_type(struct ast_node *type)
 		break;
 
 	case AST_TYPE_STRUCT:
-		destroy_ast_node(type->_type.struc.struc);
+		destroy_ast_node(type->_type.struc.id);
 		DESTROY_LIST(type->_type.struc.impls);
 		break;
 
 	case AST_TYPE_UNION:
-		DESTROY_LIST(type->_type.unio.body);
 		destroy_ast_node(type->_type.unio.id);
+		DESTROY_LIST(type->_type.unio.impls);
+		break;
+
+	case AST_TYPE_ENUM:
+		destroy_ast_node(type->_type.enu.id);
+		destroy_ast_node(type->_type.enu.type);
 		break;
 
 	case AST_TYPE_SIGN:
@@ -872,6 +898,7 @@ void destroy_ast_node(struct ast_node *node)
 	assert(node->node_type);
 
 	switch (node->node_type) {
+	case AST_FETCH: destroy_fetch(node); break;
 	case AST_UNION: destroy_union(node); break;
 	case AST_ASSIGN: destroy_assign(node); break;
 	case AST_INIT: destroy_init(node); break;
@@ -1028,6 +1055,17 @@ static void dump_flags(struct ast_node *node)
 static void __dump_ast(int depth, struct ast_node *node)
 {
 	switch (node->node_type) {
+	case AST_FETCH:
+		dump(depth, "{FETCH:");
+		dump_flags(node);
+		putchar('\n');
+
+		dump_ast(depth + 1, node->_fetch.id);
+		dump_ast(depth + 1, node->_fetch.type);
+
+		dump(depth, "}\n");
+		break;
+
 	case AST_UNION:
 		dump(depth, "{UNION:");
 		dump_flags(node);
@@ -1282,14 +1320,20 @@ static void __dump_ast(int depth, struct ast_node *node)
 			printf(" STRUCT\n");
 			/* oh yeah, struc is at least right now just an ID that
 			 * we can use to fetch the actual struct with. */
-			dump_ast(depth + 1, node->_type.struc.struc);
+			dump_ast(depth + 1, node->_type.struc.id);
 			dump_ast(depth + 1, node->_type.struc.impls);
+			break;
+
+		case AST_TYPE_ENUM:
+			printf(" ENUM\n");
+			dump_ast(depth + 1, node->_type.enu.id);
+			dump_ast(depth + 1, node->_type.enu.type);
 			break;
 
 		case AST_TYPE_UNION:
 			printf(" UNION\n");
 			dump_ast(depth + 1, node->_type.unio.id);
-			dump_ast(depth + 1, node->_type.unio.body);
+			dump_ast(depth + 1, node->_type.unio.impls);
 			break;
 
 		case AST_TYPE_SIGN: printf(" SIGN\n");
@@ -1500,6 +1544,11 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 	assert(node->node_type);
 	struct ast_node *new = NULL;
 	switch (node->node_type) {
+	case AST_FETCH:
+		new = gen_fetch(clone_ast_node(node->_fetch.id),
+		                clone_ast_node(node->_fetch.type));
+		break;
+
 	case AST_UNION:
 		new = gen_union(clone_ast_node(node->_union.id),
 		                clone_ast_node(node->_union.generics),
@@ -1632,15 +1681,22 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 
 		case AST_TYPE_STRUCT:
 			new = gen_type(AST_TYPE_STRUCT,
-			               clone_ast_node(node->_type.struc.struc),
+			               clone_ast_node(node->_type.struc.id),
 			               clone_ast_node(node->_type.struc.impls),
+			               NULL);
+			break;
+
+		case AST_TYPE_ENUM:
+			new = gen_type(AST_TYPE_ENUM,
+			               clone_ast_node(node->_type.enu.id),
+			               clone_ast_node(node->_type.enu.type),
 			               NULL);
 			break;
 
 		case AST_TYPE_UNION:
 			new = gen_type(AST_TYPE_UNION,
 			               clone_ast_node(node->_type.unio.id),
-			               clone_ast_node(node->_type.unio.body),
+			               clone_ast_node(node->_type.unio.impls),
 			               NULL);
 			break;
 
@@ -2083,8 +2139,7 @@ static int identical_type_sign(int exact, struct ast_node *a,
 static int identical_type_struct(int exact, struct ast_node *a,
                                  struct ast_node *b)
 {
-	if (!identical_ast_nodes(exact, a->_type.struc.struc,
-	                         b->_type.struc.struc))
+	if (!identical_ast_nodes(exact, a->_type.struc.id, b->_type.struc.id))
 		return 0;
 
 	if (!identical_ast_nodes(exact, a->_type.struc.impls,
@@ -2100,7 +2155,20 @@ static int identical_type_union(int exact, struct ast_node *a,
 	if (!identical_ast_nodes(exact, a->_type.unio.id, b->_type.unio.id))
 		return 0;
 
-	if (!identical_ast_nodes(exact, a->_type.unio.body, b->_type.unio.body))
+	if (!identical_ast_nodes(exact, a->_type.unio.impls,
+	                         b->_type.unio.impls))
+		return 0;
+
+	return 1;
+}
+
+static int identical_type_enum(int exact, struct ast_node *a,
+                               struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_type.enu.id, b->_type.enu.id))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_type.enu.type, b->_type.enu.type))
 		return 0;
 
 	return 1;
@@ -2113,6 +2181,7 @@ static int identical_type(int exact, struct ast_node *a, struct ast_node *b)
 
 	int ret = 0;
 	switch (a->_type.kind) {
+	case AST_TYPE_ENUM: ret = identical_type_enum(exact, a, b); break;
 	case AST_TYPE_ALIAS: ret = identical_type_alias(exact, a, b); break;
 	case AST_TYPE_TEMPLATE: ret = identical_type_template(exact, a, b);
 		break;
@@ -2286,6 +2355,17 @@ static int identical_if(int exact, struct ast_node *a, struct ast_node *b)
 	return 1;
 }
 
+static int identical_fetch(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_fetch.id, b->_fetch.id))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_fetch.type, b->_fetch.type))
+		return 0;
+
+	return 1;
+}
+
 /* sort of unfortnate that we can't just do a direct memcmp... */
 int identical_ast_nodes(int exact, struct ast_node *a, struct ast_node *b)
 {
@@ -2318,6 +2398,7 @@ int identical_ast_nodes(int exact, struct ast_node *a, struct ast_node *b)
 
 	int ret = 0;
 	switch (a->node_type) {
+	case AST_FETCH: ret = identical_fetch(exact, a, b); break;
 	case AST_UNION: ret = identical_union(exact, a, b); break;
 	case AST_ASSIGN: ret = identical_assign(exact, a, b); break;
 	case AST_INIT: ret = identical_init(exact, a, b); break;
@@ -2598,7 +2679,7 @@ static int call_on_type_union(int (*call)(struct ast_node *,
 {
 	int ret = 0;
 	ret |= call(node->_type.unio.id, data);
-	ret |= call(node->_type.unio.body, data);
+	ret |= call(node->_type.unio.impls, data);
 	return ret;
 }
 
@@ -2606,7 +2687,7 @@ static int call_on_type_struct(int (*call)(struct ast_node *,
                                            void *), struct ast_node *node, void *data)
 {
 	int ret = 0;
-	ret |= call(node->_type.struc.struc, data);
+	ret |= call(node->_type.struc.id, data);
 	ret |= call(node->_type.struc.impls, data);
 	return ret;
 }
@@ -2639,11 +2720,21 @@ static int call_on_type_sign(int (*call)(struct ast_node *,
 	return ret;
 }
 
+static int call_on_type_enum(int (*call)(struct ast_node *,
+                                         void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_type.enu.id, data);
+	ret |= call(node->_type.enu.type, data);
+	return ret;
+}
+
 static int call_on_type(int (*call)(struct ast_node *,
                                     void *), struct ast_node *node, void *data)
 {
 	int ret = 0;
 	switch (node->_type.kind) {
+	case AST_TYPE_ENUM: ret = call_on_type_enum(call, node, data); break;
 	case AST_TYPE_ALIAS: ret = call_on_type_alias(call, node, data); break;
 	case AST_TYPE_TEMPLATE: ret = call_on_type_template(call, node, data);
 		break;
@@ -2726,6 +2817,15 @@ static int call_on_block(int (*call)(struct ast_node *,
 	return call(node->_block.body, data);
 }
 
+static int call_on_fetch(int (*call)(struct ast_node *,
+                                     void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_fetch.id, data);
+	ret |= call(node->_fetch.type, data);
+	return ret;
+}
+
 /* I guess this works, but it's not exactly optimal as the caller sort of has to
  * know when to continue to call on, and when it would cause an infinite loop.
  * I.e. a call on an ID that is forwarded results in an infinite loop.
@@ -2741,6 +2841,7 @@ int ast_call_on(int (*call)(struct ast_node *,
 		return ret;
 
 	switch (node->node_type) {
+	case AST_FETCH: ret = call_on_fetch(call, node, data); break;
 	case AST_UNION: ret = call_on_union(call, node, data); break;
 	case AST_ASSIGN: ret = call_on_assign(call, node, data); break;
 	case AST_INIT: ret = call_on_init(call, node, data); break;

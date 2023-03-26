@@ -193,7 +193,7 @@ static void _type_str(FILE *fp, struct ast_node *type)
 	}
 
 	case AST_TYPE_STRUCT: {
-		struct ast_node *struc_id = type->_type.struc.struc;
+		struct ast_node *struc_id = type->_type.struc.id;
 		fprintf(fp, "%s", struc_id->_id.id);
 
 		struct ast_node *impls = type->_type.struc.impls;

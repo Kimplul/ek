@@ -5,6 +5,6 @@ gen/gen_parser.c: src/parser.y
 	bison -Wcounterexamples -H -o $@ $<
 
 gen/gen_lexer.c: src/lexer.l
-	flex --header-file=src/gen_lexer.h -o $@ $<
+	flex --header-file=gen/gen_lexer.h -o $@ $<
 
 include/cu/parser.h: gen/gen_lexer.c gen/gen_parser.c

@@ -1,5 +1,3 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later */
-
 /* A Bison parser, made by GNU Bison 3.8.2.  */
 
 /* Bison interface for Yacc-like parsers in C
@@ -133,7 +131,8 @@ extern int yydebug;
     RBRACKET = 332,                /* "]"  */
     AS = 333,                      /* "as"  */
     DOT = 334,                     /* "."  */
-    FATARROW = 335                 /* "=>"  */
+    SCOPE = 335,                   /* "::"  */
+    FATARROW = 336                 /* "=>"  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -149,7 +148,7 @@ union YYSTYPE
 	double dbl;
 	char *str;
 
-#line 151 "gen/gen_parser.h"
+#line 152 "gen/gen_parser.h"
 
 };
 typedef union YYSTYPE YYSTYPE;

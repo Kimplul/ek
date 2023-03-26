@@ -108,6 +108,7 @@
 %token RBRACKET "]"
 %token AS "as"
 %token DOT "."
+%token SCOPE "::"
 %token FATARROW "=>"
 
 /* precedence */
@@ -127,6 +128,7 @@
 %left "as" "sizeof" "typeof"
 %right "'" "!" "~"
 %left "." "=>" "(" ")"
+%left "::"
 
 /* why doesn't bison allow <*> for %nterm? would be so much easier */
 %nterm <node> import binary_op unary_op arg arg_list decl_list call expr
@@ -252,6 +254,7 @@ expr: id { $$ = $1; }
 	| "(" var_init ")" { $$ = $2; }
 	| "sizeof" expr { $$ = gen_sizeof($2); }
 	| expr "as" type { $$ = gen_cast($1, $3);  }
+	| id "::" type { $$ = gen_fetch($1, $3); }
 	| "as" type { $$ = gen_as($2); }
 	| embed { $$ = $1; }
 	| lambda { $$ = $1; }
@@ -553,7 +556,7 @@ type_template: "type" id "{" template_list "}" {
 	}
 	;
 
-enum_val: id { $$ = gen_val($1, gen_int(0));  }
+enum_val: id { $$ = gen_val($1, NULL);  }
 	| id "=" expr { $$ = gen_val($1, $3);  }
 	;
 

@@ -60,6 +60,7 @@ STRING		\"(\\.|[^"\\])*\"
 	    \n {}
 }
 
+"::"		{return SCOPE;}
 "("		{return LPAREN;}
 ")"		{return RPAREN;}
 "{"		{return LBRACE;}

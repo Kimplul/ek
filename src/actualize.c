@@ -84,6 +84,32 @@ static struct ast_node *void_type()
 	return void_type;
 }
 
+static struct ast_node *i64_type()
+{
+	char *i64_str = strdup("i64");
+	if (!i64_str) {
+		internal_error("couldn't allocate i64 string");
+		return NULL;
+	}
+
+	struct ast_node *i64_id = gen_id(i64_str);
+	if (!i64_id) {
+		internal_error("couldn't allocate i64 id");
+		free(i64_str);
+		return NULL;
+	}
+
+	struct ast_node *i64_type = gen_type(AST_TYPE_ID, i64_id, NULL, NULL);
+	if (!i64_type) {
+		internal_error("couldn't allocate i64 type");
+		destroy_ast_node(i64_id);
+		return NULL;
+	}
+
+	i64_type->type = i64_type;
+	return i64_type;
+}
+
 static int push_defer(struct act_state *state, struct ast_node *expr)
 {
 	struct act_stack *new = calloc(1, sizeof(struct act_stack));
@@ -306,7 +332,6 @@ static int analyze_file_visibility(struct scope *scope, struct ast_node *node)
 	}
 
 	case AST_STRUCT: {
-		/* TODO: should structs be their own 'thing'? */
 		ret |= scope_add_type(scope, node);
 		break;
 	}
@@ -568,18 +593,6 @@ struct ast_node *extract_template(struct ast_node *type)
 		return type;
 
 	return extract_template(type->_type.next);
-}
-
-struct ast_node *extract_base(struct ast_node *type)
-{
-	if (!type)
-		return 0;
-
-	assert(type->node_type == AST_TYPE);
-	if (is_templateable(type))
-		return type;
-
-	return extract_base(type->_type.next);
 }
 
 static void actualize_template_types(struct ast_node *params,
@@ -1146,24 +1159,23 @@ static int actualize_type(struct act_state *state,
 		assert(exists->node_type == AST_ALIAS
 		       || exists->node_type == AST_TEMPLATE
 		       || exists->node_type == AST_STRUCT
-		       || exists->node_type == AST_ENUM);
+		       || exists->node_type == AST_ENUM
+		       || exists->node_type == AST_UNION);
 		/* actualize whatever type we have on demand, either alias or
 		 * template */
 		if (!ast_flags(exists, AST_FLAG_ACTUAL))
 			if (actualize(state, exists->scope, exists))
 				EXIT_ACT(-1);
 
+		assert(type->_type.next == NULL);
+		destroy_ast_node(type->_type.id);
 		if (exists->node_type == AST_ALIAS) {
 			/* TODO: check if this is good enough */
-			destroy_ast_node(type->_type.id);
-			assert(type->_type.next == NULL);
 			type->_type.kind = AST_TYPE_ALIAS;
 			type->_type.alias.alias = exists;
 			type->_type.alias.actual = exists->_alias.type;
 		}
 		else if (exists->node_type == AST_TEMPLATE) {
-			destroy_ast_node(type->_type.id);
-			assert(type->_type.next == NULL);
 			type->_type.kind = AST_TYPE_TEMPLATE;
 			type->_type.template.template = exists;
 			/* this should be populated later */
@@ -1171,16 +1183,23 @@ static int actualize_type(struct act_state *state,
 		}
 		else if (exists->node_type == AST_STRUCT) {
 			/* I think, will still have to TODO: check */
-			destroy_ast_node(type->_type.id);
-			assert(type->_type.next == NULL);
 			type->_type.kind = AST_TYPE_STRUCT;
-			type->_type.struc.struc = clone_ast_node(
-				exists->_struct.id);
+			type->_type.struc.id =
+				clone_ast_node(exists->_struct.id);
 			/* should be populated later */
 			type->_type.struc.impls = NULL;
 		}
+		else if (exists->node_type == AST_ENUM) {
+			type->_type.kind = AST_TYPE_ENUM;
+			type->_type.enu.id = clone_ast_node(exists->_enum.id);
+			type->_type.enu.type = exists->_enum.type;
+		}
+		else if (exists->node_type == AST_UNION) {
+			type->_type.kind = AST_TYPE_UNION;
+			type->_type.unio.id = clone_ast_node(exists->_union.id);
+			type->_type.unio.impls = NULL;
+		}
 
-		/* TODO: what about enums? */
 		break;
 	}
 
@@ -1236,8 +1255,8 @@ static int actualize_type(struct act_state *state,
 	}
 
 	case AST_TYPE_STRUCT: {
-		struct ast_node *struc = type->_type.struc.struc;
-		struct ast_node *exists = file_scope_resolve_type(scope, struc);
+		struct ast_node *id = type->_type.struc.id;
+		struct ast_node *exists = file_scope_resolve_type(scope, id);
 		if (!exists || exists->node_type != AST_STRUCT) {
 			semantic_error(scope->fctx, type, "no such struct");
 			EXIT_ACT(-1);
@@ -1362,40 +1381,6 @@ static int pointer_conversion(struct ast_node *a, struct ast_node *b)
 	return 0;
 }
 
-static int check_impls(struct scope *scope, struct ast_node *target,
-                       struct ast_node *exists)
-{
-	struct ast_node *args = target->_type.struc.impls;
-	struct ast_node *params = exists->_struct.generics;
-	while (args && params) {
-		assert(params->node_type == AST_ALIAS);
-		assert(args->node_type == AST_TYPE);
-
-		struct ast_node *alias_actual = params->_alias.type;
-		if (!implements(scope, args, alias_actual)) {
-			char *astr = type_str(args);
-			char *pstr = type_str(params->type);
-			semantic_error(scope->fctx, args,
-			               "%s does not implement %s",
-			               astr, pstr);
-			free(astr);
-			free(pstr);
-			return -1;
-		}
-
-		params = params->next;
-		args = args->next;
-	}
-
-	if (args || params) {
-		semantic_error(scope->fctx, target,
-		               "wrong number of type arguments");
-		return -1;
-	}
-
-	return 0;
-}
-
 static size_t member_count(struct ast_node *exists)
 {
 	assert(exists->node_type == AST_STRUCT);
@@ -1446,6 +1431,22 @@ static struct ast_node *lookup_struct_member(struct ast_node *struc,
 		return lookup_struct_member_name(struc, find, idx);
 
 	return lookup_struct_member_idx(struc, find, idx);
+}
+
+static struct ast_node *lookup_enum_member(struct ast_node *enu,
+                                           struct ast_node *find)
+{
+	size_t i = 0;
+	struct ast_node *m = enu->_enum.body;
+	while (m) {
+		assert(m->node_type == AST_VAL);
+		if (identical_ast_nodes(0, find, m->_val.id))
+			break;
+		m = m->next;
+		i++;
+	}
+
+	return m;
 }
 
 static int init_struct(struct act_state *state, struct scope *scope,
@@ -1529,7 +1530,7 @@ static int actualize_struct_init(struct act_state *state,
 		return -1;
 	}
 
-	struct ast_node *id = struct_type->_type.struc.struc;
+	struct ast_node *id = struct_type->_type.struc.id;
 	struct ast_node *exists = file_scope_resolve_type(scope, id);
 	assert(exists);
 
@@ -1909,7 +1910,7 @@ static int actualize_struct(struct act_state *state,
 }
 
 /* could maybe be renamed, but essentially dot in copper works as either
- * -> or . in C, so allow structures or templates and single lever pointers to
+ * -> or . in C, so allow structures or templates and single level pointers to
  *  structures or templates. */
 static int has_members(struct ast_node *type)
 {
@@ -2004,6 +2005,86 @@ static int actualize_assign(struct act_state *state, struct scope *scope,
 	return 0;
 }
 
+static int actualize_fetch(struct act_state *state, struct scope *scope,
+                           struct ast_node *fetch)
+{
+	assert(fetch->node_type == AST_FETCH);
+	struct ast_node *type = fetch->_fetch.type;
+	if (actualize(state, scope, type))
+		return -1;
+
+	if (type->_type.kind != AST_TYPE_ENUM) {
+		semantic_error(scope->fctx, type, "type is not an enum");
+		return -1;
+	}
+
+	struct ast_node *id = fetch->_fetch.id;
+	struct ast_node *enu = file_scope_resolve_type(scope, type->_type.id);
+	assert(enu);
+
+	struct ast_node *member = lookup_enum_member(enu, id);
+	if (!member) {
+		char *estr = type_str(type);
+		semantic_error(scope->fctx, id, "no such member in enum %s");
+		free(estr);
+		return -1;
+	}
+
+	fetch->type = enu->type;
+	return 0;
+}
+
+static int actualize_enum(struct act_state *state, struct scope *scope,
+                          struct ast_node *node)
+{
+	assert(node->node_type == AST_ENUM);
+	struct ast_node *type = node->_enum.type;
+	struct scope *enum_scope = node->scope;
+
+	/* TODO: here we could save space by choosing the smallest type that
+	 * fits */
+	if (!type) {
+		type = i64_type();
+		node->_enum.type = type;
+	} else if (actualize(state, enum_scope, type))
+		return -1;
+
+	long long counter = 0;
+	node->type = type;
+	struct ast_node *members = node->_enum.body;
+	while (members) {
+		members->type = type;
+		if (members->_val.val) {
+			struct ast_node *val = members->_val.val;
+			if (actualize(state, enum_scope, val))
+				return -1;
+
+			if (val->node_type != AST_CONST) {
+				semantic_error(scope->fctx, members,
+				               "unable to process nonconstant expression");
+				return -1;
+			}
+
+			if (val->_const.kind != AST_CONST_INTEGER) {
+				semantic_error(scope->fctx, members,
+				               "not expandable to an integer constant");
+				return -1;
+			}
+
+			counter = val->_const.integer;
+		}
+		else {
+			members->_val.val = gen_int(counter);
+		}
+
+		members = members->next;
+		counter++;
+	}
+
+	/* TODO: check that we don't go outside the limits of the type */
+	return 0;
+}
+
 static int actualize(struct act_state *state, struct scope *scope,
                      struct ast_node *node)
 {
@@ -2043,6 +2124,8 @@ static int actualize(struct act_state *state, struct scope *scope,
 	case AST_DOT: ret |= actualize_dot(state, scope, node); break;
 	case AST_INIT: ret |= actualize_init(state, scope, node); break;
 	case AST_ASSIGN: ret |= actualize_assign(state, scope, node); break;
+	case AST_FETCH: ret |= actualize_fetch(state, scope, node); break;
+	case AST_ENUM: ret |= actualize_enum(state, scope, node); break;
 
 	default:
 		/* more like internal_error, maybe? */
