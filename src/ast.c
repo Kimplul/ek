@@ -2786,7 +2786,7 @@ int ast_call_on(int (*call)(struct ast_node *,
 
 size_t ast_list_len(struct ast_node *node)
 {
-	size_t count = 1;
+	size_t count = 0;
 	while (node) {
 		count++;
 		node = node->next;

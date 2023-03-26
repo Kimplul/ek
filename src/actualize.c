@@ -1042,13 +1042,11 @@ static int actualize_var(struct act_state *state,
 	/* one of these must be defined, otherwise the parser fucked up */
 	assert(type || init);
 
-	int ret = 0;
-	if (init)
-		ret |= actualize(state, scope, init);
+	if (init && actualize(state, scope, init))
+		return -1;
 
-	if (type)
-		ret |= actualize(state, scope, type);
-
+	if (type && actualize(state, scope, type))
+		return -1;
 
 	if (init && init->node_type == AST_INIT) {
 		assert(!init->type);
@@ -1398,35 +1396,144 @@ static int check_impls(struct scope *scope, struct ast_node *target,
 	return 0;
 }
 
-static int actualize_init_cast(struct act_state *state,
-                               struct scope *scope, struct ast_node *cast)
+static size_t member_count(struct ast_node *exists)
 {
-	struct ast_node *target = cast->_cast.type;
-	if (actualize(state, scope, target))
-		return -1;
+	assert(exists->node_type == AST_STRUCT);
+	struct ast_node *body = exists->_struct.body;
+	return ast_list_len(body);
+}
 
-	if (target->_type.kind != AST_TYPE_STRUCT) {
-		semantic_error(scope->fctx, target, "type is not a structure");
+static struct ast_node *lookup_struct_member_idx(struct ast_node *struc,
+                                                 struct ast_node *find,
+                                                 size_t *idx)
+{
+	/* micro-optimisation, likely way premature but speeds up selection
+	 * between lookup_struct_member_idx and *_name by a tiny amount */
+	(void)(find);
+
+	size_t i = *idx;
+	struct ast_node *m = struc->_struct.body;
+	while (i != 0 && m) {
+		m = m->next;
+		i--;
+	}
+
+	return m;
+}
+
+static struct ast_node *lookup_struct_member_name(struct ast_node *struc,
+                                                  struct ast_node *find,
+                                                  size_t *idx)
+{
+	size_t i = 0;
+	struct ast_node *m = struc->_struct.body;
+	while (m) {
+		assert(m->node_type == AST_VAR);
+		if (identical_ast_nodes(0, find, m->_var.id))
+			break;
+		m = m->next;
+		i++;
+	}
+
+	*idx = i;
+	return m;
+}
+
+static struct ast_node *lookup_struct_member(struct ast_node *struc,
+                                             struct ast_node *find, size_t *idx)
+{
+	if (find)
+		return lookup_struct_member_name(struc, find, idx);
+
+	return lookup_struct_member_idx(struc, find, idx);
+}
+
+static int init_struct(struct act_state *state, struct scope *scope,
+                       struct ast_node *exists, struct ast_node *init)
+{
+	assert(ast_flags(exists, AST_FLAG_ACTUAL));
+
+	size_t i = 0;
+	size_t mcount = member_count(exists);
+
+	int ret = 0;
+	char *initd = calloc(sizeof(char), mcount);
+	if (!initd) {
+		internal_error("failed allocating initd array");
 		return -1;
 	}
 
-	struct ast_node *id = target->_type.struc.struc;
+	struct ast_node *args = init->_init.body;
+	while (args) {
+		if (i >= mcount) {
+			semantic_error(scope->fctx, args,
+			               "excessive elements in initializer");
+			ret = -1;
+			break;
+		}
+
+		if (initd[i]) {
+			semantic_error(scope->fctx, args,
+			               "overwriting already initialized elements");
+			ret = -1;
+			break;
+		}
+
+		if ((ret = actualize(state, scope, args)))
+			break;
+
+		struct ast_node *find = NULL;
+		if (ast_flags(args, AST_FLAG_MEMBER))
+			find = args->_var.id;
+
+		struct ast_node *member =
+			lookup_struct_member(exists, find, &i);
+
+		if (!member) {
+			char *sstr = type_str(exists->type);
+			semantic_error(scope->fctx, args,
+			               "no such member in %s",
+			               sstr);
+			free(sstr);
+			ret = -1;
+			break;
+		}
+
+		if (!implements(scope, args->type, member->type)) {
+			char *astr = type_str(args->type);
+			char *mstr = type_str(member->type);
+			semantic_error(scope->fctx, args,
+			               "%s does not implement %s", astr, mstr);
+			free(astr);
+			free(mstr);
+			ret = -1;
+			break;
+		}
+
+		initd[i] = 1;
+		args = args->next;
+		i++;
+	}
+
+	free(initd);
+	return ret;
+}
+
+static int actualize_struct_init(struct act_state *state,
+                                 struct scope *scope, struct ast_node *init,
+                                 struct ast_node *struct_type)
+{
+	if (struct_type->_type.kind != AST_TYPE_STRUCT) {
+		semantic_error(scope->fctx, struct_type,
+		               "type is not a structure");
+		return -1;
+	}
+
+	struct ast_node *id = struct_type->_type.struc.struc;
 	struct ast_node *exists = file_scope_resolve_type(scope, id);
 	assert(exists);
 
-	struct ast_node *init = cast->_cast.expr;
-	if (actualize(state, exists->scope, init))
-		return -1;
-
-	/* TODO: this only handles unnamed initializers for now */
-	if (target->_type.struc.impls) {
-		if (check_impls(scope, target, exists))
-			return -1;
-	}
-
-	/* TODO: check that types match */
-	cast->type = target;
-	return 0;
+	return init_struct(state, scope, exists, init);
 }
 
 static int actualize_cast(struct act_state *state,
@@ -1434,8 +1541,6 @@ static int actualize_cast(struct act_state *state,
 {
 	assert(cast->node_type == AST_CAST);
 	struct ast_node *expr = cast->_cast.expr;
-	if (expr->node_type == AST_INIT)
-		return actualize_init_cast(state, scope, cast);
 
 	if (actualize(state, scope, expr))
 		return -1;
@@ -1443,6 +1548,11 @@ static int actualize_cast(struct act_state *state,
 	struct ast_node *type = cast->_cast.type;
 	if (actualize(state, scope, type))
 		return -1;
+
+	if (expr->node_type == AST_INIT) {
+		cast->type = type;
+		return actualize_struct_init(state, scope, expr, type);
+	}
 
 	if (types_match(expr->type, type)) {
 		cast->type = type;
@@ -1789,7 +1899,11 @@ static int actualize_struct(struct act_state *state,
 	if (actualize(state, struct_scope, body))
 		return -1;
 
-	node->type = node;
+	/* cloning slightly odd, but I guess it's fine? */
+	struct ast_node *clone_id = clone_ast_node(node->_struct.id);
+	node->type = gen_type(AST_TYPE_STRUCT, clone_id, NULL, NULL);
+	scope_add_scratch(scope, node->type);
+
 	ast_set_flags(node, AST_FLAG_ACTUAL);
 	return 0;
 }
@@ -1818,6 +1932,14 @@ static int has_members(struct ast_node *type)
 static int actualize_dot(struct act_state *state,
                          struct scope *scope, struct ast_node *node)
 {
+	/* TODO: handle enums as well, idea is something like
+	 * enum whatever {A_FLAG}
+	 * ...
+	 * whatever.A_FLAG
+	 *
+	 * possibly also if the expr is of type whatever then .A_FLAG just gets
+	 * the corresponding constant?
+	 **/
 	assert(node->node_type == AST_DOT);
 	struct ast_node *expr = node->_dot.expr;
 	if (actualize(state, scope, expr))
@@ -1864,9 +1986,8 @@ static int actualize_assign(struct act_state *state, struct scope *scope,
 		return -1;
 
 	if (from->node_type == AST_INIT) {
-		assert(!from->type);
-		from->type = to->type;
-		/* TODO: some kind of check_init() */
+		node->type = to->type;
+		return actualize_struct_init(state, scope, from, to->type);
 	}
 
 	if (!types_match(to->type, from->type)) {

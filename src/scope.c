@@ -572,13 +572,15 @@ int implements(struct scope *scope,
 	assert(arg_type);
 
 	if (param_type->_type.kind == AST_TYPE_ALIAS) {
-		if (implements(scope, arg_type, param_type->_type.alias.actual))
-			return 0;
+		assert(param_type->_type.next == NULL);
+		return implements(scope, arg_type,
+		                  param_type->_type.alias.actual);
 	}
 
 	if (arg_type->_type.kind == AST_TYPE_ALIAS) {
-		if (implements(scope, arg_type->_type.alias.actual, param_type))
-			return 0;
+		assert(arg_type->_type.next == NULL);
+		return implements(scope, arg_type->_type.alias.actual,
+		                  param_type);
 	}
 
 	/* TODO: do aliases and templates have to be converted to types? Are

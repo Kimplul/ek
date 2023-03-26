@@ -191,6 +191,21 @@ static void _type_str(FILE *fp, struct ast_node *type)
 		}
 		break;
 	}
+
+	case AST_TYPE_STRUCT: {
+		struct ast_node *struc_id = type->_type.struc.struc;
+		fprintf(fp, "%s", struc_id->_id.id);
+
+		struct ast_node *impls = type->_type.struc.impls;
+		if (impls) {
+			fprintf(fp, " (");
+			while (impls) {
+				_type_str(fp, impls);
+				impls = impls->next;
+			}
+			fprintf(fp, ")");
+		}
+	}
 	}
 
 	_type_str(fp, type->_type.next);
