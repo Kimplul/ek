@@ -3566,7 +3566,7 @@ yyreduce:
 #line 445 "src/parser.y"
                         {
 		(yyval.node) = gen_type(AST_TYPE_POINTER, NULL, NULL, NULL);
-		(yyval.node)->next = (yyvsp[0].node);
+		(yyval.node)->_type.next = (yyvsp[0].node);
 	}
 #line 3572 "gen/gen_parser.c"
     break;

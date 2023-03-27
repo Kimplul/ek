@@ -444,7 +444,7 @@ variadic_sign: func_sign { $$ = $1; }
 type: id { $$ = gen_type(AST_TYPE_ID, $1, NULL, NULL); }
 	| "'" func_sign {
 		$$ = gen_type(AST_TYPE_POINTER, NULL, NULL, NULL);
-		$$->next = $2;
+		$$->_type.next = $2;
 	}
 	| id "(" type_list ")" {
 		$$ = gen_type(AST_TYPE_STRUCT, $1, $3, NULL);

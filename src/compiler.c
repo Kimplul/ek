@@ -140,6 +140,7 @@ int compile(const char *file) {
 	int ret = -1;
 	struct scope *root = NULL;
 	if (process_file(&root, 0, file)) {
+		destroy_scope(root);
 		error("compilation of %s stopped due to errors", file);
 		return ret;
 	}

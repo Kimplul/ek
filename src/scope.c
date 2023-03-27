@@ -386,7 +386,26 @@ static void remove_implementation(struct ast_node *template,
 
 static int find_implementation(struct ast_node *template, struct ast_node *type)
 {
+	if (!type)
+		return 0;
+
 	assert(template->node_type == AST_TEMPLATE);
+	if (type->_type.kind == AST_TYPE_TEMPLATE)
+		return find_implementation(template,
+		                           type->_type.template.actual);
+
+	if (type->_type.kind == AST_TYPE_ALIAS)
+		return find_implementation(template, type->_type.alias.actual);
+
+	/* I'm not 100% sold on having to handle these special cases multiple
+	 * times in different places, but I'm not sure what alternatives I have.
+	 * For debugging purposes, maintaining as much info about the original
+	 * code is useful, but I wonder if I can somehow maybe clone this stuff
+	 * and keep a reference to the original or something without too much
+	 * work? TODO */
+	if (type->_type.kind == AST_TYPE_TYPEOF)
+		return find_implementation(template, type->_type.typeo.actual);
+
 	struct template_implemented *prev = template->_template.impl_by, *cur;
 	if (prev)
 		do {
@@ -448,8 +467,8 @@ static int implements_proc(struct scope *scope, struct ast_node *arg_type,
 	struct ast_node *params = sign->_type.sign.params;
 	struct ast_node *ret = sign->_type.sign.ret;
 
-	replace_param_types(params, param_type, arg_type);
-	replace_param_types(ret, param_type, arg_type);
+	init_template_types(params, param_type, arg_type);
+	init_template_type(ret, param_type, arg_type);
 
 	struct ast_node *impl = match_proc(1, scope, id, params);
 	if (!impl)
@@ -552,6 +571,40 @@ not_implemented:
 	return 0;
 }
 
+static int implements_alias(struct scope *scope, struct ast_node *arg_type,
+                            struct ast_node *param_type)
+{
+	struct ast_node *a_act = NULL, *p_act = NULL;
+	if (arg_type->_type.kind == AST_TYPE_ALIAS)
+		a_act = arg_type->_type.alias.actual;
+	else
+		a_act = arg_type;
+
+	if (param_type->_type.kind == AST_TYPE_ALIAS)
+		p_act = param_type->_type.alias.actual;
+	else
+		p_act = param_type;
+
+	return implements(scope, a_act, p_act);
+}
+
+static int implements_typeof(struct scope *scope, struct ast_node *arg_type,
+                             struct ast_node *param_type)
+{
+	struct ast_node *a_act = NULL, *p_act = NULL;
+	if (arg_type->_type.kind == AST_TYPE_TYPEOF)
+		a_act = arg_type->_type.typeo.actual;
+	else
+		a_act = arg_type;
+
+	if (param_type->_type.kind == AST_TYPE_TYPEOF)
+		p_act = param_type->_type.typeo.actual;
+	else
+		p_act = param_type;
+
+	return implements(scope, a_act, p_act);
+}
+
 int implements(struct scope *scope,
                struct ast_node *arg_type, struct ast_node *param_type)
 {
@@ -571,17 +624,21 @@ int implements(struct scope *scope,
 	/* at this point, we should always have some type for the argument */
 	assert(arg_type);
 
-	if (param_type->_type.kind == AST_TYPE_ALIAS) {
+	if (param_type->_type.kind == AST_TYPE_ALIAS ||
+	    arg_type->_type.kind == AST_TYPE_ALIAS) {
 		assert(param_type->_type.next == NULL);
-		return implements(scope, arg_type,
-		                  param_type->_type.alias.actual);
+		return implements_alias(scope, arg_type, param_type);
 	}
 
-	if (arg_type->_type.kind == AST_TYPE_ALIAS) {
-		assert(arg_type->_type.next == NULL);
-		return implements(scope, arg_type->_type.alias.actual,
-		                  param_type);
+	if (param_type->_type.kind == AST_TYPE_TYPEOF ||
+	    arg_type->_type.kind == AST_TYPE_TYPEOF) {
+		return implements_typeof(scope, arg_type, param_type);
 	}
+
+	/* having the arg be a template is a bit of a special case */
+	if (arg_type->_type.kind == AST_TYPE_TEMPLATE)
+		return implements(scope, arg_type->_type.template.actual,
+		                  param_type);
 
 	/* TODO: do aliases and templates have to be converted to types? Are
 	 * there any situations where a template will have to be followed by
@@ -817,16 +874,18 @@ int scope_add_existing_proc(struct scope *scope, struct visible *visible)
 	return 0;
 }
 
-#define FIND_FILE_VISIBLE(name, obj_type)                                  \
-	struct ast_node *name(struct scope *scope, struct ast_node *id)    \
-	{                                                                  \
-		assert(id->node_type == AST_ID);                           \
-		struct ast_node *found = scope_find_##obj_type(scope, id); \
-		if (found)                                                 \
-		return found;                                              \
-		if (!scope_flags(scope, SCOPE_FILE))                       \
-		return file_scope_find_##obj_type(scope->parent, id);      \
-		return NULL;                                               \
+#define FIND_FILE_VISIBLE(name, obj_type)                                     \
+	struct ast_node *name(struct scope *scope, struct ast_node *id)       \
+	{                                                                     \
+		assert(id->node_type == AST_ID);                              \
+		struct ast_node *found = scope_find_##obj_type(scope, id);    \
+		if (found) {                                                  \
+			return found;                                         \
+		}                                                             \
+		if (!scope_flags(scope, SCOPE_FILE)) {                        \
+			return file_scope_find_##obj_type(scope->parent, id); \
+		}                                                             \
+		return NULL;                                                  \
 	}
 
 struct ast_node *file_scope_find_type(struct scope *scope,
@@ -857,6 +916,10 @@ struct ast_node *file_scope_find(struct scope *scope, struct ast_node *id)
 	assert(id->node_type == AST_ID);
 
 	struct ast_node *found = file_scope_find_var(scope, id);
+	if (found)
+		return found;
+
+	found = file_scope_find_override(scope, id);
 	if (found)
 		return found;
 

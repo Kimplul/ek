@@ -206,6 +206,11 @@ static void _type_str(FILE *fp, struct ast_node *type)
 			fprintf(fp, ")");
 		}
 	}
+
+	case AST_TYPE_TYPEOF: {
+		_type_str(fp, type->_type.typeo.actual);
+		fprintf(fp, " (typeof)");
+	}
 	}
 
 	_type_str(fp, type->_type.next);

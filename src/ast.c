@@ -30,8 +30,14 @@
 static struct src_loc loc_span(struct ast_node *left, struct ast_node *right)
 {
 	struct src_loc loc = {0};
-	if (!left || !right)
+	if (!left && !right)
 		return loc;
+
+	if (!left && right)
+		return right->loc;
+
+	if (left && !right)
+		return left->loc;
 
 	/* this might eventually be a good thing to do,
 	 * but right now I'm still having issues with initializing all nodes

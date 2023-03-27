@@ -494,6 +494,23 @@ int alias_match(struct ast_node *a, struct ast_node *b)
 	return types_match(a_act, b_act);
 }
 
+static int typeof_match(struct ast_node *a, struct ast_node *b)
+{
+	struct ast_node *a_act = NULL, *b_act = NULL;
+	if (a->_type.kind == AST_TYPE_TYPEOF)
+		a_act = a->_type.typeo.actual;
+	else
+		a_act = a;
+
+
+	if (b->_type.kind == AST_TYPE_TYPEOF)
+		b_act = b->_type.typeo.actual;
+	else
+		b_act = b;
+
+	return types_match(a_act, b_act);
+}
+
 int types_match(struct ast_node *a, struct ast_node *b)
 {
 	if (!a && !b)
@@ -508,9 +525,17 @@ int types_match(struct ast_node *a, struct ast_node *b)
 	assert(a->node_type == AST_TYPE);
 	assert(b->node_type == AST_TYPE);
 
+	if (a->_type.kind == AST_TYPE_TYPEOF ||
+	    b->_type.kind == AST_TYPE_TYPEOF) {
+		if (typeof_match(a, b))
+			return 1;
+		return 0;
+	}
+
 	/* handle special cases that should match even with different type kinds */
 	if (a->_type.kind == AST_TYPE_TEMPLATE ||
 	    b->_type.kind == AST_TYPE_TEMPLATE) {
+		/* TODO: check template type name */
 		if (template_match(a, b))
 			return 1;
 		return 0;
@@ -676,6 +701,7 @@ static int actualize_proc_call(struct act_state *state,
 
 		struct ast_node *params = sign->_type.sign.params;
 		struct ast_node *args = call->_call.args;
+		/* fuck, analyze_proc gobbles up the return type typeof */
 		actualize_template_types(params, args);
 
 		if (actualize(state, tmp, sign))
@@ -773,6 +799,7 @@ static int actualize_call(struct act_state *state,
 	assert(call && call->node_type == AST_CALL);
 
 	/* check that arguments exist, make sure they have types etc. */
+	/* TODO: procedure callbacks? */
 	int ret = actualize(state, scope, call->_call.args);
 	if (ret)
 		return ret;
@@ -795,7 +822,7 @@ get_callable:
 		if (callable->node_type == AST_PROC
 		    && !ast_flags(callable->_proc.sign, AST_FLAG_ACTUAL)) {
 			/* since we're in types only mode, this should be fine */
-			if (actualize(state, scope, callable))
+			if (actualize(state, callable->scope, callable))
 				return -1;
 
 			goto get_callable;
@@ -866,26 +893,27 @@ static int actualize_proc(struct act_state *state,
 	}
 
 	struct ast_node *sign = actual->_proc.sign;
-	if (act_flags(state, ACT_ONLY_TYPES)) {
-		struct scope *param_scope = create_scope();
-		scope_add_scope(scope, param_scope);
+	struct scope *param_scope = create_scope();
+	scope_add_scope(scope, param_scope);
 
-		/* procedure type is the signature */
-		sign->scope = param_scope;
-		actual->type = sign;
+	/* procedure type is the signature */
+	sign->scope = param_scope;
+	actual->type = sign;
 
-		/* TODO: if we're actualizing the types here, how can we avoid
-		 * duplicates in the scope proc list? Or can we at all? */
+	/* TODO: if we're actualizing the types here, how can we avoid
+	 * duplicates in the scope proc list? Or can we at all? */
 
-		/* actualize types in signature */
-		/* note to self: this could likely be made more explicit, but
-		 * essentially we only want to actualize the signature when
-		 * we're in the analysis phase. After that, the call to the proc
-		 * will initialize the types for us, so this step would
-		 * overwrite the type info. I think, at least. */
-		return actualize(state, param_scope, sign);
-	}
+	/* actualize types in signature */
+	/* note to self: this could likely be made more explicit, but
+	 * essentially we only want to actualize the signature when
+	 * we're in the analysis phase. After that, the call to the proc
+	 * will initialize the types for us, so this step would
+	 * overwrite the type info. I think, at least. */
+	if (actualize(state, param_scope, sign))
+		return -1;
 
+	if (act_flags(state, ACT_ONLY_TYPES))
+		return 0;
 	/*
 	   struct ast_node *params = sign->_type.sign.params;
 	   while (params) {
@@ -1215,21 +1243,11 @@ static int actualize_type(struct act_state *state,
 		if (actualize(state, scope, expr))
 			EXIT_ACT(-1);
 
-		/* I suspect there are more ways than this that we can fail, but
-		 * this is a decent starting point */
-		if (expr->type->_type.kind == AST_TYPE_TYPEOF) {
-			semantic_error(scope->fctx, type,
-			               "couldn't actualize type expression\n");
-			EXIT_ACT(-1);
-		}
-
+		/* TODO: for now just trust that the expression is not looped or
+		 * anything dumb like that, but I would feel better if I figure
+		 * out some check */
 		assert(type->_type.next == NULL);
-		/* clone node to make sure we don't accidentally step on
-		 * anyone's toes and double free anything */
-		struct ast_node *clone = clone_ast_node(expr->type);
-		*type = *clone;
-		free(clone);
-		destroy_ast_node(expr);
+		type->_type.typeo.actual = expr->type;
 		break;
 	}
 
@@ -1275,13 +1293,6 @@ static int actualize_type(struct act_state *state,
 	}
 
 	ast_set_flags(type, AST_FLAG_ACTUAL);
-
-	if (type->_type.kind == AST_TYPE_TYPEOF) {
-		semantic_error(scope->fctx, type,
-		               "couldn't convert expression to type");
-		EXIT_ACT(-1);
-	}
-
 	/* generally speaking */
 	EXIT_ACT(0);
 }
@@ -1520,21 +1531,69 @@ static int init_struct(struct act_state *state, struct scope *scope,
 	return ret;
 }
 
+static struct ast_node *actual_type(struct ast_node *type)
+{
+	assert(type->node_type == AST_TYPE);
+	if (type->_type.kind == AST_TYPE_ALIAS)
+		return actual_type(type->_type.alias.actual);
+
+	if (type->_type.kind == AST_TYPE_TEMPLATE)
+		return actual_type(type->_type.template.actual);
+
+	if (type->_type.kind == AST_TYPE_TYPEOF)
+		return actual_type(type->_type.typeo.actual);
+
+	return type;
+}
+
 static int actualize_struct_init(struct act_state *state,
                                  struct scope *scope, struct ast_node *init,
                                  struct ast_node *struct_type)
 {
-	if (struct_type->_type.kind != AST_TYPE_STRUCT) {
+	struct ast_node *actual = actual_type(struct_type);
+	if (actual->_type.kind != AST_TYPE_STRUCT) {
 		semantic_error(scope->fctx, struct_type,
 		               "type is not a structure");
 		return -1;
 	}
 
-	struct ast_node *id = struct_type->_type.struc.id;
+	struct ast_node *id = actual->_type.struc.id;
 	struct ast_node *exists = file_scope_resolve_type(scope, id);
 	assert(exists);
 
 	return init_struct(state, scope, exists, init);
+}
+
+static int proc_pointer(struct ast_node *type)
+{
+	if (type->_type.kind != AST_TYPE_POINTER)
+		return 0;
+
+	struct ast_node *next = type->_type.next;
+	if (next->_type.kind != AST_TYPE_SIGN)
+		return 0;
+
+	return 1;
+}
+
+static int proc_choice(struct ast_node *expr, struct ast_node *type)
+{
+	if (expr->node_type != AST_ID)
+		return 0;
+
+	if (!proc_pointer(type))
+		return 0;
+
+	return 1;
+}
+
+/* still slightly unsure about this, but hey ho */
+static int match_proc(struct act_state *state, struct scope *scope,
+                      struct ast_node *cast)
+{
+	semantic_error(scope->fctx, cast,
+	               "procedure signature casts not yet implemented");
+	return -1;
 }
 
 static int actualize_cast(struct act_state *state,
@@ -1542,12 +1601,17 @@ static int actualize_cast(struct act_state *state,
 {
 	assert(cast->node_type == AST_CAST);
 	struct ast_node *expr = cast->_cast.expr;
+	struct ast_node *type = cast->_cast.type;
 
-	if (actualize(state, scope, expr))
+	if (actualize(state, scope, type))
 		return -1;
 
-	struct ast_node *type = cast->_cast.type;
-	if (actualize(state, scope, type))
+	if (proc_choice(expr, type)) {
+		cast->type = type;
+		return match_proc(state, scope, cast);
+	}
+
+	if (actualize(state, scope, expr))
 		return -1;
 
 	if (expr->node_type == AST_INIT) {
@@ -2186,8 +2250,44 @@ void replace_type(struct ast_node *type, struct ast_node *from,
 void replace_param_types(struct ast_node *param, struct ast_node *param_type,
                          struct ast_node *arg_type)
 {
+	if (arg_type->_type.kind == AST_TYPE_TEMPLATE) {
+		replace_param_types(param, param_type, arg_type);
+		return;
+	}
+
 	while (param) {
 		replace_type(param->type, param_type, arg_type);
 		param = param->next;
+	}
+}
+
+void init_template_type(struct ast_node *type, struct ast_node *param_type,
+                        struct ast_node *arg_type)
+{
+	if (!types_match(type, param_type))
+		return;
+
+	struct ast_node *template = extract_template(type);
+	if (template) {
+		/* TODO: this shares a fair bit of similarities with
+		 * actualize_template_types, could probably create a common
+		 * backend? */
+		while (type != template) {
+			type = param_type->_type.next;
+			type = arg_type->_type.next;
+			assert(param_type);
+			assert(arg_type);
+		}
+
+		template->_type.template.actual = arg_type;
+	}
+}
+
+void init_template_types(struct ast_node *params, struct ast_node *param_type,
+                         struct ast_node *arg_type)
+{
+	while (params) {
+		init_template_type(params->type, param_type, arg_type);
+		params = params->next;
 	}
 }
