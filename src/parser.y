@@ -80,7 +80,7 @@
 %token PUB "pub"
 %token STRUCT "struct"
 %token UNION "union"
-%token TYPEDEF "type"
+%token TYPEDEF "typedef"
 %token IMPORT "import"
 %token DEFER "defer"
 %token GOTO "goto"
@@ -111,6 +111,7 @@
 %token SCOPE "::"
 %token FATARROW "=>"
 
+%right "[" "]"
 /* precedence */
 %left ","
 %right "=" "+=" "-=" "*=" "/=" "%=" "<<=" ">>=" "&=" "^=" "|=" "^^="
@@ -464,6 +465,9 @@ type: id { $$ = gen_type(AST_TYPE_ID, $1, NULL, NULL); }
 	| "typeof" expr {
 		$$ = gen_type(AST_TYPE_TYPEOF, NULL, $2, NULL);
 	}
+	| id "::" type {
+		$$ = gen_type(AST_TYPE_MEMBER, $1, $3, NULL);
+	}
 	;
 
 var_decl: id "mut" type {
@@ -542,15 +546,15 @@ type_list: type "," type_list { $$ = $1; $1->next = $3; }
 	| type { $$ = $1; }
 	;
 
-type_alias: "type" id type { $$ = gen_alias($2, $3);  }
+type_alias: "typedef" id type { $$ = gen_alias($2, $3);  }
 	;
 
 /* we'll parse the arg list later in the AST and check that each node is of some
  * specific type */
-type_template: "type" id "{" template_list "}" {
+type_template: "typedef" id "{" template_list "}" {
 		$$ = gen_template($2, $4);
 	}
-	| "type" id "{" "}" {
+	| "typedef" id "{" "}" {
 		/* should match anything, but doesn't implement anything */
 		$$ = gen_template($2, NULL);
 	}

@@ -205,6 +205,7 @@ static void _type_str(FILE *fp, struct ast_node *type)
 			}
 			fprintf(fp, ")");
 		}
+		break;
 	}
 
 	case AST_TYPE_TYPEOF: {

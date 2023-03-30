@@ -103,7 +103,7 @@ extern int yydebug;
     PUB = 304,                     /* "pub"  */
     STRUCT = 305,                  /* "struct"  */
     UNION = 306,                   /* "union"  */
-    TYPEDEF = 307,                 /* "type"  */
+    TYPEDEF = 307,                 /* "typedef"  */
     IMPORT = 308,                  /* "import"  */
     DEFER = 309,                   /* "defer"  */
     GOTO = 310,                    /* "goto"  */

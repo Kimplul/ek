@@ -399,9 +399,10 @@ static int analyze(struct scope *scope, struct ast_node *tree)
  * forwarding, the main issue is detecting duplicates. */
 static int analyze_procs(struct scope *scope)
 {
+	struct visible *procs = scope->procs;
+	/*
 	struct act_state state = {0};
 	act_set_flags(&state, ACT_ONLY_TYPES);
-	struct visible *procs = scope->procs;
 	if (procs)
 		do {
 			if (procs->owner != scope)
@@ -414,11 +415,11 @@ static int analyze_procs(struct scope *scope)
 skip_actualize:
 			procs = procs->next;
 		} while (procs);
+	*/
 
 	/* reinsert procs with actualized signatures, should make sure we don't
 	 * have duplicates after all aliases etc. have been eliminated */
 	procs = scope->procs;
-	scope->procs = NULL;
 	if (procs)
 		do {
 			struct visible *next = procs->next;
@@ -428,7 +429,6 @@ skip_actualize:
 				goto skip_add;
 			}
 			if (scope_add_existing_proc(scope, procs)) {
-				destroy_visible(scope, procs);
 				return -1;
 			}
 
@@ -462,53 +462,47 @@ int analyze_root(struct scope *scope, struct ast_node *tree)
 
 int template_match(struct ast_node *a, struct ast_node *b)
 {
-	struct ast_node *a_act = NULL, *b_act = NULL;
-	if (a->_type.kind == AST_TYPE_TEMPLATE)
-		a_act = a->_type.template.actual;
-	else
-		a_act = a;
+	while (a && a->_type.kind == AST_TYPE_TEMPLATE)
+		a = a->_type.template.actual;
 
+	while (b && b->_type.kind == AST_TYPE_TEMPLATE)
+		b = b->_type.template.actual;
 
-	if (b->_type.kind == AST_TYPE_TEMPLATE)
-		b_act = b->_type.template.actual;
-	else
-		b_act = b;
-
-	return types_match(a_act, b_act);
+	return types_match(a, b);
 }
 
-int alias_match(struct ast_node *a, struct ast_node *b)
+static int alias_match(struct ast_node *a, struct ast_node *b)
 {
-	struct ast_node *a_act = NULL, *b_act = NULL;
-	if (a->_type.kind == AST_TYPE_ALIAS)
-		a_act = a->_type.alias.actual;
-	else
-		a_act = a;
+	while (a && a->_type.kind == AST_TYPE_ALIAS)
+		a = a->_type.alias.actual;
 
+	while (b && b->_type.kind == AST_TYPE_ALIAS)
+		b = b->_type.alias.actual;
 
-	if (b->_type.kind == AST_TYPE_ALIAS)
-		b_act = b->_type.alias.actual;
-	else
-		b_act = b;
+	return types_match(a, b);
+}
 
-	return types_match(a_act, b_act);
+static int pointer_match(struct ast_node *a, struct ast_node *b)
+{
+	if (a->_type.kind != AST_TYPE_POINTER)
+		return 0;
+
+	if (b->_type.kind != AST_TYPE_POINTER)
+		return 0;
+
+	return types_match(a->_type.next, b->_type.next);
 }
 
 static int typeof_match(struct ast_node *a, struct ast_node *b)
 {
-	struct ast_node *a_act = NULL, *b_act = NULL;
-	if (a->_type.kind == AST_TYPE_TYPEOF)
-		a_act = a->_type.typeo.actual;
-	else
-		a_act = a;
+	while (a && a->_type.kind == AST_TYPE_TYPEOF)
+		a = a->_type.typeo.actual;
 
 
-	if (b->_type.kind == AST_TYPE_TYPEOF)
-		b_act = b->_type.typeo.actual;
-	else
-		b_act = b;
+	while (b && b->_type.kind == AST_TYPE_TYPEOF)
+		b = b->_type.typeo.actual;
 
-	return types_match(a_act, b_act);
+	return types_match(a, b);
 }
 
 int types_match(struct ast_node *a, struct ast_node *b)
@@ -516,10 +510,7 @@ int types_match(struct ast_node *a, struct ast_node *b)
 	if (!a && !b)
 		return 1;
 
-	if (!a)
-		return 0;
-
-	if (!b)
+	if (!a || !b)
 		return 0;
 
 	assert(a->node_type == AST_TYPE);
@@ -550,6 +541,14 @@ int types_match(struct ast_node *a, struct ast_node *b)
 
 	if (a->_type.kind != b->_type.kind)
 		return 0;
+
+	if (a->_type.kind == AST_TYPE_POINTER ||
+	    b->_type.kind == AST_TYPE_POINTER) {
+		if (pointer_match(a, b))
+			return 1;
+
+		return 0;
+	}
 
 	/* from here on, we know that both types are identical */
 	if (!identical_ast_nodes(0, a, b))
@@ -606,6 +605,18 @@ static int actualize_macro(struct act_state *state,
 	 * called, so just try to add it to the local scope */
 	assert(macro && macro->node_type == AST_MACRO);
 	return scope_add_macro(scope, macro);
+}
+
+struct ast_node *extract_typeof(struct ast_node *type)
+{
+	if (!type)
+		return 0;
+
+	assert(type->node_type == AST_TYPE);
+	if (type->_type.kind == AST_TYPE_TYPEOF)
+		return type;
+
+	return extract_typeof(type->_type.next);
 }
 
 struct ast_node *extract_template(struct ast_node *type)
@@ -904,26 +915,11 @@ static int actualize_proc(struct act_state *state,
 	 * duplicates in the scope proc list? Or can we at all? */
 
 	/* actualize types in signature */
-	/* note to self: this could likely be made more explicit, but
-	 * essentially we only want to actualize the signature when
-	 * we're in the analysis phase. After that, the call to the proc
-	 * will initialize the types for us, so this step would
-	 * overwrite the type info. I think, at least. */
 	if (actualize(state, param_scope, sign))
 		return -1;
 
 	if (act_flags(state, ACT_ONLY_TYPES))
 		return 0;
-	/*
-	   struct ast_node *params = sign->_type.sign.params;
-	   while (params) {
-	   if (params->_var.id)
-	   if (scope_add_var(param_scope, params))
-	   return -1;
-
-	   params = params->next;
-	   }
-	 */
 
 	/* we don't have to maintain the same flags as the parent state, I don't
 	 * think */
@@ -1282,11 +1278,16 @@ static int actualize_type(struct act_state *state,
 
 		if (!ast_flags(exists, AST_FLAG_ACTUAL))
 			if (actualize(state, exists->scope, exists))
-				return -1;
+				EXIT_ACT(-1);
 
 		struct ast_node *types = type->_type.struc.impls;
 		if (actualize(state, scope, types))
 			EXIT_ACT(-1);
+		break;
+	}
+
+	case AST_TYPE_MEMBER: {
+		/* TODO */
 		break;
 	}
 
@@ -1511,7 +1512,7 @@ static int init_struct(struct act_state *state, struct scope *scope,
 			break;
 		}
 
-		if (!implements(scope, args->type, member->type)) {
+		if (!implements(0, scope, args->type, member->type)) {
 			char *astr = type_str(args->type);
 			char *mstr = type_str(member->type);
 			semantic_error(scope->fctx, args,
@@ -1918,6 +1919,12 @@ static int actualize_unop(struct act_state *state,
 		break;
 	}
 
+	case AST_REF: {
+		node->type = gen_type(AST_TYPE_POINTER, NULL, NULL, NULL);
+		node->type->_type.next = expr->type;
+		break;
+	}
+
 	default: semantic_error(scope->fctx, node,
 		                "unimplemented unary operation");
 		return -1;
@@ -2215,7 +2222,7 @@ int actualize_main(struct scope *root)
 	struct act_state state = {0};
 
 	/* skip checking signature for now */
-	struct ast_node *main = file_scope_find_override(root, &main_id);
+	struct ast_node *main = file_scope_find_proc(root, &main_id);
 	if (!main) {
 		/* libraries are not really compilable... */
 		error("no main");
@@ -2240,8 +2247,35 @@ void replace_type(struct ast_node *type, struct ast_node *from,
 	if (types_match(type, from)) {
 		assert(type->_type.next == NULL);
 		struct ast_node *clone = clone_ast_node(to);
+		/* TODO: unsure if this is everything */
+		switch (type->_type.kind) {
+		case AST_TYPE_ID:
+			destroy_ast_node(type->_type.id);
+			break;
+
+		case AST_TYPE_STRUCT:
+			destroy_ast_node(type->_type.struc.id);
+			break;
+
+		case AST_TYPE_ENUM:
+			destroy_ast_node(type->_type.enu.id);
+			break;
+
+		case AST_TYPE_UNION:
+			destroy_ast_node(type->_type.unio.id);
+			break;
+
+		case AST_TYPE_PROC:
+			destroy_ast_node(type->_type.proc.id);
+			break;
+
+		case AST_TYPE_TYPEOF:
+			destroy_ast_node(type->_type.typeo.expr);
+			break;
+		}
 		*type = *clone;
 		free(clone);
+		return;
 	}
 
 	replace_type(type->_type.next, from, to);
@@ -2274,8 +2308,8 @@ void init_template_type(struct ast_node *type, struct ast_node *param_type,
 		 * backend? */
 		while (type != template) {
 			type = param_type->_type.next;
-			type = arg_type->_type.next;
-			assert(param_type);
+			arg_type = arg_type->_type.next;
+			assert(type);
 			assert(arg_type);
 		}
 
@@ -2290,4 +2324,17 @@ void init_template_types(struct ast_node *params, struct ast_node *param_type,
 		init_template_type(params->type, param_type, arg_type);
 		params = params->next;
 	}
+}
+
+int actualize_temp_type(struct scope *scope, struct ast_node *type)
+{
+	struct act_state state;
+	act_set_flags(&state, ACT_ONLY_TYPES);
+	struct ast_node *next = type->next;
+
+	type->next = NULL;
+	int ret = actualize(&state, scope, type);
+	type->next = next;
+
+	return ret;
 }

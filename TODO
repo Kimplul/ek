@@ -17,3 +17,4 @@ OPTIMIZATIONS:
 + Output one procedure at a time through the backend, would allow us to free
 actualized procs immediately instead of keeping them around in memory
 + Simplify IDs to just char arrays, would save on memory
++ Types can just be types, they maybe don't need to be full on AST nodes

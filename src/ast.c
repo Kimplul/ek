@@ -423,6 +423,12 @@ struct ast_node *gen_type(enum ast_type_kind kind, struct ast_node *id,
 	n->node_type = AST_TYPE;
 	n->_type.kind = kind;
 	switch (kind) {
+	case AST_TYPE_MEMBER:
+		n->_type.member.id = id;
+		n->_type.member.expr = expr;
+		n->loc = id->loc;
+		break;
+
 	case AST_TYPE_ALIAS:
 		n->_type.alias.alias = expr;
 		n->_type.alias.actual = ret;
@@ -955,6 +961,11 @@ void ast_set_flags(struct ast_node *node, enum ast_flag flags)
 	node->flags |= flags;
 }
 
+void ast_clear_flags(struct ast_node *node, enum ast_flag flags)
+{
+	node->flags &= ~(flags);
+}
+
 void ast_append(struct ast_node *list, struct ast_node *elem)
 {
 	struct ast_node *cur = list;
@@ -1278,6 +1289,12 @@ static void __dump_ast(int depth, struct ast_node *node)
 		dump_flags(node);
 
 		switch (node->_type.kind) {
+		case AST_TYPE_MEMBER:
+			printf(" MEMBER\n");
+			dump_ast(depth + 1, node->_type.member.id);
+			dump_ast(depth + 1, node->_type.member.expr);
+			break;
+
 		case AST_TYPE_ALIAS:
 			printf(" ALIAS\n");
 			dump_ast(depth + 1, node->_type.alias.alias->_alias.id);
@@ -1308,6 +1325,7 @@ static void __dump_ast(int depth, struct ast_node *node)
 		case AST_TYPE_TYPEOF:
 			printf(" TYPEOF\n");
 			dump_ast(depth + 1, node->_type.typeo.expr);
+			dump_ast(depth + 1, node->_type.typeo.actual);
 			break;
 
 		case AST_TYPE_PROC:
@@ -1616,12 +1634,20 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 		break;
 
 	case AST_VAR: {
-		struct ast_node *type = clone_ast_node(node->_var.type);
+		/* I don't like how messy this is, should maybe try and come up
+		 * with something better */
+		struct ast_node *type = NULL;
+		if (node->type)
+			type = clone_ast_node(node->type);
+		else
+			type = clone_ast_node(node->_var.type);
+
 		new = gen_var(clone_ast_node(node->_var.id),
 		              type,
 		              clone_ast_node(node->_var.init));
 		/* vars always reference the type associated with them? */
-		new->type = type;
+		if (node->type)
+			new->type = type;
 		break;
 	}
 
@@ -1651,6 +1677,12 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 		/* oh, if a node has a ->type it probably isn't cloned
 		 * correctly... */
 		switch (node->_type.kind) {
+		case AST_TYPE_MEMBER:
+			new = gen_type(AST_TYPE_MEMBER, node->_type.member.id,
+			               node->_type.member.expr,
+			               NULL);
+			break;
+
 		case AST_TYPE_ALIAS:
 			new = gen_type(AST_TYPE_ALIAS, NULL,
 			               node->_type.alias.alias,
