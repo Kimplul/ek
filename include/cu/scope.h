@@ -166,4 +166,7 @@ struct ast_node *file_scope_resolve_call(struct scope *scope,
 int implements(enum match_flags flags, struct scope *scope,
                struct ast_node *arg_type,
                struct ast_node *param_type);
+int primitive_type(struct ast_node *type);
+int fully_qualified(struct ast_node *type);
+
 #endif /* SCOPE_H */

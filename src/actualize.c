@@ -21,6 +21,7 @@ enum act_flags {
 	ACT_IN_SWITCH = (1 << 1),
 	ACT_ONLY_TYPES = (1 << 2),
 	ACT_HAS_RETURN = (1 << 3),
+	ACT_REQUIRE_FULLY_QUALIFIED = (1 << 4),
 };
 
 struct act_state {
@@ -998,6 +999,7 @@ static int actualize_proc(struct act_state *state,
 	 * think */
 	struct act_state new_state = {0};
 	new_state.cur_proc = actual;
+	act_set_flags(&new_state, ACT_REQUIRE_FULLY_QUALIFIED);
 	/* actualize body */
 	ret |= actualize(&new_state, sign->scope, actual->_proc.body);
 	if (!act_flags(&new_state, ACT_HAS_RETURN)) {
@@ -1358,7 +1360,23 @@ static int actualize_type(struct act_state *state,
 		if (actualize(state, scope, types))
 			EXIT_ACT(-1);
 
-		/* TODO: check that all params are fully qualified */
+		while (types) {
+			if (!primitive_type(types)) {
+				semantic_error(scope->fctx, types,
+				               "only primitive types allowed in template initialization");
+				EXIT_ACT(-1);
+			}
+
+			if (act_flags(state, ACT_REQUIRE_FULLY_QUALIFIED)) {
+				if (!fully_qualified(types)) {
+					semantic_error(scope->fctx, types,
+					               "context requires fully qualified types");
+					EXIT_ACT(-1);
+				}
+			}
+			types = types->next;
+		}
+
 		break;
 	}
 
@@ -1611,14 +1629,26 @@ static int init_struct(struct act_state *state, struct scope *scope,
 struct ast_node *actual_type(struct ast_node *type)
 {
 	assert(type->node_type == AST_TYPE);
-	if (type->_type.kind == AST_TYPE_ALIAS)
-		return actual_type(type->_type.alias.actual);
+	if (type->_type.kind == AST_TYPE_ALIAS) {
+		if (type->_type.alias.actual)
+			return actual_type(type->_type.alias.actual);
 
-	if (type->_type.kind == AST_TYPE_TEMPLATE)
-		return actual_type(type->_type.template.actual);
+		return type;
+	}
 
-	if (type->_type.kind == AST_TYPE_TYPEOF)
-		return actual_type(type->_type.typeo.actual);
+	if (type->_type.kind == AST_TYPE_TEMPLATE) {
+		if (type->_type.template.actual)
+			return actual_type(type->_type.template.actual);
+
+		return type;
+	}
+
+	if (type->_type.kind == AST_TYPE_TYPEOF) {
+		if (type->_type.typeo.actual)
+			return actual_type(type->_type.typeo.actual);
+
+		return type;
+	}
 
 	return type;
 }

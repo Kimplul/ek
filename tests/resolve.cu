@@ -23,13 +23,13 @@ struct other_generic(T1 A) {
 // TODO: traits shouldn't be allowed in template instantiation
 //some_func(a generic(A, A)){6;}
 //some_func(generic(generic, generic)){1;}
-some_func(generic(generic, i64)){2;}
-some_func(generic(i64, generic)){3;}
+//some_func(generic(generic, i64)){2;}
+//some_func(generic(i64, generic)){3;}
 //some_func(generic(i64, i64)){4;}
 some_func(generic){5;}
 
 main(){
 	// TODO: not fully qualified types in bodies should cause an error
-	a generic(i64, u32);
+	a generic(i64, generic);
 	some_func(a);
 }

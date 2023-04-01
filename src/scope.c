@@ -22,7 +22,7 @@ static int generics_trait_type(struct ast_node *generics)
 	return generics_trait_type(generics->_type.next);
 }
 
-static int generic_type(struct scope *scope, struct ast_node *type)
+static int generic_type(struct ast_node *type)
 {
 	if (!type)
 		return 0;
@@ -37,10 +37,10 @@ static int generic_type(struct scope *scope, struct ast_node *type)
 	if (type->_type.kind == AST_TYPE_TEMPLATE)
 		return type->_type.template.actual == NULL;
 
-	return generic_type(scope, type->_type.next);
+	return generic_type(type->_type.next);
 }
 
-static int referential_type(struct scope *scope, struct ast_node *type)
+static int referential_type(struct ast_node *type)
 {
 	if (!type)
 		return 0;
@@ -51,24 +51,24 @@ static int referential_type(struct scope *scope, struct ast_node *type)
 	if (type->_type.kind == AST_TYPE_MEMBER)
 		return 1;
 
-	return referential_type(scope, type->_type.next);
+	return referential_type(type->_type.next);
 }
 
-static int primitive_type(struct scope *scope, struct ast_node *type)
+int primitive_type(struct ast_node *type)
 {
 	if (!type)
 		return 1;
 
-	if (referential_type(scope, type))
+	if (referential_type(type))
 		return 0;
 
-	if (generic_type(scope, type))
+	if (generic_type(type))
 		return 0;
 
 	return 1;
 }
 
-static int fully_qualified(struct ast_node *type)
+int fully_qualified(struct ast_node *type)
 {
 	if (!type)
 		return 1;
@@ -123,8 +123,9 @@ static int compare_primitives(struct ast_node *a, struct ast_node *b);
  * otherwise use find_primitive() to get which primitive matches.
  * (are these names inverted from their intention? I'm not sure)
  */
-static struct param_node *match_primitive(struct scope *scope, struct proc_node *node,
-		struct ast_node *type)
+static struct param_node *match_primitive(struct scope *scope,
+                                          struct proc_node *node,
+                                          struct ast_node *type)
 {
 	struct param_node *param = node->primitives;
 	while (param) {
@@ -194,7 +195,8 @@ static int compare_primitives(struct ast_node *a, struct ast_node *b)
 		return 1;
 
 	if (a->_type.kind == AST_TYPE_STRUCT)
-		return compare_impls(a->_type.struc.impls, b->_type.struc.impls);
+		return compare_impls(a->_type.struc.impls,
+		                     b->_type.struc.impls);
 
 	if (a->_type.kind == AST_TYPE_UNION)
 		return compare_impls(a->_type.unio.impls, b->_type.unio.impls);
@@ -262,9 +264,9 @@ static int add_next_resolve(struct scope *scope, struct ast_node *proc,
 	}
 
 	assert(params->node_type == AST_VAR);
-	if (primitive_type(scope, params->type)) {
+	if (primitive_type(params->type)) {
 		struct param_node *match = match_primitive(scope, node,
-		                                          params->type);
+		                                           params->type);
 		if (match)
 			return add_next_resolve(scope, proc, match->proc,
 			                        params->next);
@@ -276,7 +278,7 @@ static int add_next_resolve(struct scope *scope, struct ast_node *proc,
 		return add_next_resolve(scope, proc, next, params->next);
 	}
 
-	if (referential_type(scope, params->type)) {
+	if (referential_type(params->type)) {
 		/* TODO: I don't think there's a good way to check if the
 		 * referential types are identical, but could be worth a shot */
 		if (!node->referential) {
