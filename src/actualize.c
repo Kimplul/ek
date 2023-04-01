@@ -401,21 +401,21 @@ static int analyze_procs(struct scope *scope)
 {
 	struct visible *procs = scope->procs;
 	/*
-	struct act_state state = {0};
-	act_set_flags(&state, ACT_ONLY_TYPES);
-	if (procs)
-		do {
-			if (procs->owner != scope)
-				goto skip_actualize;
+	   struct act_state state = {0};
+	   act_set_flags(&state, ACT_ONLY_TYPES);
+	   if (procs)
+	        do {
+	                if (procs->owner != scope)
+	                        goto skip_actualize;
 
-			struct ast_node *proc = procs->node;
-			if (actualize(&state, scope, proc))
-				return -1;
+	                struct ast_node *proc = procs->node;
+	                if (actualize(&state, scope, proc))
+	                        return -1;
 
-skip_actualize:
-			procs = procs->next;
-		} while (procs);
-	*/
+	   skip_actualize:
+	                procs = procs->next;
+	        } while (procs);
+	 */
 
 	/* reinsert procs with actualized signatures, should make sure we don't
 	 * have duplicates after all aliases etc. have been eliminated */
@@ -498,11 +498,66 @@ static int typeof_match(struct ast_node *a, struct ast_node *b)
 	while (a && a->_type.kind == AST_TYPE_TYPEOF)
 		a = a->_type.typeo.actual;
 
-
 	while (b && b->_type.kind == AST_TYPE_TYPEOF)
 		b = b->_type.typeo.actual;
 
 	return types_match(a, b);
+}
+
+static int struct_match(struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(0, a->_type.struc.id, b->_type.struc.id))
+		return 0;
+
+	/* note a slight asymmetry, in that types on the right will match if
+	 * they don't have impls, but structs on the left will not. */
+	if (!b->_type.struc.impls)
+		return 1;
+
+	if (!a->_type.struc.impls)
+		return 0;
+
+	struct ast_node *a_impls = a->_type.struc.impls;
+	struct ast_node *b_impls = b->_type.struc.impls;
+	while (a_impls && b_impls) {
+		if (!types_match(a_impls, b_impls))
+			return 0;
+
+		b_impls = b_impls->next;
+		a_impls = a_impls->next;
+	}
+
+	if (a_impls || b_impls)
+		return 0;
+
+	return 1;
+}
+
+static int union_match(struct ast_node *a, struct ast_node *b)
+{
+	assert(a->_type.kind == AST_TYPE_UNION);
+	assert(b->_type.kind == AST_TYPE_UNION);
+
+	if (!identical_ast_nodes(0, a->_type.unio.id, b->_type.unio.id))
+		return 0;
+
+	if (!a->_type.unio.impls || !b->_type.unio.impls)
+		return 1;
+
+	struct ast_node *a_impls = a->_type.unio.impls;
+	struct ast_node *b_impls = b->_type.unio.impls;
+	while (a_impls && b_impls) {
+		a_impls = a_impls->next;
+		if (!types_match(a_impls, b_impls))
+			return 0;
+
+		b_impls = b_impls->next;
+	}
+
+	if (a_impls || b_impls)
+		return 0;
+
+	return 1;
 }
 
 int types_match(struct ast_node *a, struct ast_node *b)
@@ -539,12 +594,30 @@ int types_match(struct ast_node *a, struct ast_node *b)
 		return 0;
 	}
 
+	/* aliases etc. resolved, not if the kinds are different we must not
+	 * match */
 	if (a->_type.kind != b->_type.kind)
 		return 0;
 
 	if (a->_type.kind == AST_TYPE_POINTER ||
 	    b->_type.kind == AST_TYPE_POINTER) {
 		if (pointer_match(a, b))
+			return 1;
+
+		return 0;
+	}
+
+	if (a->_type.kind == AST_TYPE_STRUCT ||
+	    b->_type.kind == AST_TYPE_STRUCT) {
+		if (struct_match(a, b))
+			return 1;
+
+		return 0;
+	}
+
+	if (a->_type.kind == AST_TYPE_UNION ||
+	    b->_type.kind == AST_TYPE_UNION) {
+		if (union_match(a, b))
 			return 1;
 
 		return 0;
@@ -1120,6 +1193,7 @@ static int actualize_var(struct act_state *state,
 	if (var->_var.id && !ast_flags(var, AST_FLAG_MEMBER))
 		return scope_add_var(scope, var);
 
+	/* TODO: we should make sure the type is fully qualified in bodies */
 	return 0;
 }
 
@@ -1283,6 +1357,8 @@ static int actualize_type(struct act_state *state,
 		struct ast_node *types = type->_type.struc.impls;
 		if (actualize(state, scope, types))
 			EXIT_ACT(-1);
+
+		/* TODO: check that all params are fully qualified */
 		break;
 	}
 
@@ -1532,7 +1608,7 @@ static int init_struct(struct act_state *state, struct scope *scope,
 	return ret;
 }
 
-static struct ast_node *actual_type(struct ast_node *type)
+struct ast_node *actual_type(struct ast_node *type)
 {
 	assert(type->node_type == AST_TYPE);
 	if (type->_type.kind == AST_TYPE_ALIAS)

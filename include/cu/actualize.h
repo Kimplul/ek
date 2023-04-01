@@ -29,5 +29,6 @@ struct ast_node *extract_typeof(struct ast_node *type);
 int analyze_root(struct scope *scope, struct ast_node *tree);
 int actualize_main(struct scope *scope);
 int actualize_temp_type(struct scope *scope, struct ast_node *type);
+struct ast_node *actual_type(struct ast_node *type);
 
 #endif /* ANALYZE_H */

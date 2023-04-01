@@ -198,10 +198,12 @@ static void _type_str(FILE *fp, struct ast_node *type)
 
 		struct ast_node *impls = type->_type.struc.impls;
 		if (impls) {
-			fprintf(fp, " (");
+			fprintf(fp, "(");
 			while (impls) {
 				_type_str(fp, impls);
 				impls = impls->next;
+				if (impls)
+					fprintf(fp, ", ");
 			}
 			fprintf(fp, ")");
 		}

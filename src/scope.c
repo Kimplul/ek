@@ -11,26 +11,27 @@
 #include <cu/scope.h>
 #include <cu/actualize.h>
 
+static int generics_trait_type(struct ast_node *generics)
+{
+	if (!generics)
+		return 0;
+
+	if (actual_type(generics)->_type.kind == AST_TYPE_TEMPLATE)
+		return 1;
+
+	return generics_trait_type(generics->_type.next);
+}
+
 static int generic_type(struct scope *scope, struct ast_node *type)
 {
 	if (!type)
 		return 0;
 
-	if (type->_type.kind == AST_TYPE_STRUCT) {
-		/* check if the structure takes template parameters */
-		struct ast_node *struc = file_scope_find_type(scope, type);
-		assert(struc);
-		assert(struc->node_type == AST_STRUCT);
-		return struc->_struct.generics != NULL;
-	}
+	if (type->_type.kind == AST_TYPE_STRUCT)
+		return generics_trait_type(type->_type.struc.impls);
 
 	if (type->_type.kind == AST_TYPE_UNION) {
-		/* check if the structure takes template parameters */
-		struct ast_node *unio = file_scope_find_type(scope,
-		                                             type->_type.unio.id);
-		assert(unio);
-		assert(unio->node_type == AST_UNION);
-		return unio->_union.generics != NULL;
+		return generics_trait_type(type->_type.unio.impls);
 	}
 
 	if (type->_type.kind == AST_TYPE_TEMPLATE)
@@ -67,11 +68,69 @@ static int primitive_type(struct scope *scope, struct ast_node *type)
 	return 1;
 }
 
-static struct param_node *find_primitive(struct scope *scope, struct proc_node *node,
+static int fully_qualified(struct ast_node *type)
+{
+	if (!type)
+		return 1;
+
+	assert(type->_type.kind != AST_TYPE_TEMPLATE);
+	if (type->_type.kind == AST_TYPE_STRUCT) {
+		if (type->_type.struc.impls)
+			return fully_qualified(type->_type.struc.impls);
+
+		return 0;
+	}
+
+	if (type->_type.kind == AST_TYPE_UNION) {
+		if (type->_type.unio.impls)
+			return fully_qualified(type->_type.unio.impls);
+
+		return 0;
+	}
+
+	return fully_qualified(type->_type.next);
+}
+
+static struct param_node *find_primitive(struct scope *scope,
+                                         struct proc_node *node,
                                          struct ast_node *type)
 {
 	struct param_node *param = node->primitives;
 	while (param) {
+		if (types_match(type, param->type))
+			return param;
+
+		param = param->next;
+	}
+
+	return NULL;
+}
+
+static int compare_primitives(struct ast_node *a, struct ast_node *b);
+
+/* match also checks qualification status of the types, since we can
+ * differentiate between fully qualified types and not fully qualified types
+ * by placing qualified types towards the front of the primitive list.
+ * This is analoguous to the fallback thing in traits, but we want to be able to
+ * support multiple not fully qualified primitives, for example
+ *
+ * add(some_generic_struct)
+ * add(some_other_generic_struct)
+ *
+ * since they are easily distinguishable from eachother, in contract to traits.
+ *
+ * Therefore, use this when checking if a primitive should be added to the list,
+ * otherwise use find_primitive() to get which primitive matches.
+ * (are these names inverted from their intention? I'm not sure)
+ */
+static struct param_node *match_primitive(struct scope *scope, struct proc_node *node,
+		struct ast_node *type)
+{
+	struct param_node *param = node->primitives;
+	while (param) {
+		/* note very subtle change in that we pass param->type first
+		 * here, but second in find_primitive. This could easily be
+		 * confusing... */
 		if (types_match(param->type, type))
 			return param;
 
@@ -85,6 +144,100 @@ static int match_generic(struct scope *scope, struct ast_node *a,
                          struct ast_node *b)
 {
 	return implements(0, scope, a, b);
+}
+
+static int compare_impls(struct ast_node *a, struct ast_node *b)
+{
+	if (!a)
+		return 1;
+
+	if (!b)
+		return 0;
+
+	while (a && b) {
+		if (compare_primitives(a, b) == 0)
+			return 0;
+
+		a = a->next;
+		b = b->next;
+	}
+
+	return 1;
+}
+
+/* return 1 if a should come after b, 0 if a should come before b */
+static int compare_primitives(struct ast_node *a, struct ast_node *b)
+{
+	assert(a);
+	if (!b)
+		return 0;
+
+	/* fully qualified types go first */
+	if (fully_qualified(a))
+		return 0;
+
+	if (fully_qualified(b))
+		return 1;
+
+	/* TODO: figure out what kind of unqualified type we're dealing with,
+	 * i.e. some_generic(u32, some_other_generic) should come before
+	 * some_generic */
+
+	/* if we're dealing with different unqualified types, push stuff
+	 * backwards, so we don't end up with something like
+	 * 1. some_generic_type
+	 * 2. some_generic_union
+	 * 3. some_generic_type(u32)
+	 */
+
+	if (a->_type.kind != b->_type.kind)
+		return 1;
+
+	if (a->_type.kind == AST_TYPE_STRUCT)
+		return compare_impls(a->_type.struc.impls, b->_type.struc.impls);
+
+	if (a->_type.kind == AST_TYPE_UNION)
+		return compare_impls(a->_type.unio.impls, b->_type.unio.impls);
+
+	return 1;
+}
+
+static struct proc_node *insert_primitive(struct proc_node *node,
+                                          struct ast_node *type)
+{
+	struct param_node *new = calloc(1, sizeof(struct param_node));
+	if (!new) {
+		return NULL;
+	}
+	new->type = type;
+
+	struct proc_node *next = calloc(1, sizeof(struct proc_node));
+	if (!next) {
+		free(new);
+		return NULL;
+	}
+	new->proc = next;
+
+	if (!node->primitives) {
+		node->primitives = new;
+		return next;
+	}
+
+	struct param_node *iter = node->primitives, *prev = NULL;
+	while (iter && compare_primitives(type, iter->type)) {
+		prev = iter;
+		iter = iter->next;
+	}
+
+	if (prev)
+		prev->next = new;
+
+	new->next = iter;
+
+	if (iter == node->primitives)
+		node->primitives = new;
+
+	return next;
 }
 
 static int add_next_resolve(struct scope *scope, struct ast_node *proc,
@@ -110,18 +263,16 @@ static int add_next_resolve(struct scope *scope, struct ast_node *proc,
 
 	assert(params->node_type == AST_VAR);
 	if (primitive_type(scope, params->type)) {
-		struct param_node *found = find_primitive(scope, node, params->type);
-		if (found)
-			return add_next_resolve(scope, proc, found->proc,
+		struct param_node *match = match_primitive(scope, node,
+		                                          params->type);
+		if (match)
+			return add_next_resolve(scope, proc, match->proc,
 			                        params->next);
 
-		found = calloc(1, sizeof(struct param_node));
-		found->type = params->type;
-		found->next = node->primitives;
-		node->primitives = found;
+		struct proc_node *next = insert_primitive(node, params->type);
+		if (!next)
+			return -1;
 
-		struct proc_node *next = calloc(1, sizeof(struct proc_node));
-		found->proc = next;
 		return add_next_resolve(scope, proc, next, params->next);
 	}
 
@@ -129,13 +280,16 @@ static int add_next_resolve(struct scope *scope, struct ast_node *proc,
 		/* TODO: I don't think there's a good way to check if the
 		 * referential types are identical, but could be worth a shot */
 		if (!node->referential) {
-			node->referential = calloc(1, sizeof(struct param_node));
+			node->referential =
+				calloc(1, sizeof(struct param_node));
 			node->referential->type = params->type;
 
-			struct proc_node *next = calloc(1, sizeof(struct proc_node));
+			struct proc_node *next =
+				calloc(1, sizeof(struct proc_node));
 			node->referential->proc = next;
 
-			return add_next_resolve(scope, proc, next, params->next);
+			return add_next_resolve(scope, proc, next,
+			                        params->next);
 		}
 
 		if (!types_match(node->referential->type, params->type)) {
@@ -150,7 +304,8 @@ static int add_next_resolve(struct scope *scope, struct ast_node *proc,
 		destroy_ast_tree(params->type);
 		params->_var.type = NULL;
 		params->type = node->referential->type;
-		return add_next_resolve(scope, proc, node->referential->proc, params->next);
+		return add_next_resolve(scope, proc, node->referential->proc,
+		                        params->next);
 	}
 
 	/* otherwise try to use type as fallback */
