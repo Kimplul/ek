@@ -72,6 +72,7 @@ struct scope {
 	/* types */
 	/* TODO: add actualized types maybe? */
 	struct visible *enums;
+	struct visible *unions;
 	struct visible *structs;
 	struct visible *aliases;
 	struct visible *builtins;

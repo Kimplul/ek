@@ -210,10 +210,32 @@ static void _type_str(FILE *fp, struct ast_node *type)
 		break;
 	}
 
+	case AST_TYPE_UNION: {
+		struct ast_node *unio_id = type->_type.unio.id;
+		fprintf(fp, "%s", unio_id->_id.id);
+
+		struct ast_node *impls = type->_type.unio.impls;
+		if (impls) {
+			fprintf(fp, "(");
+			while (impls) {
+				_type_str(fp, impls);
+				impls = impls->next;
+				if (impls)
+					fprintf(fp, ", ");
+			}
+			fprintf(fp, ")");
+		}
+		break;
+	}
+
 	case AST_TYPE_TYPEOF: {
 		_type_str(fp, type->_type.typeo.actual);
 		fprintf(fp, " (typeof)");
+		break;
 	}
+
+	default:
+		fprintf(fp, "NOT YET IMPLEMENTED");
 	}
 
 	_type_str(fp, type->_type.next);

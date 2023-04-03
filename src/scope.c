@@ -75,6 +75,9 @@ int fully_qualified(struct ast_node *type)
 
 	assert(type->_type.kind != AST_TYPE_TEMPLATE);
 	if (type->_type.kind == AST_TYPE_STRUCT) {
+		if (!ast_flags(type, AST_FLAG_GENERIC))
+			return 1;
+
 		if (type->_type.struc.impls)
 			return fully_qualified(type->_type.struc.impls);
 
@@ -82,6 +85,9 @@ int fully_qualified(struct ast_node *type)
 	}
 
 	if (type->_type.kind == AST_TYPE_UNION) {
+		if (!ast_flags(type, AST_FLAG_GENERIC))
+			return 1;
+
 		if (type->_type.unio.impls)
 			return fully_qualified(type->_type.unio.impls);
 
@@ -91,8 +97,7 @@ int fully_qualified(struct ast_node *type)
 	return fully_qualified(type->_type.next);
 }
 
-static struct param_node *find_primitive(struct scope *scope,
-                                         struct proc_node *node,
+static struct param_node *find_primitive(struct proc_node *node,
                                          struct ast_node *type)
 {
 	struct param_node *param = node->primitives;
@@ -123,8 +128,7 @@ static int compare_primitives(struct ast_node *a, struct ast_node *b);
  * otherwise use find_primitive() to get which primitive matches.
  * (are these names inverted from their intention? I'm not sure)
  */
-static struct param_node *match_primitive(struct scope *scope,
-                                          struct proc_node *node,
+static struct param_node *match_primitive(struct proc_node *node,
                                           struct ast_node *type)
 {
 	struct param_node *param = node->primitives;
@@ -265,8 +269,7 @@ static int add_next_resolve(struct scope *scope, struct ast_node *proc,
 
 	assert(params->node_type == AST_VAR);
 	if (primitive_type(params->type)) {
-		struct param_node *match = match_primitive(scope, node,
-		                                           params->type);
+		struct param_node *match = match_primitive(node, params->type);
 		if (match)
 			return add_next_resolve(scope, proc, match->proc,
 			                        params->next);
@@ -361,7 +364,7 @@ static struct ast_node *proc_resolve(struct scope *scope,
 	}
 
 	/* first check if we match a primitive type */
-	struct param_node *found = find_primitive(scope, node, args->type);
+	struct param_node *found = find_primitive(node, args->type);
 	if (found)
 		return proc_resolve(scope, found->proc, args->next);
 
@@ -508,6 +511,7 @@ void destroy_scope(struct scope *scope)
 	destroy_visible(scope, scope->builtins);
 
 	destroy_visible(scope, scope->enums);
+	destroy_visible(scope, scope->unions);
 	destroy_visible(scope, scope->structs);
 	destroy_visible(scope, scope->aliases);
 	destroy_visible(scope, scope->templates);
@@ -568,6 +572,7 @@ CREATE_VISIBLE(create_proc, procs, AST_PROC);
 CREATE_VISIBLE(create_enum, enums, AST_ENUM);
 CREATE_VISIBLE(create_alias, aliases, AST_ALIAS);
 CREATE_VISIBLE(create_struct, structs, AST_STRUCT);
+CREATE_VISIBLE(create_union, unions, AST_UNION);
 CREATE_VISIBLE(create_builtin, builtins, AST_TYPE);
 CREATE_VISIBLE(create_template, templates, AST_TEMPLATE);
 
@@ -592,6 +597,7 @@ REFERENCE_VISIBLE(reference_proc, procs, AST_PROC);
 
 REFERENCE_VISIBLE(reference_enum, enums, AST_ENUM);
 REFERENCE_VISIBLE(reference_alias, aliases, AST_ALIAS);
+REFERENCE_VISIBLE(reference_union, unions, AST_UNION);
 REFERENCE_VISIBLE(reference_struct, structs, AST_STRUCT);
 REFERENCE_VISIBLE(reference_builtin, builtins, AST_TYPE);
 REFERENCE_VISIBLE(reference_template, templates, AST_TEMPLATE);
@@ -620,6 +626,7 @@ FIND_VISIBLE(scope_find_enum, enums, AST_ENUM, _enum);
 FIND_VISIBLE(scope_find_alias, aliases, AST_ALIAS, _alias);
 FIND_VISIBLE(scope_find_builtin, builtins, AST_TYPE, _type);
 FIND_VISIBLE(scope_find_struct, structs, AST_STRUCT, _struct);
+FIND_VISIBLE(scope_find_union, unions, AST_UNION, _union);
 FIND_VISIBLE(scope_find_template, templates, AST_TEMPLATE, _template);
 /* note that these return the first match for the ID, and as such might not be
  * what should be called. */
@@ -685,6 +692,7 @@ struct visible *create_type(struct scope *scope, struct ast_node *type)
 	case AST_TEMPLATE: return create_template(scope, type);
 	case AST_ENUM: return create_enum(scope, type);
 	case AST_STRUCT: return create_struct(scope, type);
+	case AST_UNION: return create_union(scope, type);
 	default:
 		semantic_error(scope->fctx, type, "unknown type");
 		return NULL;
@@ -699,6 +707,7 @@ int reference_type(int public, struct scope *scope, struct visible *visible)
 	case AST_TEMPLATE: return reference_template(public, scope, visible);
 	case AST_ENUM: return reference_enum(public, scope, visible);
 	case AST_STRUCT: return reference_struct(public, scope, visible);
+	case AST_UNION: return reference_union(public, scope, visible);
 	default:
 		semantic_error(scope->fctx, visible->node, "unknown type");
 		return 1;
@@ -740,6 +749,10 @@ struct ast_node *scope_find_type(struct scope *scope, struct ast_node *id)
 		return found;
 
 	found = scope_find_struct(scope, id);
+	if (found)
+		return found;
+
+	found = scope_find_union(scope, id);
 	if (found)
 		return found;
 
@@ -914,6 +927,10 @@ static int implements_var(enum match_flags flags, struct scope *scope,
                           struct ast_node *arg_type,
                           struct ast_node *param_type, struct ast_node *var)
 {
+	(void)(flags);
+	(void)(scope);
+	(void)(arg_type);
+	(void)(param_type);
 	assert(var->node_type == AST_VAR);
 	/* temp */
 	return 0;
@@ -1014,13 +1031,6 @@ static int implements_typeof(enum match_flags flags, struct scope *scope,
 	while (param_type && param_type->_type.kind == AST_TYPE_TYPEOF)
 		param_type = param_type->_type.typeo.actual;
 
-	return implements(flags, scope, arg_type, param_type);
-}
-
-static int implements_pointer(enum match_flags flags, struct scope *scope,
-                              struct ast_node *arg_type,
-                              struct ast_node *param_type)
-{
 	return implements(flags, scope, arg_type, param_type);
 }
 
@@ -1169,6 +1179,7 @@ static int match_params(enum match_flags flags, struct scope *scope,
 static struct ast_node *match_proc(enum match_flags flags, struct scope *scope,
                                    struct ast_node *id, struct ast_node *args)
 {
+	(void)(flags);
 	struct callable *cb = scope->callable;
 	while (cb) {
 		if (identical_ast_nodes(0, cb->id, id))
@@ -1546,6 +1557,10 @@ struct ast_node *scope_resolve_type(struct scope *scope, struct ast_node *type)
 
 	case AST_STRUCT:
 		id = type->_struct.id;
+		break;
+
+	case AST_UNION:
+		id = type->_union.id;
 		break;
 
 	case AST_ENUM:

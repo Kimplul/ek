@@ -423,6 +423,12 @@ struct ast_node *gen_type(enum ast_type_kind kind, struct ast_node *id,
 	n->node_type = AST_TYPE;
 	n->_type.kind = kind;
 	switch (kind) {
+	case AST_TYPE_GENERIC:
+		n->_type.generic.id = id;
+		n->_type.generic.args = expr;
+		n->loc = id->loc;
+		break;
+
 	case AST_TYPE_MEMBER:
 		n->_type.member.id = id;
 		n->_type.member.expr = expr;
@@ -504,6 +510,16 @@ void destroy_type(struct ast_node *type)
 {
 	assert(type->node_type == AST_TYPE);
 	switch (type->_type.kind) {
+	case AST_TYPE_GENERIC:
+		destroy_ast_node(type->_type.generic.id);
+		DESTROY_LIST(type->_type.generic.args);
+		break;
+
+	case AST_TYPE_MEMBER:
+		destroy_ast_node(type->_type.member.id);
+		destroy_ast_node(type->_type.member.expr);
+		break;
+
 	case AST_TYPE_ALIAS:
 		break;
 
@@ -1289,6 +1305,12 @@ static void __dump_ast(int depth, struct ast_node *node)
 		dump_flags(node);
 
 		switch (node->_type.kind) {
+		case AST_TYPE_GENERIC:
+			printf(" GENERIC\n");
+			dump_ast(depth + 1, node->_type.generic.id);
+			dump_ast(depth + 1, node->_type.generic.args);
+			break;
+
 		case AST_TYPE_MEMBER:
 			printf(" MEMBER\n");
 			dump_ast(depth + 1, node->_type.member.id);
@@ -1677,14 +1699,24 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 		/* oh, if a node has a ->type it probably isn't cloned
 		 * correctly... */
 		switch (node->_type.kind) {
+		case AST_TYPE_GENERIC:
+			new = gen_type(AST_TYPE_GENERIC,
+					clone_ast_node(node->_type.generic.id),
+			               clone_ast_node(node->_type.generic.args),
+			               NULL);
+			break;
+
 		case AST_TYPE_MEMBER:
-			new = gen_type(AST_TYPE_MEMBER, node->_type.member.id,
-			               node->_type.member.expr,
+			new = gen_type(AST_TYPE_MEMBER,
+					clone_ast_node(node->_type.member.id),
+			               clone_ast_node(node->_type.member.expr),
 			               NULL);
 			break;
 
 		case AST_TYPE_ALIAS:
 			new = gen_type(AST_TYPE_ALIAS, NULL,
+					/* should make it more obvious what is a
+					 * reference and what isn't */
 			               node->_type.alias.alias,
 			               node->_type.alias.actual);
 			break;
@@ -1692,7 +1724,7 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 		case AST_TYPE_TEMPLATE:
 			new = gen_type(AST_TYPE_TEMPLATE, NULL,
 			               node->_type.template.template,
-			               /* should actual be cloned? */
+			               /* ditto, should actual be cloned? */
 			               node->_type.template.actual);
 			break;
 		case AST_TYPE_ID:
@@ -1758,6 +1790,8 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 			break;
 
 		}
+
+		assert(new);
 		new->_type.next = clone_ast_node(node->_type.next);
 		break;
 
@@ -2180,7 +2214,7 @@ static int identical_type_struct(int exact, struct ast_node *a,
 	if (!identical_ast_nodes(exact, a->_type.struc.id, b->_type.struc.id))
 		return 0;
 
-	if (!identical_ast_nodes(exact, a->_type.struc.impls,
+	if (!identical_ast_nodes(1, a->_type.struc.impls,
 	                         b->_type.struc.impls))
 		return 0;
 
@@ -2193,7 +2227,7 @@ static int identical_type_union(int exact, struct ast_node *a,
 	if (!identical_ast_nodes(exact, a->_type.unio.id, b->_type.unio.id))
 		return 0;
 
-	if (!identical_ast_nodes(exact, a->_type.unio.impls,
+	if (!identical_ast_nodes(1, a->_type.unio.impls,
 	                         b->_type.unio.impls))
 		return 0;
 
@@ -2212,6 +2246,34 @@ static int identical_type_enum(int exact, struct ast_node *a,
 	return 1;
 }
 
+static int identical_type_member(int exact, struct ast_node *a,
+                                 struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_type.member.id, b->_type.member.id))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_type.member.expr,
+	                         b->_type.member.expr))
+		return 0;
+
+	return 1;
+}
+
+static int identical_type_generic(int exact, struct ast_node *a,
+                                  struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_type.generic.id,
+	                         b->_type.generic.id))
+		return 0;
+
+	/* array should always be checked, so do an exact match */
+	if (!identical_ast_nodes(1, a->_type.generic.args,
+	                         b->_type.generic.args))
+		return 0;
+
+	return 1;
+}
+
 static int identical_type(int exact, struct ast_node *a, struct ast_node *b)
 {
 	if (a->_type.kind != b->_type.kind)
@@ -2219,6 +2281,8 @@ static int identical_type(int exact, struct ast_node *a, struct ast_node *b)
 
 	int ret = 0;
 	switch (a->_type.kind) {
+	case AST_TYPE_GENERIC: ret = identical_type_generic(exact, a, b); break;
+	case AST_TYPE_MEMBER: ret = identical_type_member(exact, a, b); break;
 	case AST_TYPE_ENUM: ret = identical_type_enum(exact, a, b); break;
 	case AST_TYPE_ALIAS: ret = identical_type_alias(exact, a, b); break;
 	case AST_TYPE_TEMPLATE: ret = identical_type_template(exact, a, b);
@@ -2767,11 +2831,33 @@ static int call_on_type_enum(int (*call)(struct ast_node *,
 	return ret;
 }
 
+static int call_on_type_member(int (*call)(struct ast_node *,
+                                           void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_type.member.id, data);
+	ret |= call(node->_type.member.expr, data);
+	return ret;
+}
+
+static int call_on_type_generic(int (*call)(struct ast_node *,
+                                            void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_type.generic.id, data);
+	ret |= call(node->_type.generic.args, data);
+	return ret;
+}
+
 static int call_on_type(int (*call)(struct ast_node *,
                                     void *), struct ast_node *node, void *data)
 {
 	int ret = 0;
 	switch (node->_type.kind) {
+	case AST_TYPE_GENERIC: ret = call_on_type_generic(call, node, data);
+		break;
+	case AST_TYPE_MEMBER: ret = call_on_type_member(call, node, data);
+		break;
 	case AST_TYPE_ENUM: ret = call_on_type_enum(call, node, data); break;
 	case AST_TYPE_ALIAS: ret = call_on_type_alias(call, node, data); break;
 	case AST_TYPE_TEMPLATE: ret = call_on_type_template(call, node, data);

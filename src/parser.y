@@ -448,7 +448,7 @@ type: id { $$ = gen_type(AST_TYPE_ID, $1, NULL, NULL); }
 		$$->_type.next = $2;
 	}
 	| id "(" type_list ")" {
-		$$ = gen_type(AST_TYPE_STRUCT, $1, $3, NULL);
+		$$ = gen_type(AST_TYPE_GENERIC, $1, $3, NULL);
 	}
 	| "'" type {
 		$$ = gen_type(AST_TYPE_POINTER, NULL, NULL, NULL);
@@ -596,6 +596,7 @@ top: ";" { $$ = gen_empty(); }
 	| enum { $$ = $1; }
 	| proc { $$ = $1; }
 	| struct { $$ = $1; }
+	| union { $$ = $1; }
 	| macro { $$ = $1; }
 	| "const" top_if { $$ = $2; ast_set_flags($$, AST_FLAG_CONST); }
 	| import ";" { $$ = $1; }
@@ -603,6 +604,7 @@ top: ";" { $$ = gen_empty(); }
 	| type_template { $$ = $1; }
 	| "pub" enum { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" struct { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
+	| "pub" union { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" proc { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" macro { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" import ";" { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }

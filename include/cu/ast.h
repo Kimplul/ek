@@ -115,6 +115,7 @@ enum ast_type_kind {
 	AST_TYPE_LAMBDA,
 	AST_TYPE_PROC,
 	AST_TYPE_STRUCT,
+	AST_TYPE_GENERIC,
 	AST_TYPE_ENUM,
 	AST_TYPE_SIGN,
 };
@@ -140,6 +141,7 @@ enum ast_flag {
 	AST_FLAG_INIT = (1 << 10),
 	AST_FLAG_MEMBER = (1 << 11),
 	AST_FLAG_SHARED = (1 << 12),
+	AST_FLAG_GENERIC = (1 << 13),
 };
 
 struct ast_node;
@@ -307,6 +309,11 @@ struct ast_type {
 			struct ast_node *params;
 			struct ast_node *ret;
 		} lambda;
+
+		struct {
+			struct ast_node *id;
+			struct ast_node *args;
+		} generic;
 
 		struct {
 			struct ast_node *id;

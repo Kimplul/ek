@@ -337,6 +337,11 @@ static int analyze_file_visibility(struct scope *scope, struct ast_node *node)
 		break;
 	}
 
+	case AST_UNION: {
+		ret |= scope_add_type(scope, node);
+		break;
+	}
+
 	case AST_ENUM: {
 		ret |= scope_add_type(scope, node);
 		break;
@@ -1251,6 +1256,11 @@ static int actualize_type(struct act_state *state,
 			EXIT_ACT(-1);
 		}
 
+		/* this could be more clear, maybe add into the parser some kind
+		 * of meta class for templated types? */
+		if (exists->node_type == AST_UNION)
+			type->_type.kind = AST_TYPE_UNION;
+
 		/* nothing to do, except maybe check that types are actually
 		 * identical? */
 		if (exists->node_type == AST_TYPE)
@@ -1300,6 +1310,9 @@ static int actualize_type(struct act_state *state,
 			type->_type.unio.impls = NULL;
 		}
 
+		if (ast_flags(exists, AST_FLAG_GENERIC))
+			ast_set_flags(type, AST_FLAG_GENERIC);
+
 		break;
 	}
 
@@ -1344,11 +1357,24 @@ static int actualize_type(struct act_state *state,
 		break;
 	}
 
+	case AST_TYPE_UNION:
 	case AST_TYPE_STRUCT: {
-		struct ast_node *id = type->_type.struc.id;
+		assert(ast_flags(type, AST_FLAG_ACTUAL));
+		break;
+	}
+
+	case AST_TYPE_GENERIC: {
+		struct ast_node *id = type->_type.generic.id;
 		struct ast_node *exists = file_scope_resolve_type(scope, id);
-		if (!exists || exists->node_type != AST_STRUCT) {
-			semantic_error(scope->fctx, type, "no such struct");
+		if (!exists) {
+			semantic_error(scope->fctx, type, "no such type");
+			EXIT_ACT(-1);
+		}
+
+		if (exists->node_type != AST_UNION &&
+		    exists->node_type != AST_STRUCT) {
+			semantic_error(scope->fctx, type,
+			               "type not struct or union");
 			EXIT_ACT(-1);
 		}
 
@@ -1356,7 +1382,7 @@ static int actualize_type(struct act_state *state,
 			if (actualize(state, exists->scope, exists))
 				EXIT_ACT(-1);
 
-		struct ast_node *types = type->_type.struc.impls;
+		struct ast_node *types = type->_type.generic.args;
 		if (actualize(state, scope, types))
 			EXIT_ACT(-1);
 
@@ -1377,14 +1403,17 @@ static int actualize_type(struct act_state *state,
 			types = types->next;
 		}
 
+		if (exists->node_type == AST_UNION)
+			type->_type.kind = AST_TYPE_UNION;
+		else
+			type->_type.kind = AST_TYPE_STRUCT;
+
 		break;
 	}
 
-	case AST_TYPE_MEMBER: {
-		/* TODO */
-		break;
-	}
-
+	default:
+		semantic_error(scope->fctx, type, "unimplemented type");
+		EXIT_ACT(-1);
 	}
 
 	ast_set_flags(type, AST_FLAG_ACTUAL);
@@ -1494,16 +1523,16 @@ static size_t member_count(struct ast_node *exists)
 	return ast_list_len(body);
 }
 
-static struct ast_node *lookup_struct_member_idx(struct ast_node *struc,
-                                                 struct ast_node *find,
-                                                 size_t *idx)
+static struct ast_node *lookup_member_idx(struct ast_node *body,
+                                          struct ast_node *find,
+                                          size_t *idx)
 {
 	/* micro-optimisation, likely way premature but speeds up selection
 	 * between lookup_struct_member_idx and *_name by a tiny amount */
 	(void)(find);
-
+	assert(idx);
 	size_t i = *idx;
-	struct ast_node *m = struc->_struct.body;
+	struct ast_node *m = body;
 	while (i != 0 && m) {
 		m = m->next;
 		i--;
@@ -1512,12 +1541,13 @@ static struct ast_node *lookup_struct_member_idx(struct ast_node *struc,
 	return m;
 }
 
-static struct ast_node *lookup_struct_member_name(struct ast_node *struc,
-                                                  struct ast_node *find,
-                                                  size_t *idx)
+static struct ast_node *lookup_member_name(struct ast_node *body,
+                                           struct ast_node *find,
+                                           size_t *idx)
 {
+	assert(find->node_type == AST_ID);
 	size_t i = 0;
-	struct ast_node *m = struc->_struct.body;
+	struct ast_node *m = body;
 	while (m) {
 		assert(m->node_type == AST_VAR);
 		if (identical_ast_nodes(0, find, m->_var.id))
@@ -1526,7 +1556,9 @@ static struct ast_node *lookup_struct_member_name(struct ast_node *struc,
 		i++;
 	}
 
-	*idx = i;
+	if (idx)
+		*idx = i;
+
 	return m;
 }
 
@@ -1534,9 +1566,19 @@ static struct ast_node *lookup_struct_member(struct ast_node *struc,
                                              struct ast_node *find, size_t *idx)
 {
 	if (find)
-		return lookup_struct_member_name(struc, find, idx);
+		return lookup_member_name(struc->_struct.body, find, idx);
 
-	return lookup_struct_member_idx(struc, find, idx);
+	return lookup_member_idx(struc->_struct.body, find, idx);
+}
+
+static struct ast_node *lookup_union_member(struct ast_node *unio,
+                                            struct ast_node *find)
+{
+	if (find)
+		return lookup_member_name(unio->_union.body, find, NULL);
+
+	size_t idx = 0;
+	return lookup_member_idx(unio->_union.body, find, &idx);
 }
 
 static struct ast_node *lookup_enum_member(struct ast_node *enu,
@@ -1555,11 +1597,53 @@ static struct ast_node *lookup_enum_member(struct ast_node *enu,
 	return m;
 }
 
+static int init_union(struct act_state *state, struct scope *scope,
+                      struct ast_node *exists, struct ast_node *init)
+{
+	struct ast_node *arg = init->_init.body;
+	if (arg->next) {
+		semantic_error(scope->fctx, arg->next,
+		               "multiple arguments in union initialization not allowed");
+		return -1;
+	}
+
+	if (actualize(state, scope, arg))
+		return -1;
+
+	struct ast_node *member = NULL;
+	if (ast_flags(arg, AST_FLAG_MEMBER)) {
+		member = lookup_union_member(exists, arg->_var.id);
+	}
+	else {
+		/* pick first element in body */
+		member = exists->_union.body;
+	}
+
+	if (!member) {
+		char *sstr = type_str(exists->type);
+		semantic_error(scope->fctx, arg,
+		               "no such member in %s",
+		               sstr);
+		free(sstr);
+		return -1;
+	}
+
+	if (!implements(0, scope, arg->type, member->type)) {
+		char *mstr = type_str(member->type);
+		char *astr = type_str(arg->type);
+		semantic_error(scope->fctx, arg, "%s does not implement %s",
+		               astr, mstr);
+		free(mstr);
+		free(astr);
+		return -1;
+	}
+
+	return 0;
+}
+
 static int init_struct(struct act_state *state, struct scope *scope,
                        struct ast_node *exists, struct ast_node *init)
 {
-	assert(ast_flags(exists, AST_FLAG_ACTUAL));
-
 	size_t i = 0;
 	size_t mcount = member_count(exists);
 
@@ -1653,22 +1737,46 @@ struct ast_node *actual_type(struct ast_node *type)
 	return type;
 }
 
-static int actualize_struct_init(struct act_state *state,
-                                 struct scope *scope, struct ast_node *init,
-                                 struct ast_node *struct_type)
+static int actualize_struct_init_cast(struct act_state *state,
+                                      struct scope *scope,
+                                      struct ast_node *init,
+                                      struct ast_node *actual)
 {
-	struct ast_node *actual = actual_type(struct_type);
-	if (actual->_type.kind != AST_TYPE_STRUCT) {
-		semantic_error(scope->fctx, struct_type,
-		               "type is not a structure");
-		return -1;
-	}
-
 	struct ast_node *id = actual->_type.struc.id;
 	struct ast_node *exists = file_scope_resolve_type(scope, id);
 	assert(exists);
+	assert(ast_flags(exists, AST_FLAG_ACTUAL));
 
 	return init_struct(state, scope, exists, init);
+}
+
+static int actualize_union_init_cast(struct act_state *state,
+                                     struct scope *scope,
+                                     struct ast_node *init,
+                                     struct ast_node *actual)
+{
+	struct ast_node *id = actual->_type.unio.id;
+	struct ast_node *exists = file_scope_resolve_type(scope, id);
+	assert(exists);
+	assert(ast_flags(exists, AST_FLAG_ACTUAL));
+
+	return init_union(state, scope, exists, init);
+}
+
+static int actualize_init_cast(struct act_state *state,
+                               struct scope *scope, struct ast_node *init,
+                               struct ast_node *type)
+{
+	struct ast_node *actual = actual_type(type);
+	if (actual->_type.kind == AST_TYPE_STRUCT)
+		return actualize_struct_init_cast(state, scope, init, actual);
+	if (actual->_type.kind == AST_TYPE_UNION)
+		return actualize_union_init_cast(state, scope, init, actual);
+
+	semantic_error(scope->fctx, type,
+	               "type is not a struct or union");
+	return -1;
+
 }
 
 static int proc_pointer(struct ast_node *type)
@@ -1698,6 +1806,7 @@ static int proc_choice(struct ast_node *expr, struct ast_node *type)
 static int match_proc(struct act_state *state, struct scope *scope,
                       struct ast_node *cast)
 {
+	(void)(state);
 	semantic_error(scope->fctx, cast,
 	               "procedure signature casts not yet implemented");
 	return -1;
@@ -1723,7 +1832,7 @@ static int actualize_cast(struct act_state *state,
 
 	if (expr->node_type == AST_INIT) {
 		cast->type = type;
-		return actualize_struct_init(state, scope, expr, type);
+		return actualize_init_cast(state, scope, expr, type);
 	}
 
 	if (types_match(expr->type, type)) {
@@ -2068,6 +2177,8 @@ static int actualize_struct(struct act_state *state,
 		return -1;
 
 	scope_add_scope(node->scope, struct_scope);
+	if (generics)
+		ast_set_flags(node, AST_FLAG_GENERIC);
 
 	/* TODO: some IDs should be handles as just placeholders, I think? */
 	if (actualize(state, struct_scope, generics))
@@ -2080,6 +2191,36 @@ static int actualize_struct(struct act_state *state,
 	/* cloning slightly odd, but I guess it's fine? */
 	struct ast_node *clone_id = clone_ast_node(node->_struct.id);
 	node->type = gen_type(AST_TYPE_STRUCT, clone_id, NULL, NULL);
+	scope_add_scratch(scope, node->type);
+
+	ast_set_flags(node, AST_FLAG_ACTUAL);
+	return 0;
+}
+
+static int actualize_union(struct act_state *state,
+                           struct scope *scope, struct ast_node *node)
+{
+	assert(node->node_type == AST_UNION);
+	ast_set_flags(node, AST_FLAG_INIT);
+	struct ast_node *generics = node->_union.generics;
+	struct scope *union_scope = create_scope();
+	if (!union_scope)
+		return -1;
+
+	scope_add_scope(node->scope, union_scope);
+	if (generics)
+		ast_set_flags(node, AST_FLAG_GENERIC);
+
+	if (actualize(state, union_scope, generics))
+		return -1;
+
+	struct ast_node *body = node->_union.body;
+	if (actualize(state, union_scope, body))
+		return -1;
+
+	/* cloning slightly odd, but I guess it's fine? */
+	struct ast_node *clone_id = clone_ast_node(node->_union.id);
+	node->type = gen_type(AST_TYPE_UNION, clone_id, NULL, NULL);
 	scope_add_scratch(scope, node->type);
 
 	ast_set_flags(node, AST_FLAG_ACTUAL);
@@ -2165,7 +2306,7 @@ static int actualize_assign(struct act_state *state, struct scope *scope,
 
 	if (from->node_type == AST_INIT) {
 		node->type = to->type;
-		return actualize_struct_init(state, scope, from, to->type);
+		return actualize_init_cast(state, scope, from, to->type);
 	}
 
 	if (!types_match(to->type, from->type)) {
@@ -2298,6 +2439,7 @@ static int actualize(struct act_state *state, struct scope *scope,
 	case AST_UNOP: ret |= actualize_unop(state, scope, node); break;
 	case AST_AS: ret |= actualize_as(state, scope, node); break;
 	case AST_STRUCT: ret |= actualize_struct(state, scope, node); break;
+	case AST_UNION: ret |= actualize_union(state, scope, node); break;
 	case AST_DOT: ret |= actualize_dot(state, scope, node); break;
 	case AST_INIT: ret |= actualize_init(state, scope, node); break;
 	case AST_ASSIGN: ret |= actualize_assign(state, scope, node); break;
@@ -2378,6 +2520,8 @@ void replace_type(struct ast_node *type, struct ast_node *from,
 		case AST_TYPE_TYPEOF:
 			destroy_ast_node(type->_type.typeo.expr);
 			break;
+
+		default:
 		}
 		*type = *clone;
 		free(clone);
