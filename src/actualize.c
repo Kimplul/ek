@@ -5,9 +5,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include <cu/actualize.h>
-#include <cu/compiler.h>
-#include <cu/debug.h>
+#include <ek/actualize.h>
+#include <ek/compiler.h>
+#include <ek/debug.h>
 
 #define UNUSED(x) do { (void)(x); } while (0)
 

@@ -7,7 +7,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-#include <cu/debug.h>
+#include <ek/debug.h>
 
 const char *issue_level_str(enum issue_level level)
 {

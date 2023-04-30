@@ -1,8 +1,8 @@
 %option reentrant noyywrap nounput noinput nodefault
 %{
 #define FROM_LEXER
-#include <cu/parser.h>
-#include <cu/debug.h>
+#include <ek/parser.h>
+#include <ek/debug.h>
 
 static void update_yylloc(struct parser *parser, YYLTYPE *lloc, const char *text)
 {

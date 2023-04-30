@@ -7,8 +7,8 @@
 #include <assert.h>
 #include <math.h>
 
-#include <cu/ast.h>
-#include <cu/scope.h>
+#include <ek/ast.h>
+#include <ek/scope.h>
 
 #define ALLOC_NODE(n, type)                                      \
 	struct ast_node *n = calloc(1, sizeof(struct ast_node)); \

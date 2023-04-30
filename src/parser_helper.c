@@ -2,8 +2,8 @@
 
 #include <stdarg.h>
 
-#include <cu/parser.h>
-#include <cu/debug.h>
+#include <ek/parser.h>
+#include <ek/debug.h>
 
 struct parser *create_parser()
 {

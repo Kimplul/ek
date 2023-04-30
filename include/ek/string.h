@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
-#ifndef CT_STRING_H
-#define CT_STRING_H
+#ifndef EK_STRING_H
+#define EK_STRING_H
 
 #include <stddef.h>
 #include <string.h>
@@ -25,4 +25,4 @@ char str_rindex(struct string *s, size_t i);
 bool str_compare(struct string *s, const char *c);
 void str_clear(struct string *s);
 
-#endif /* CT_STRING_H */
+#endif /* EK_STRING_H */

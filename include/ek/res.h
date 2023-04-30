@@ -5,8 +5,8 @@
  * Simple resource manager header.
  */
 
-#ifndef CT_RES_H
-#define CT_RES_H
+#ifndef EK_RES_H
+#define EK_RES_H
 
 #include <stddef.h>
 
@@ -54,4 +54,4 @@ void res_add(struct res *r, void *p);
  */
 void res_destroy(struct res *r);
 
-#endif /* CT_RES_H */
+#endif /* EK_RES_H */

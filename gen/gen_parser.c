@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+
 /* A Bison parser, made by GNU Bison 3.8.2.  */
 
 /* Bison implementation for Yacc-like parsers in C
@@ -77,8 +79,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <cu/parser.h>
-#include <cu/ast.h>
+#include <ek/parser.h>
+#include <ek/ast.h>
 
 
 #line 85 "gen/gen_parser.c"

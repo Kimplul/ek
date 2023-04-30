@@ -5,7 +5,7 @@
 
 #include <stddef.h>
 #include <stdbool.h>
-#include <cu/ast.h>
+#include <ek/ast.h>
 
 struct parser {
 	bool failed;

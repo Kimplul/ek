@@ -1,11 +1,11 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
-#ifndef CT_DEBUG_H
-#define CT_DEBUG_H
+#ifndef EK_DEBUG_H
+#define EK_DEBUG_H
 
 #include <stdio.h>
 
-#include <cu/ast.h>
+#include <ek/ast.h>
 
 #if DEBUG
 #define debug(x, ...) \
@@ -53,4 +53,4 @@ struct src_issue {
 };
 
 void src_issue(struct src_issue issue, const char *err_msg, ...);
-#endif /* CT_DEBUG_H */
+#endif /* EK_DEBUG_H */

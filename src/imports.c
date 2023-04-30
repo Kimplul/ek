@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
-#include <cu/imports.h>
-#include <cu/debug.h>
+#include <ek/imports.h>
+#include <ek/debug.h>
 
 void add_import_path(const char *dir)
 {

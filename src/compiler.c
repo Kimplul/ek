@@ -8,14 +8,14 @@
 #include <limits.h>
 #include <errno.h>
 
-#include <cu/actualize.h>
-#include <cu/compiler.h>
-#include <cu/string.h>
-#include <cu/parser.h>
-#include <cu/debug.h>
-#include <cu/scope.h>
-#include <cu/path.h>
-#include <cu/res.h>
+#include <ek/actualize.h>
+#include <ek/compiler.h>
+#include <ek/string.h>
+#include <ek/parser.h>
+#include <ek/debug.h>
+#include <ek/scope.h>
+#include <ek/path.h>
+#include <ek/res.h>
 
 static char *read_file(const char *file, FILE *f)
 {
@@ -97,18 +97,18 @@ int process_file(struct scope **scope, int public, const char *file)
 	if (!r)
 		return -1;
 
-	const char *base = cu_basename(file);
+	const char *base = ek_basename(file);
 	res_add(r, (void *)base);
 	if (!base)
 		goto out;
 
-	const char *dir = cu_dirname(file);
+	const char *dir = ek_dirname(file);
 	res_add(r, (void *)dir);
 	if (!dir)
 		goto out;
 
 	/* TODO: iterate through include paths */
-	const char *cwd = cu_cwdname();
+	const char *cwd = ek_cwdname();
 	res_add(r, (void *)cwd);
 	if (!cwd)
 		goto out;

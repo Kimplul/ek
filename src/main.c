@@ -4,9 +4,9 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include <cu/debug.h>
-#include <cu/imports.h>
-#include <cu/compiler.h>
+#include <ek/debug.h>
+#include <ek/imports.h>
+#include <ek/compiler.h>
 
 static const char *cmdline_usage =
 	"Copper compiler usage:\n"

@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+
 #line 2 "gen/gen_lexer.c"
 
 #line 4 "gen/gen_lexer.c"
@@ -595,8 +597,8 @@ static const flex_int16_t yy_chk[433] =
 #define YY_NO_INPUT 1
 #line 3 "src/lexer.l"
 #define FROM_LEXER
-#include <cu/parser.h>
-#include <cu/debug.h>
+#include <ek/parser.h>
+#include <ek/debug.h>
 
 static void update_yylloc(struct parser *parser, YYLTYPE *lloc, const char *text)
 {

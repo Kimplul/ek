@@ -6,10 +6,10 @@
 #include <stdlib.h>
 #include <errno.h>
 
-#include <cu/path.h>
-#include <cu/debug.h>
+#include <ek/path.h>
+#include <ek/debug.h>
 
-char *cu_basename(const char *file)
+char *ek_basename(const char *file)
 {
 	size_t l = strlen(file);
 	size_t n = l - 1;
@@ -24,7 +24,7 @@ char *cu_basename(const char *file)
 	return strndup(file + n + 1, l - n);
 }
 
-char *cu_dirname(const char *file)
+char *ek_dirname(const char *file)
 {
 	size_t l = strlen(file);
 	size_t n = l - 1;
@@ -36,7 +36,7 @@ char *cu_dirname(const char *file)
 	return strndup(file, n);
 }
 
-char *cu_cwdname()
+char *ek_cwdname()
 {
 	size_t size;
 	long path_max = pathconf(".", _PC_PATH_MAX);

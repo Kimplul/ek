@@ -7,8 +7,7 @@ INCLUDEFLAGS	= -Iinclude
 COMPILEFLAGS	=
 LINKFLAGS	=
 
-# should the compiler be renamed ctc? C with Traits Compiler?
-all: cu
+all: ek
 
 # default values
 CROSS_COMPILE	?=
@@ -46,15 +45,15 @@ docs:
 	@doxygen docs/doxygen.conf
 
 .PHONY: check
-check: cu
+check: ek
 	./tests/check.sh
 
-cu: $(OBJS)
+ek: $(OBJS)
 	$(COMPILE) $(OBJS) -o $@
 
 .PHONY: clean
 clean:
-	@$(RM) -r build cu deps.mk
+	@$(RM) -r build ek deps.mk
 
 .PHONY: clean_docs
 clean_docs:

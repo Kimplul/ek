@@ -7,9 +7,9 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#include <cu/debug.h>
-#include <cu/scope.h>
-#include <cu/actualize.h>
+#include <ek/debug.h>
+#include <ek/scope.h>
+#include <ek/actualize.h>
 
 static int generics_trait_type(struct ast_node *generics)
 {

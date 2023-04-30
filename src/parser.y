@@ -7,8 +7,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <cu/parser.h>
-#include <cu/ast.h>
+#include <ek/parser.h>
+#include <ek/ast.h>
 
 %}
 
