@@ -1,5 +1,5 @@
 deps.mk
 docs/output
 build
-cu
-!include/cu
+ek
+!include/ek

@@ -3,6 +3,7 @@ DO	!= echo -n > deps.mk
 DEBUGFLAGS	!= [ $(RELEASE) ] && echo "-flto=auto -O2 -DNODEBUG" || echo "-O0 -g -DDEBUG"
 CFLAGS		= -Wall -Wextra
 DEPFLAGS	= -MT $@ -MMD -MP -MF $@.d
+LINTFLAGS	= -fsyntax-only
 INCLUDEFLAGS	= -Iinclude
 COMPILEFLAGS	=
 LINKFLAGS	=
@@ -23,16 +24,19 @@ include gen/source.mk
 COMPILE		= $(CROSS_COMPILE)$(CC) $(DEBUGFLAGS)\
 		  $(CFLAGS) $(DEPFLAGS) $(COMPILEFLAGS) $(INCLUDEFLAGS)
 
+LINT		= $(COMPILE) $(LINTFLAGS)
+
 OBJS		!= ./scripts/gen-deps --sources "$(SOURCES)"
 
 include deps.mk
 
+.PHONY: lint
+lint: $(OBJS:.o=.o.l)
+
 .PHONY: format
 format:
-	@cd src; find . -iname '*.[ch]' |\
-		xargs -n 10 -P 0 uncrustify -c ../uncrustify.conf --no-backup -F -
-	@cd include; find . -iname '*.[ch]' |\
-		xargs -n 10 -P 0 uncrustify -c ../uncrustify.conf --no-backup -F -
+	@find src include tests -iname '*.[ch]' |\
+		xargs -n 10 -P 0 uncrustify -c uncrustify.conf --no-backup -F -
 
 .PHONY: license
 license:

@@ -1701,22 +1701,22 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 		switch (node->_type.kind) {
 		case AST_TYPE_GENERIC:
 			new = gen_type(AST_TYPE_GENERIC,
-					clone_ast_node(node->_type.generic.id),
+			               clone_ast_node(node->_type.generic.id),
 			               clone_ast_node(node->_type.generic.args),
 			               NULL);
 			break;
 
 		case AST_TYPE_MEMBER:
 			new = gen_type(AST_TYPE_MEMBER,
-					clone_ast_node(node->_type.member.id),
+			               clone_ast_node(node->_type.member.id),
 			               clone_ast_node(node->_type.member.expr),
 			               NULL);
 			break;
 
 		case AST_TYPE_ALIAS:
 			new = gen_type(AST_TYPE_ALIAS, NULL,
-					/* should make it more obvious what is a
-					 * reference and what isn't */
+			               /* should make it more obvious what is a
+			                * reference and what isn't */
 			               node->_type.alias.alias,
 			               node->_type.alias.actual);
 			break;
