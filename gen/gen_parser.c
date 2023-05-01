@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* SPDX-License-Identifier: copyleft-next-0.3.1 */
 
 /* A Bison parser, made by GNU Bison 3.8.2.  */
 
@@ -69,7 +69,7 @@
 
 
 /* First part of user prologue.  */
-#line 1 "src/parser.y"
+#line 4 "src/parser.y"
 
 
 /* TODO: clean up this mess and I guess fix location tracking, it works for the
@@ -652,28 +652,28 @@ static const yytype_int8 yytranslate[] =
 /* YYRLINE[YYN] -- Source line where rule number YYN was defined.  */
 static const yytype_int16 yyrline[] =
 {
-       0,   151,   151,   157,   158,   161,   164,   167,   168,   171,
-     172,   173,   174,   175,   176,   177,   178,   179,   180,   181,
-     182,   183,   184,   185,   186,   187,   188,   189,   190,   191,
-     192,   195,   198,   199,   200,   201,   202,   203,   206,   207,
-     208,   209,   210,   213,   214,   215,   218,   219,   222,   224,
-     225,   226,   227,   231,   232,   235,   239,   240,   241,   242,
-     243,   244,   245,   249,   250,   251,   252,   253,   254,   255,
-     256,   257,   258,   259,   260,   261,   264,   267,   273,   275,
-     276,   277,   278,   279,   281,   282,   283,   284,   285,   286,
-     287,   288,   289,   290,   291,   292,   293,   294,   295,   296,
-     297,   298,   314,   315,   318,   319,   322,   323,   326,   330,
-     337,   343,   344,   347,   348,   354,   355,   358,   361,   362,
-     363,   364,   367,   368,   372,   373,   376,   377,   378,   381,
-     384,   387,   388,   391,   394,   401,   405,   410,   418,   420,
-     424,   427,   429,   431,   433,   437,   438,   445,   446,   450,
-     453,   457,   461,   465,   468,   473,   477,   478,   481,   482,
-     486,   492,   496,   502,   505,   508,   509,   512,   515,   520,
-     521,   522,   525,   528,   535,   536,   537,   538,   541,   542,
-     545,   546,   549,   554,   557,   563,   564,   567,   568,   569,
-     572,   573,   579,   583,   587,   595,   596,   597,   598,   599,
-     600,   601,   602,   603,   604,   605,   606,   607,   608,   609,
-     610,   611,   612,   613,   614,   615,   630,   631,   634,   635
+       0,   154,   154,   160,   161,   164,   167,   170,   171,   174,
+     175,   176,   177,   178,   179,   180,   181,   182,   183,   184,
+     185,   186,   187,   188,   189,   190,   191,   192,   193,   194,
+     195,   198,   201,   202,   203,   204,   205,   206,   209,   210,
+     211,   212,   213,   216,   217,   218,   221,   222,   225,   227,
+     228,   229,   230,   234,   235,   238,   242,   243,   244,   245,
+     246,   247,   248,   252,   253,   254,   255,   256,   257,   258,
+     259,   260,   261,   262,   263,   264,   267,   270,   276,   278,
+     279,   280,   281,   282,   284,   285,   286,   287,   288,   289,
+     290,   291,   292,   293,   294,   295,   296,   297,   298,   299,
+     300,   301,   317,   318,   321,   322,   325,   326,   329,   333,
+     340,   346,   347,   350,   351,   357,   358,   361,   364,   365,
+     366,   367,   370,   371,   375,   376,   379,   380,   381,   384,
+     387,   390,   391,   394,   397,   404,   408,   413,   421,   423,
+     427,   430,   432,   434,   436,   440,   441,   448,   449,   453,
+     456,   460,   464,   468,   471,   476,   480,   481,   484,   485,
+     489,   495,   499,   505,   508,   511,   512,   515,   518,   523,
+     524,   525,   528,   531,   538,   539,   540,   541,   544,   545,
+     548,   549,   552,   557,   560,   566,   567,   570,   571,   572,
+     575,   576,   582,   586,   590,   598,   599,   600,   601,   602,
+     603,   604,   605,   606,   607,   608,   609,   610,   611,   612,
+     613,   614,   615,   616,   617,   618,   633,   634,   637,   638
 };
 #endif
 
@@ -1947,391 +1947,391 @@ yydestruct (const char *yymsg,
   switch (yykind)
     {
     case YYSYMBOL_INT: /* INT  */
-#line 146 "src/parser.y"
+#line 149 "src/parser.y"
             {}
 #line 1951 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_FLOAT: /* FLOAT  */
-#line 146 "src/parser.y"
+#line 149 "src/parser.y"
             {}
 #line 1957 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_STRING: /* STRING  */
-#line 146 "src/parser.y"
+#line 149 "src/parser.y"
             {}
 #line 1963 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_ID: /* ID  */
-#line 146 "src/parser.y"
+#line 149 "src/parser.y"
             {}
 #line 1969 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_id: /* id  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 1975 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_var: /* var  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 1981 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_embed: /* embed  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 1987 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_import: /* import  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 1993 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_assign: /* assign  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 1999 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_binary_op: /* binary_op  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2005 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_unary_op: /* unary_op  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2011 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_arg: /* arg  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2017 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_arg_list: /* arg_list  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2023 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_param_decl: /* param_decl  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2029 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_decl_list: /* decl_list  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2035 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_call: /* call  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2041 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_defer: /* defer  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2047 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_expr: /* expr  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2053 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_while: /* while  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2059 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_do_while: /* do_while  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2065 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_goto: /* goto  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2071 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_statement: /* statement  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2077 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_statement_list: /* statement_list  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2083 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_body: /* body  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2089 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_macro_list: /* macro_list  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2095 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_macro: /* macro  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2101 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_expr_list: /* expr_list  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2107 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_struct_init: /* struct_init  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2113 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_struct_inits: /* struct_inits  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2119 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_struct_construct: /* struct_construct  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2125 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_init_expr: /* init_expr  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2131 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_cond: /* cond  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2137 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_expr_if: /* expr_if  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2143 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_if: /* if  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2149 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_for: /* for  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2155 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_case: /* case  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2161 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_case_list: /* case_list  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2167 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_switch: /* switch  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2173 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_const_for: /* const_for  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2179 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_const_if: /* const_if  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2185 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_const: /* const  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2191 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_func_sign: /* func_sign  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2197 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_variadic_sign: /* variadic_sign  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2203 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_type: /* type  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2209 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_var_decl: /* var_decl  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2215 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_var_init: /* var_init  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2221 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_proc: /* proc  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2227 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_lambda: /* lambda  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2233 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_struct_elem: /* struct_elem  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2239 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_struct_list: /* struct_list  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2245 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_union: /* union  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2251 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_generic: /* generic  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2257 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_generic_list: /* generic_list  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2263 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_struct: /* struct  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2269 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_template_elem: /* template_elem  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2275 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_template_list: /* template_list  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2281 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_type_list: /* type_list  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2287 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_type_alias: /* type_alias  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2293 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_type_template: /* type_template  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2299 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_enum_val: /* enum_val  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2305 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_enum_list: /* enum_list  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2311 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_enum: /* enum  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2317 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_top_if: /* top_if  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2323 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_top: /* top  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2329 "gen/gen_parser.c"
         break;
 
     case YYSYMBOL_unit: /* unit  */
-#line 147 "src/parser.y"
+#line 150 "src/parser.y"
             { destroy_ast_tree(((*yyvaluep).node)); }
 #line 2335 "gen/gen_parser.c"
         break;
@@ -2637,7 +2637,7 @@ yyreduce:
   switch (yyn)
     {
   case 2: /* id: ID  */
-#line 151 "src/parser.y"
+#line 154 "src/parser.y"
        {
 		(yyval.node) = gen_id(strdup((yyvsp[0].str)));
 		(yyval.node)->loc = to_src_loc(&yylloc);
@@ -2646,169 +2646,169 @@ yyreduce:
     break;
 
   case 3: /* var: var_decl  */
-#line 157 "src/parser.y"
+#line 160 "src/parser.y"
               { (yyval.node) = (yyvsp[0].node); }
 #line 2650 "gen/gen_parser.c"
     break;
 
   case 4: /* var: var_init  */
-#line 158 "src/parser.y"
+#line 161 "src/parser.y"
                    { (yyval.node) = (yyvsp[0].node); }
 #line 2656 "gen/gen_parser.c"
     break;
 
   case 5: /* embed: "embed" "(" STRING ")"  */
-#line 161 "src/parser.y"
+#line 164 "src/parser.y"
                               { (yyval.node) = gen_embed(clone_string((yyvsp[-1].str)));  }
 #line 2662 "gen/gen_parser.c"
     break;
 
   case 6: /* import: "import" STRING  */
-#line 164 "src/parser.y"
+#line 167 "src/parser.y"
                         { (yyval.node) = gen_import(clone_string((yyvsp[0].str)));  }
 #line 2668 "gen/gen_parser.c"
     break;
 
   case 7: /* assign: expr "=" expr  */
-#line 167 "src/parser.y"
+#line 170 "src/parser.y"
                       { (yyval.node) = gen_assign((yyvsp[-2].node), (yyvsp[0].node)); }
 #line 2674 "gen/gen_parser.c"
     break;
 
   case 8: /* assign: expr "=" struct_construct  */
-#line 168 "src/parser.y"
+#line 171 "src/parser.y"
                                     { (yyval.node) = gen_assign((yyvsp[-2].node), (yyvsp[0].node)); }
 #line 2680 "gen/gen_parser.c"
     break;
 
   case 9: /* binary_op: expr "+" expr  */
-#line 171 "src/parser.y"
+#line 174 "src/parser.y"
                          { (yyval.node) = gen_binop(AST_ADD, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2686 "gen/gen_parser.c"
     break;
 
   case 10: /* binary_op: expr "-" expr  */
-#line 172 "src/parser.y"
+#line 175 "src/parser.y"
                         { (yyval.node) = gen_binop(AST_SUB, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2692 "gen/gen_parser.c"
     break;
 
   case 11: /* binary_op: expr "*" expr  */
-#line 173 "src/parser.y"
+#line 176 "src/parser.y"
                         { (yyval.node) = gen_binop(AST_MUL, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2698 "gen/gen_parser.c"
     break;
 
   case 12: /* binary_op: expr "/" expr  */
-#line 174 "src/parser.y"
+#line 177 "src/parser.y"
                         { (yyval.node) = gen_binop(AST_DIV, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2704 "gen/gen_parser.c"
     break;
 
   case 13: /* binary_op: expr "%" expr  */
-#line 175 "src/parser.y"
+#line 178 "src/parser.y"
                         { (yyval.node) = gen_binop(AST_REM, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2710 "gen/gen_parser.c"
     break;
 
   case 14: /* binary_op: expr "^" expr  */
-#line 176 "src/parser.y"
+#line 179 "src/parser.y"
                         { (yyval.node) = gen_binop(AST_XOR, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2716 "gen/gen_parser.c"
     break;
 
   case 15: /* binary_op: expr "^^" expr  */
-#line 177 "src/parser.y"
+#line 180 "src/parser.y"
                          { (yyval.node) = gen_binop(AST_POW, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2722 "gen/gen_parser.c"
     break;
 
   case 16: /* binary_op: expr "&" expr  */
-#line 178 "src/parser.y"
+#line 181 "src/parser.y"
                         { (yyval.node) = gen_binop(AST_AND, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2728 "gen/gen_parser.c"
     break;
 
   case 17: /* binary_op: expr "&&" expr  */
-#line 179 "src/parser.y"
+#line 182 "src/parser.y"
                          { (yyval.node) = gen_binop(AST_LAND, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2734 "gen/gen_parser.c"
     break;
 
   case 18: /* binary_op: expr "|" expr  */
-#line 180 "src/parser.y"
+#line 183 "src/parser.y"
                         { (yyval.node) = gen_binop(AST_OR, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2740 "gen/gen_parser.c"
     break;
 
   case 19: /* binary_op: expr "||" expr  */
-#line 181 "src/parser.y"
+#line 184 "src/parser.y"
                          { (yyval.node) = gen_binop(AST_LOR, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2746 "gen/gen_parser.c"
     break;
 
   case 20: /* binary_op: expr "<<" expr  */
-#line 182 "src/parser.y"
+#line 185 "src/parser.y"
                          { (yyval.node) = gen_binop(AST_LSHIFT, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2752 "gen/gen_parser.c"
     break;
 
   case 21: /* binary_op: expr ">>" expr  */
-#line 183 "src/parser.y"
+#line 186 "src/parser.y"
                          { (yyval.node) = gen_binop(AST_RSHIFT, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2758 "gen/gen_parser.c"
     break;
 
   case 22: /* binary_op: expr "+=" expr  */
-#line 184 "src/parser.y"
+#line 187 "src/parser.y"
                          { (yyval.node) = gen_binop(AST_ASSIGN_ADD, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2764 "gen/gen_parser.c"
     break;
 
   case 23: /* binary_op: expr "-=" expr  */
-#line 185 "src/parser.y"
+#line 188 "src/parser.y"
                          { (yyval.node) = gen_binop(AST_ASSIGN_SUB, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2770 "gen/gen_parser.c"
     break;
 
   case 24: /* binary_op: expr "*=" expr  */
-#line 186 "src/parser.y"
+#line 189 "src/parser.y"
                          { (yyval.node) = gen_binop(AST_ASSIGN_MUL, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2776 "gen/gen_parser.c"
     break;
 
   case 25: /* binary_op: expr "/=" expr  */
-#line 187 "src/parser.y"
+#line 190 "src/parser.y"
                          { (yyval.node) = gen_binop(AST_ASSIGN_DIV, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2782 "gen/gen_parser.c"
     break;
 
   case 26: /* binary_op: expr "%=" expr  */
-#line 188 "src/parser.y"
+#line 191 "src/parser.y"
                          { (yyval.node) = gen_binop(AST_ASSIGN_REM, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2788 "gen/gen_parser.c"
     break;
 
   case 27: /* binary_op: expr "&=" expr  */
-#line 189 "src/parser.y"
+#line 192 "src/parser.y"
                          { (yyval.node) = gen_binop(AST_ASSIGN_AND, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2794 "gen/gen_parser.c"
     break;
 
   case 28: /* binary_op: expr "|=" expr  */
-#line 190 "src/parser.y"
+#line 193 "src/parser.y"
                          { (yyval.node) = gen_binop(AST_ASSIGN_OR, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2800 "gen/gen_parser.c"
     break;
 
   case 29: /* binary_op: expr "^=" expr  */
-#line 191 "src/parser.y"
+#line 194 "src/parser.y"
                          { (yyval.node) = gen_binop(AST_ASSIGN_XOR, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2806 "gen/gen_parser.c"
     break;
 
   case 30: /* binary_op: expr "<<=" expr  */
-#line 192 "src/parser.y"
+#line 195 "src/parser.y"
                           {
 		(yyval.node) = gen_binop(AST_ASSIGN_LSHIFT, (yyvsp[-2].node), (yyvsp[0].node));
 	}
@@ -2816,7 +2816,7 @@ yyreduce:
     break;
 
   case 31: /* binary_op: expr ">>=" expr  */
-#line 195 "src/parser.y"
+#line 198 "src/parser.y"
                           {
 		(yyval.node) = gen_binop(AST_ASSIGN_RSHIFT, (yyvsp[-2].node), (yyvsp[0].node));
 	}
@@ -2824,187 +2824,187 @@ yyreduce:
     break;
 
   case 32: /* binary_op: expr "<" expr  */
-#line 198 "src/parser.y"
+#line 201 "src/parser.y"
                         { (yyval.node) = gen_binop(AST_LT, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2828 "gen/gen_parser.c"
     break;
 
   case 33: /* binary_op: expr ">" expr  */
-#line 199 "src/parser.y"
+#line 202 "src/parser.y"
                         { (yyval.node) = gen_binop(AST_GT, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2834 "gen/gen_parser.c"
     break;
 
   case 34: /* binary_op: expr "<=" expr  */
-#line 200 "src/parser.y"
+#line 203 "src/parser.y"
                          { (yyval.node) = gen_binop(AST_LE, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2840 "gen/gen_parser.c"
     break;
 
   case 35: /* binary_op: expr ">=" expr  */
-#line 201 "src/parser.y"
+#line 204 "src/parser.y"
                          { (yyval.node) = gen_binop(AST_GE, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2846 "gen/gen_parser.c"
     break;
 
   case 36: /* binary_op: expr "!=" expr  */
-#line 202 "src/parser.y"
+#line 205 "src/parser.y"
                          { (yyval.node) = gen_binop(AST_NE, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2852 "gen/gen_parser.c"
     break;
 
   case 37: /* binary_op: expr "==" expr  */
-#line 203 "src/parser.y"
+#line 206 "src/parser.y"
                          { (yyval.node) = gen_binop(AST_EQ, (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 2858 "gen/gen_parser.c"
     break;
 
   case 38: /* unary_op: "-" expr  */
-#line 206 "src/parser.y"
+#line 209 "src/parser.y"
                    { (yyval.node) = gen_unop(AST_NEG, (yyvsp[0].node));  }
 #line 2864 "gen/gen_parser.c"
     break;
 
   case 39: /* unary_op: "!" expr  */
-#line 207 "src/parser.y"
+#line 210 "src/parser.y"
                    { (yyval.node) = gen_unop(AST_LNOT, (yyvsp[0].node));  }
 #line 2870 "gen/gen_parser.c"
     break;
 
   case 40: /* unary_op: "&" expr  */
-#line 208 "src/parser.y"
+#line 211 "src/parser.y"
                    { (yyval.node) = gen_unop(AST_REF, (yyvsp[0].node));  }
 #line 2876 "gen/gen_parser.c"
     break;
 
   case 41: /* unary_op: "'" expr  */
-#line 209 "src/parser.y"
+#line 212 "src/parser.y"
                    { (yyval.node) = gen_unop(AST_DEREF, (yyvsp[0].node));  }
 #line 2882 "gen/gen_parser.c"
     break;
 
   case 42: /* unary_op: "~" expr  */
-#line 210 "src/parser.y"
+#line 213 "src/parser.y"
                    { (yyval.node) = gen_unop(AST_NOT, (yyvsp[0].node));  }
 #line 2888 "gen/gen_parser.c"
     break;
 
   case 43: /* arg: "&" var_decl  */
-#line 213 "src/parser.y"
+#line 216 "src/parser.y"
                   { (yyval.node) = gen_unop(AST_REF, (yyvsp[0].node));  }
 #line 2894 "gen/gen_parser.c"
     break;
 
   case 44: /* arg: var_decl  */
-#line 214 "src/parser.y"
+#line 217 "src/parser.y"
                    { (yyval.node) = (yyvsp[0].node); }
 #line 2900 "gen/gen_parser.c"
     break;
 
   case 45: /* arg: init_expr  */
-#line 215 "src/parser.y"
+#line 218 "src/parser.y"
                     { (yyval.node) = (yyvsp[0].node); }
 #line 2906 "gen/gen_parser.c"
     break;
 
   case 46: /* arg_list: arg "," arg_list  */
-#line 218 "src/parser.y"
+#line 221 "src/parser.y"
                            { (yyval.node) = (yyvsp[-2].node); (yyvsp[-2].node)->next = (yyvsp[0].node); }
 #line 2912 "gen/gen_parser.c"
     break;
 
   case 47: /* arg_list: arg  */
-#line 219 "src/parser.y"
+#line 222 "src/parser.y"
               { (yyval.node) = (yyvsp[0].node); }
 #line 2918 "gen/gen_parser.c"
     break;
 
   case 48: /* param_decl: type  */
-#line 222 "src/parser.y"
+#line 225 "src/parser.y"
                  { (yyval.node) = gen_var(NULL, (yyvsp[0].node), NULL);  }
 #line 2924 "gen/gen_parser.c"
     break;
 
   case 49: /* decl_list: var_decl "," decl_list  */
-#line 224 "src/parser.y"
+#line 227 "src/parser.y"
                                   { (yyval.node) = (yyvsp[-2].node); (yyvsp[-2].node)->next = (yyvsp[0].node); }
 #line 2930 "gen/gen_parser.c"
     break;
 
   case 50: /* decl_list: param_decl "," decl_list  */
-#line 225 "src/parser.y"
+#line 228 "src/parser.y"
                                    { (yyval.node) = (yyvsp[-2].node); (yyvsp[-2].node)->next = (yyvsp[0].node); }
 #line 2936 "gen/gen_parser.c"
     break;
 
   case 51: /* decl_list: var_decl  */
-#line 226 "src/parser.y"
+#line 229 "src/parser.y"
                    { (yyval.node) = (yyvsp[0].node); }
 #line 2942 "gen/gen_parser.c"
     break;
 
   case 52: /* decl_list: param_decl  */
-#line 227 "src/parser.y"
+#line 230 "src/parser.y"
                      { (yyval.node) = (yyvsp[0].node); }
 #line 2948 "gen/gen_parser.c"
     break;
 
   case 53: /* call: id "(" arg_list ")"  */
-#line 231 "src/parser.y"
+#line 234 "src/parser.y"
                           { (yyval.node) = gen_call((yyvsp[-3].node), (yyvsp[-1].node));  }
 #line 2954 "gen/gen_parser.c"
     break;
 
   case 54: /* call: id "(" ")"  */
-#line 232 "src/parser.y"
+#line 235 "src/parser.y"
                      { (yyval.node) = gen_call((yyvsp[-2].node), NULL);  }
 #line 2960 "gen/gen_parser.c"
     break;
 
   case 55: /* defer: "defer" "(" expr ")"  */
-#line 235 "src/parser.y"
+#line 238 "src/parser.y"
                             { (yyval.node) = gen_defer((yyvsp[-1].node));  }
 #line 2966 "gen/gen_parser.c"
     break;
 
   case 56: /* expr: id  */
-#line 239 "src/parser.y"
+#line 242 "src/parser.y"
          { (yyval.node) = (yyvsp[0].node); }
 #line 2972 "gen/gen_parser.c"
     break;
 
   case 57: /* expr: expr "." id  */
-#line 240 "src/parser.y"
+#line 243 "src/parser.y"
                       { (yyval.node) = gen_dot((yyvsp[-2].node), (yyvsp[0].node)); }
 #line 2978 "gen/gen_parser.c"
     break;
 
   case 58: /* expr: "..." id  */
-#line 241 "src/parser.y"
+#line 244 "src/parser.y"
                    { (yyval.node) = (yyvsp[0].node); }
 #line 2984 "gen/gen_parser.c"
     break;
 
   case 59: /* expr: "@"  */
-#line 242 "src/parser.y"
+#line 245 "src/parser.y"
               { (yyval.node) = gen_last();  }
 #line 2990 "gen/gen_parser.c"
     break;
 
   case 60: /* expr: INT  */
-#line 243 "src/parser.y"
+#line 246 "src/parser.y"
               { (yyval.node) = gen_int((yyvsp[0].integer)); (yyval.node)->loc = to_src_loc(&yylloc); }
 #line 2996 "gen/gen_parser.c"
     break;
 
   case 61: /* expr: FLOAT  */
-#line 244 "src/parser.y"
+#line 247 "src/parser.y"
                 { (yyval.node) = gen_float((yyvsp[0].dbl)); (yyval.node)->loc = to_src_loc(&yylloc);  }
 #line 3002 "gen/gen_parser.c"
     break;
 
   case 62: /* expr: STRING  */
-#line 245 "src/parser.y"
+#line 248 "src/parser.y"
                  {
 		(yyval.node) = gen_string(clone_string((yyvsp[0].str)));
 		(yyval.node)->loc = to_src_loc(&yylloc);
@@ -3013,91 +3013,91 @@ yyreduce:
     break;
 
   case 63: /* expr: "(" expr ")"  */
-#line 249 "src/parser.y"
+#line 252 "src/parser.y"
                        { (yyval.node) = (yyvsp[-1].node); }
 #line 3017 "gen/gen_parser.c"
     break;
 
   case 64: /* expr: assign  */
-#line 250 "src/parser.y"
+#line 253 "src/parser.y"
                  { (yyval.node) = (yyvsp[0].node); }
 #line 3023 "gen/gen_parser.c"
     break;
 
   case 65: /* expr: call  */
-#line 251 "src/parser.y"
+#line 254 "src/parser.y"
                { (yyval.node) = (yyvsp[0].node); }
 #line 3029 "gen/gen_parser.c"
     break;
 
   case 66: /* expr: defer  */
-#line 252 "src/parser.y"
+#line 255 "src/parser.y"
                 { (yyval.node) = (yyvsp[0].node); }
 #line 3035 "gen/gen_parser.c"
     break;
 
   case 67: /* expr: binary_op  */
-#line 253 "src/parser.y"
+#line 256 "src/parser.y"
                     { (yyval.node) = (yyvsp[0].node); }
 #line 3041 "gen/gen_parser.c"
     break;
 
   case 68: /* expr: unary_op  */
-#line 254 "src/parser.y"
+#line 257 "src/parser.y"
                    { (yyval.node) = (yyvsp[0].node); }
 #line 3047 "gen/gen_parser.c"
     break;
 
   case 69: /* expr: "(" var_init ")"  */
-#line 255 "src/parser.y"
+#line 258 "src/parser.y"
                            { (yyval.node) = (yyvsp[-1].node); }
 #line 3053 "gen/gen_parser.c"
     break;
 
   case 70: /* expr: "sizeof" expr  */
-#line 256 "src/parser.y"
+#line 259 "src/parser.y"
                         { (yyval.node) = gen_sizeof((yyvsp[0].node)); }
 #line 3059 "gen/gen_parser.c"
     break;
 
   case 71: /* expr: expr "as" type  */
-#line 257 "src/parser.y"
+#line 260 "src/parser.y"
                          { (yyval.node) = gen_cast((yyvsp[-2].node), (yyvsp[0].node));  }
 #line 3065 "gen/gen_parser.c"
     break;
 
   case 72: /* expr: id "::" type  */
-#line 258 "src/parser.y"
+#line 261 "src/parser.y"
                        { (yyval.node) = gen_fetch((yyvsp[-2].node), (yyvsp[0].node)); }
 #line 3071 "gen/gen_parser.c"
     break;
 
   case 73: /* expr: "as" type  */
-#line 259 "src/parser.y"
+#line 262 "src/parser.y"
                     { (yyval.node) = gen_as((yyvsp[0].node)); }
 #line 3077 "gen/gen_parser.c"
     break;
 
   case 74: /* expr: embed  */
-#line 260 "src/parser.y"
+#line 263 "src/parser.y"
                 { (yyval.node) = (yyvsp[0].node); }
 #line 3083 "gen/gen_parser.c"
     break;
 
   case 75: /* expr: lambda  */
-#line 261 "src/parser.y"
+#line 264 "src/parser.y"
                  { (yyval.node) = (yyvsp[0].node); }
 #line 3089 "gen/gen_parser.c"
     break;
 
   case 76: /* while: "while" expr body  */
-#line 264 "src/parser.y"
+#line 267 "src/parser.y"
                          { (yyval.node) = gen_while((yyvsp[-1].node), (yyvsp[0].node));  }
 #line 3095 "gen/gen_parser.c"
     break;
 
   case 77: /* do_while: "do" body "while" expr ";"  */
-#line 267 "src/parser.y"
+#line 270 "src/parser.y"
                                      {
 		(yyval.node) = gen_while((yyvsp[-3].node), (yyvsp[-1].node));
 		ast_set_flags((yyval.node), AST_FLAG_DELAYED);
@@ -3106,146 +3106,146 @@ yyreduce:
     break;
 
   case 78: /* goto: "goto" id  */
-#line 273 "src/parser.y"
+#line 276 "src/parser.y"
                 { (yyval.node) = gen_goto(gen_label((yyvsp[0].node)));  }
 #line 3110 "gen/gen_parser.c"
     break;
 
   case 79: /* statement: expr ";"  */
-#line 275 "src/parser.y"
+#line 278 "src/parser.y"
                     { (yyval.node) = (yyvsp[-1].node); }
 #line 3116 "gen/gen_parser.c"
     break;
 
   case 80: /* statement: "return" init_expr ";"  */
-#line 276 "src/parser.y"
+#line 279 "src/parser.y"
                                  { (yyval.node) = gen_return((yyvsp[-1].node));  }
 #line 3122 "gen/gen_parser.c"
     break;
 
   case 81: /* statement: "return" ";"  */
-#line 277 "src/parser.y"
+#line 280 "src/parser.y"
                        { (yyval.node) = gen_return(NULL); }
 #line 3128 "gen/gen_parser.c"
     break;
 
   case 82: /* statement: "break" ";"  */
-#line 278 "src/parser.y"
+#line 281 "src/parser.y"
                       { (yyval.node) = gen_ctrl(AST_CTRL_BREAK, to_src_loc(&yylloc)); }
 #line 3134 "gen/gen_parser.c"
     break;
 
   case 83: /* statement: "continue" ";"  */
-#line 279 "src/parser.y"
+#line 282 "src/parser.y"
                          { (yyval.node) = gen_ctrl(AST_CTRL_CONTINUE,
 	to_src_loc(&yylloc));  }
 #line 3141 "gen/gen_parser.c"
     break;
 
   case 84: /* statement: import ";"  */
-#line 281 "src/parser.y"
+#line 284 "src/parser.y"
                      { (yyval.node) = (yyvsp[-1].node); }
 #line 3147 "gen/gen_parser.c"
     break;
 
   case 85: /* statement: var ";"  */
-#line 282 "src/parser.y"
+#line 285 "src/parser.y"
                   { (yyval.node) = (yyvsp[-1].node); }
 #line 3153 "gen/gen_parser.c"
     break;
 
   case 86: /* statement: if  */
-#line 283 "src/parser.y"
+#line 286 "src/parser.y"
              { (yyval.node) = (yyvsp[0].node); }
 #line 3159 "gen/gen_parser.c"
     break;
 
   case 87: /* statement: goto ";"  */
-#line 284 "src/parser.y"
+#line 287 "src/parser.y"
                   { (yyval.node) = (yyvsp[-1].node); }
 #line 3165 "gen/gen_parser.c"
     break;
 
   case 88: /* statement: id ":"  */
-#line 285 "src/parser.y"
+#line 288 "src/parser.y"
                  { (yyval.node) = gen_label((yyvsp[-1].node));  }
 #line 3171 "gen/gen_parser.c"
     break;
 
   case 89: /* statement: for  */
-#line 286 "src/parser.y"
+#line 289 "src/parser.y"
               { (yyval.node) = (yyvsp[0].node); }
 #line 3177 "gen/gen_parser.c"
     break;
 
   case 90: /* statement: const  */
-#line 287 "src/parser.y"
+#line 290 "src/parser.y"
                 { (yyval.node) = (yyvsp[0].node); }
 #line 3183 "gen/gen_parser.c"
     break;
 
   case 91: /* statement: while  */
-#line 288 "src/parser.y"
+#line 291 "src/parser.y"
                 { (yyval.node) = (yyvsp[0].node); }
 #line 3189 "gen/gen_parser.c"
     break;
 
   case 92: /* statement: do_while  */
-#line 289 "src/parser.y"
+#line 292 "src/parser.y"
                    { (yyval.node) = (yyvsp[0].node); }
 #line 3195 "gen/gen_parser.c"
     break;
 
   case 93: /* statement: switch  */
-#line 290 "src/parser.y"
+#line 293 "src/parser.y"
                  { (yyval.node) = (yyvsp[0].node); }
 #line 3201 "gen/gen_parser.c"
     break;
 
   case 94: /* statement: macro  */
-#line 291 "src/parser.y"
+#line 294 "src/parser.y"
                 { (yyval.node) = (yyvsp[0].node); }
 #line 3207 "gen/gen_parser.c"
     break;
 
   case 95: /* statement: struct  */
-#line 292 "src/parser.y"
+#line 295 "src/parser.y"
                  { (yyval.node) = (yyvsp[0].node); }
 #line 3213 "gen/gen_parser.c"
     break;
 
   case 96: /* statement: type_alias ";"  */
-#line 293 "src/parser.y"
+#line 296 "src/parser.y"
                          { (yyval.node) = (yyvsp[-1].node); }
 #line 3219 "gen/gen_parser.c"
     break;
 
   case 97: /* statement: type_template  */
-#line 294 "src/parser.y"
+#line 297 "src/parser.y"
                         { (yyval.node) = (yyvsp[0].node); }
 #line 3225 "gen/gen_parser.c"
     break;
 
   case 98: /* statement: enum  */
-#line 295 "src/parser.y"
+#line 298 "src/parser.y"
                { (yyval.node) = (yyvsp[0].node); }
 #line 3231 "gen/gen_parser.c"
     break;
 
   case 99: /* statement: body  */
-#line 296 "src/parser.y"
+#line 299 "src/parser.y"
                { (yyval.node) = (yyvsp[0].node); }
 #line 3237 "gen/gen_parser.c"
     break;
 
   case 100: /* statement: ";"  */
-#line 297 "src/parser.y"
+#line 300 "src/parser.y"
               { (yyval.node) = gen_empty();  }
 #line 3243 "gen/gen_parser.c"
     break;
 
   case 101: /* statement: error  */
-#line 298 "src/parser.y"
+#line 301 "src/parser.y"
                 {
 	    /* TODO: figure out how to destroy any and all possible ast nodes we
 	     * may have generated up until the error */
@@ -3264,43 +3264,43 @@ yyreduce:
     break;
 
   case 102: /* statement_list: statement statement_list  */
-#line 314 "src/parser.y"
+#line 317 "src/parser.y"
                                          { (yyval.node) = (yyvsp[-1].node); (yyvsp[-1].node)->next = (yyvsp[0].node); }
 #line 3268 "gen/gen_parser.c"
     break;
 
   case 103: /* statement_list: statement  */
-#line 315 "src/parser.y"
+#line 318 "src/parser.y"
                     { (yyval.node) = (yyvsp[0].node); }
 #line 3274 "gen/gen_parser.c"
     break;
 
   case 104: /* body: "{" statement_list "}"  */
-#line 318 "src/parser.y"
+#line 321 "src/parser.y"
                              { (yyval.node) = gen_block((yyvsp[-1].node));  }
 #line 3280 "gen/gen_parser.c"
     break;
 
   case 105: /* body: "{" "}"  */
-#line 319 "src/parser.y"
+#line 322 "src/parser.y"
                   { (yyval.node) = gen_block(gen_empty());  }
 #line 3286 "gen/gen_parser.c"
     break;
 
   case 106: /* macro_list: id "," macro_list  */
-#line 322 "src/parser.y"
+#line 325 "src/parser.y"
                               { (yyval.node) = (yyvsp[-2].node); (yyval.node)->next = (yyvsp[0].node); }
 #line 3292 "gen/gen_parser.c"
     break;
 
   case 107: /* macro_list: id  */
-#line 323 "src/parser.y"
+#line 326 "src/parser.y"
              { (yyval.node) = (yyvsp[0].node); }
 #line 3298 "gen/gen_parser.c"
     break;
 
   case 108: /* macro: "define" id "(" macro_list ")" body  */
-#line 326 "src/parser.y"
+#line 329 "src/parser.y"
                                            {
 		(yyval.node) = gen_macro((yyvsp[-4].node), (yyvsp[-2].node), (yyvsp[0].node));
 		ast_set_flags((yyvsp[0].node), AST_FLAG_UNHYGIENIC);
@@ -3309,7 +3309,7 @@ yyreduce:
     break;
 
   case 109: /* macro: "define" id "(" macro_list "..." id ")" body  */
-#line 330 "src/parser.y"
+#line 333 "src/parser.y"
                                                        {
 		/* TODO: the location data of the variadic ID is way off */
 		ast_append((yyvsp[-4].node), (yyvsp[-2].node));
@@ -3321,7 +3321,7 @@ yyreduce:
     break;
 
   case 110: /* macro: "define" id "(" ")" body  */
-#line 337 "src/parser.y"
+#line 340 "src/parser.y"
                                    {
 		(yyval.node) = gen_macro((yyvsp[-3].node), NULL, (yyvsp[0].node));
 		ast_set_flags((yyvsp[0].node), AST_FLAG_UNHYGIENIC);
@@ -3330,25 +3330,25 @@ yyreduce:
     break;
 
   case 111: /* expr_list: expr "," expr_list  */
-#line 343 "src/parser.y"
+#line 346 "src/parser.y"
                               { (yyval.node) = (yyvsp[-2].node); (yyvsp[-2].node)->next = (yyvsp[0].node); }
 #line 3334 "gen/gen_parser.c"
     break;
 
   case 112: /* expr_list: expr  */
-#line 344 "src/parser.y"
+#line 347 "src/parser.y"
                { (yyval.node) = (yyvsp[0].node); }
 #line 3340 "gen/gen_parser.c"
     break;
 
   case 113: /* struct_init: init_expr  */
-#line 347 "src/parser.y"
+#line 350 "src/parser.y"
                        { (yyval.node) = (yyvsp[0].node); }
 #line 3346 "gen/gen_parser.c"
     break;
 
   case 114: /* struct_init: "." id "=" init_expr  */
-#line 348 "src/parser.y"
+#line 351 "src/parser.y"
                                {
 		(yyval.node) = gen_var((yyvsp[-2].node), NULL, (yyvsp[0].node));
 		ast_set_flags((yyval.node), AST_FLAG_MEMBER);
@@ -3357,121 +3357,121 @@ yyreduce:
     break;
 
   case 115: /* struct_inits: struct_init "," struct_inits  */
-#line 354 "src/parser.y"
+#line 357 "src/parser.y"
                                            { (yyval.node) = (yyvsp[-2].node); (yyvsp[-2].node)->next = (yyvsp[0].node); }
 #line 3361 "gen/gen_parser.c"
     break;
 
   case 116: /* struct_inits: struct_init  */
-#line 355 "src/parser.y"
+#line 358 "src/parser.y"
                       { (yyval.node) = (yyvsp[0].node); }
 #line 3367 "gen/gen_parser.c"
     break;
 
   case 117: /* struct_construct: "{" struct_inits "}"  */
-#line 358 "src/parser.y"
+#line 361 "src/parser.y"
                                        { (yyval.node) = gen_init((yyvsp[-1].node)); }
 #line 3373 "gen/gen_parser.c"
     break;
 
   case 118: /* init_expr: expr  */
-#line 361 "src/parser.y"
+#line 364 "src/parser.y"
                 { (yyval.node) = (yyvsp[0].node); }
 #line 3379 "gen/gen_parser.c"
     break;
 
   case 119: /* init_expr: expr_if  */
-#line 362 "src/parser.y"
+#line 365 "src/parser.y"
                   { (yyval.node) = (yyvsp[0].node); }
 #line 3385 "gen/gen_parser.c"
     break;
 
   case 120: /* init_expr: struct_construct  */
-#line 363 "src/parser.y"
+#line 366 "src/parser.y"
                            { (yyval.node) = (yyvsp[0].node); }
 #line 3391 "gen/gen_parser.c"
     break;
 
   case 121: /* init_expr: struct_construct "as" type  */
-#line 364 "src/parser.y"
+#line 367 "src/parser.y"
                                      { (yyval.node) = gen_cast((yyvsp[-2].node), (yyvsp[0].node)); }
 #line 3397 "gen/gen_parser.c"
     break;
 
   case 122: /* cond: expr  */
-#line 367 "src/parser.y"
+#line 370 "src/parser.y"
            { (yyval.node) = (yyvsp[0].node); }
 #line 3403 "gen/gen_parser.c"
     break;
 
   case 123: /* cond: "(" expr_if ")"  */
-#line 368 "src/parser.y"
+#line 371 "src/parser.y"
                           { (yyval.node) = (yyvsp[-1].node); }
 #line 3409 "gen/gen_parser.c"
     break;
 
   case 124: /* expr_if: "if" cond body "else" body  */
-#line 372 "src/parser.y"
+#line 375 "src/parser.y"
                                     { (yyval.node) = gen_if((yyvsp[-3].node), (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 3415 "gen/gen_parser.c"
     break;
 
   case 125: /* expr_if: "if" cond body "else" expr_if  */
-#line 373 "src/parser.y"
+#line 376 "src/parser.y"
                                         { (yyval.node) = gen_if((yyvsp[-3].node), (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 3421 "gen/gen_parser.c"
     break;
 
   case 126: /* if: "if" cond body  */
-#line 376 "src/parser.y"
+#line 379 "src/parser.y"
                    { (yyval.node) = gen_if((yyvsp[-1].node), (yyvsp[0].node), NULL);  }
 #line 3427 "gen/gen_parser.c"
     break;
 
   case 127: /* if: "if" cond body "else" body  */
-#line 377 "src/parser.y"
+#line 380 "src/parser.y"
                                      { (yyval.node) = gen_if((yyvsp[-3].node), (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 3433 "gen/gen_parser.c"
     break;
 
   case 128: /* if: "if" cond body "else" if  */
-#line 378 "src/parser.y"
+#line 381 "src/parser.y"
                                    { (yyval.node) = gen_if((yyvsp[-3].node), (yyvsp[-2].node), (yyvsp[0].node));  }
 #line 3439 "gen/gen_parser.c"
     break;
 
   case 129: /* for: "for" arg ";" expr ";" expr body  */
-#line 381 "src/parser.y"
+#line 384 "src/parser.y"
                                       { (yyval.node) = gen_for((yyvsp[-5].node), (yyvsp[-3].node), (yyvsp[-1].node), (yyvsp[0].node)); }
 #line 3445 "gen/gen_parser.c"
     break;
 
   case 130: /* case: "case" expr ":" statement_list  */
-#line 384 "src/parser.y"
+#line 387 "src/parser.y"
                                      { (yyval.node) = gen_case((yyvsp[-2].node), (yyvsp[0].node));  }
 #line 3451 "gen/gen_parser.c"
     break;
 
   case 131: /* case_list: case case_list  */
-#line 387 "src/parser.y"
+#line 390 "src/parser.y"
                           { (yyval.node) = (yyvsp[-1].node); (yyvsp[-1].node)->next = (yyvsp[0].node); }
 #line 3457 "gen/gen_parser.c"
     break;
 
   case 132: /* case_list: case  */
-#line 388 "src/parser.y"
+#line 391 "src/parser.y"
                { (yyval.node) = (yyvsp[0].node); }
 #line 3463 "gen/gen_parser.c"
     break;
 
   case 133: /* switch: "switch" expr "{" case_list "}"  */
-#line 391 "src/parser.y"
+#line 394 "src/parser.y"
                                         { (yyval.node) = gen_switch((yyvsp[-3].node), (yyvsp[-1].node));  }
 #line 3469 "gen/gen_parser.c"
     break;
 
   case 134: /* const_for: "for" id ":" expr_list body  */
-#line 394 "src/parser.y"
+#line 397 "src/parser.y"
                                        {
 		/* TODO: should id be a separate rule? */
 		(yyval.node) = gen_for((yyvsp[-3].node), NULL, (yyvsp[-1].node), (yyvsp[0].node));
@@ -3481,7 +3481,7 @@ yyreduce:
     break;
 
   case 135: /* const_if: "if" expr body  */
-#line 401 "src/parser.y"
+#line 404 "src/parser.y"
                          {
 		(yyval.node) = gen_if((yyvsp[-1].node), (yyvsp[0].node), NULL);
 		ast_set_flags((yyvsp[0].node), AST_FLAG_UNHYGIENIC);
@@ -3490,7 +3490,7 @@ yyreduce:
     break;
 
   case 136: /* const_if: "if" expr body "else" body  */
-#line 405 "src/parser.y"
+#line 408 "src/parser.y"
                                      {
 		(yyval.node) = gen_if((yyvsp[-3].node), (yyvsp[-2].node), (yyvsp[0].node));
 		ast_set_flags((yyvsp[-2].node), AST_FLAG_UNHYGIENIC);
@@ -3500,7 +3500,7 @@ yyreduce:
     break;
 
   case 137: /* const_if: "if" expr body "else" const_if  */
-#line 410 "src/parser.y"
+#line 413 "src/parser.y"
                                          {
 		(yyval.node) = gen_if((yyvsp[-3].node), (yyvsp[-2].node), (yyvsp[0].node));
 		ast_set_flags((yyvsp[-2].node), AST_FLAG_UNHYGIENIC);
@@ -3509,21 +3509,21 @@ yyreduce:
     break;
 
   case 138: /* const: "const" const_if  */
-#line 418 "src/parser.y"
+#line 421 "src/parser.y"
                         { (yyval.node) = (yyvsp[0].node); ast_set_flags((yyval.node), AST_FLAG_CONST);
       }
 #line 3514 "gen/gen_parser.c"
     break;
 
   case 139: /* const: "const" const_for  */
-#line 420 "src/parser.y"
+#line 423 "src/parser.y"
                             { (yyval.node) = (yyvsp[0].node); ast_set_flags((yyval.node), AST_FLAG_CONST);
 	 }
 #line 3521 "gen/gen_parser.c"
     break;
 
   case 140: /* func_sign: "(" decl_list "=>" type ")"  */
-#line 424 "src/parser.y"
+#line 427 "src/parser.y"
                                        {
 		(yyval.node) = gen_type(AST_TYPE_SIGN, NULL, (yyvsp[-3].node), (yyvsp[-1].node));
 	}
@@ -3531,41 +3531,41 @@ yyreduce:
     break;
 
   case 141: /* func_sign: "(" decl_list ")"  */
-#line 427 "src/parser.y"
+#line 430 "src/parser.y"
                             { (yyval.node) = gen_type(AST_TYPE_SIGN, NULL, (yyvsp[-1].node), NULL);
 	 }
 #line 3536 "gen/gen_parser.c"
     break;
 
   case 142: /* func_sign: "(" decl_list "=>" ")"  */
-#line 429 "src/parser.y"
+#line 432 "src/parser.y"
                                  { (yyval.node) = gen_type(AST_TYPE_SIGN, NULL, (yyvsp[-2].node), NULL);
 	 }
 #line 3543 "gen/gen_parser.c"
     break;
 
   case 143: /* func_sign: "(" "=>" type ")"  */
-#line 431 "src/parser.y"
+#line 434 "src/parser.y"
                             { (yyval.node) = gen_type(AST_TYPE_SIGN, NULL, NULL, (yyvsp[-1].node));
 	 }
 #line 3550 "gen/gen_parser.c"
     break;
 
   case 144: /* func_sign: "(" ")"  */
-#line 433 "src/parser.y"
+#line 436 "src/parser.y"
                   { (yyval.node) = gen_type(AST_TYPE_SIGN, NULL, NULL, NULL);
 	 }
 #line 3557 "gen/gen_parser.c"
     break;
 
   case 145: /* variadic_sign: func_sign  */
-#line 437 "src/parser.y"
+#line 440 "src/parser.y"
                          { (yyval.node) = (yyvsp[0].node); }
 #line 3563 "gen/gen_parser.c"
     break;
 
   case 146: /* variadic_sign: "(" decl_list "..." id "=>" type ")"  */
-#line 438 "src/parser.y"
+#line 441 "src/parser.y"
                                                {
 		ast_append((yyvsp[-5].node), (yyvsp[-3].node));
 		(yyval.node) = gen_type(AST_TYPE_SIGN, NULL, (yyvsp[-5].node), (yyvsp[-1].node));
@@ -3575,13 +3575,13 @@ yyreduce:
     break;
 
   case 147: /* type: id  */
-#line 445 "src/parser.y"
+#line 448 "src/parser.y"
          { (yyval.node) = gen_type(AST_TYPE_ID, (yyvsp[0].node), NULL, NULL); }
 #line 3579 "gen/gen_parser.c"
     break;
 
   case 148: /* type: "'" func_sign  */
-#line 446 "src/parser.y"
+#line 449 "src/parser.y"
                         {
 		(yyval.node) = gen_type(AST_TYPE_POINTER, NULL, NULL, NULL);
 		(yyval.node)->_type.next = (yyvsp[0].node);
@@ -3590,7 +3590,7 @@ yyreduce:
     break;
 
   case 149: /* type: id "(" type_list ")"  */
-#line 450 "src/parser.y"
+#line 453 "src/parser.y"
                                {
 		(yyval.node) = gen_type(AST_TYPE_GENERIC, (yyvsp[-3].node), (yyvsp[-1].node), NULL);
 	}
@@ -3598,7 +3598,7 @@ yyreduce:
     break;
 
   case 150: /* type: "'" type  */
-#line 453 "src/parser.y"
+#line 456 "src/parser.y"
                    {
 		(yyval.node) = gen_type(AST_TYPE_POINTER, NULL, NULL, NULL);
 		(yyval.node)->_type.next = (yyvsp[0].node);
@@ -3607,7 +3607,7 @@ yyreduce:
     break;
 
   case 151: /* type: "[" "]" type  */
-#line 457 "src/parser.y"
+#line 460 "src/parser.y"
                        {
 		(yyval.node) = gen_type(AST_TYPE_ARR, NULL, NULL, NULL);
 		(yyval.node)->_type.next = (yyvsp[0].node);
@@ -3616,7 +3616,7 @@ yyreduce:
     break;
 
   case 152: /* type: "[" expr "]" type  */
-#line 461 "src/parser.y"
+#line 464 "src/parser.y"
                             {
 		(yyval.node) = gen_type(AST_TYPE_ARR, NULL, (yyvsp[-2].node), NULL);
 		(yyval.node)->_type.next = (yyvsp[0].node);
@@ -3625,7 +3625,7 @@ yyreduce:
     break;
 
   case 153: /* type: "typeof" expr  */
-#line 465 "src/parser.y"
+#line 468 "src/parser.y"
                         {
 		(yyval.node) = gen_type(AST_TYPE_TYPEOF, NULL, (yyvsp[0].node), NULL);
 	}
@@ -3633,7 +3633,7 @@ yyreduce:
     break;
 
   case 154: /* type: id "::" type  */
-#line 468 "src/parser.y"
+#line 471 "src/parser.y"
                        {
 		(yyval.node) = gen_type(AST_TYPE_MEMBER, (yyvsp[-2].node), (yyvsp[0].node), NULL);
 	}
@@ -3641,7 +3641,7 @@ yyreduce:
     break;
 
   case 155: /* var_decl: id "mut" type  */
-#line 473 "src/parser.y"
+#line 476 "src/parser.y"
                         {
 		(yyval.node) = gen_var((yyvsp[-2].node), (yyvsp[0].node), NULL);
 		ast_set_flags((yyval.node), AST_FLAG_MUTABLE);
@@ -3650,25 +3650,25 @@ yyreduce:
     break;
 
   case 156: /* var_decl: id "const" type  */
-#line 477 "src/parser.y"
+#line 480 "src/parser.y"
                           { (yyval.node) = gen_var((yyvsp[-2].node), (yyvsp[0].node), NULL);  }
 #line 3654 "gen/gen_parser.c"
     break;
 
   case 157: /* var_decl: id type  */
-#line 478 "src/parser.y"
+#line 481 "src/parser.y"
                   { (yyval.node) = gen_var((yyvsp[-1].node), (yyvsp[0].node), NULL);  }
 #line 3660 "gen/gen_parser.c"
     break;
 
   case 158: /* var_init: var_decl "=" init_expr  */
-#line 481 "src/parser.y"
+#line 484 "src/parser.y"
                                  { (yyval.node) = (yyvsp[-2].node); (yyvsp[-2].node)->_var.init = (yyvsp[0].node); }
 #line 3666 "gen/gen_parser.c"
     break;
 
   case 159: /* var_init: id "mut" "=" init_expr  */
-#line 482 "src/parser.y"
+#line 485 "src/parser.y"
                                  {
 		(yyval.node) = gen_var((yyvsp[-3].node), NULL, (yyvsp[0].node));
 		ast_set_flags((yyval.node), AST_FLAG_UNTYPED | AST_FLAG_MUTABLE);
@@ -3677,7 +3677,7 @@ yyreduce:
     break;
 
   case 160: /* var_init: id "const" "=" init_expr  */
-#line 486 "src/parser.y"
+#line 489 "src/parser.y"
                                    {
 		(yyval.node) = gen_var((yyvsp[-3].node), NULL, (yyvsp[0].node));
 		ast_set_flags((yyval.node), AST_FLAG_UNTYPED);
@@ -3686,7 +3686,7 @@ yyreduce:
     break;
 
   case 161: /* proc: id variadic_sign body  */
-#line 492 "src/parser.y"
+#line 495 "src/parser.y"
                             {
 		(yyval.node) = gen_proc((yyvsp[-2].node), (yyvsp[-1].node), (yyvsp[0].node));
 		ast_set_flags((yyval.node), (yyvsp[-1].node)->flags);
@@ -3695,7 +3695,7 @@ yyreduce:
     break;
 
   case 162: /* proc: "extern" id func_sign  */
-#line 496 "src/parser.y"
+#line 499 "src/parser.y"
                                 {
 		(yyval.node) = gen_proc((yyvsp[-1].node), (yyvsp[0].node), NULL);
 		ast_set_flags((yyval.node), AST_FLAG_EXTERN);
@@ -3704,31 +3704,31 @@ yyreduce:
     break;
 
   case 163: /* lambda: "[" macro_list "]" func_sign body  */
-#line 502 "src/parser.y"
+#line 505 "src/parser.y"
                                           { (yyval.node) = gen_lambda((yyvsp[-3].node), (yyvsp[-1].node), (yyvsp[0].node)); }
 #line 3708 "gen/gen_parser.c"
     break;
 
   case 164: /* struct_elem: var_decl  */
-#line 505 "src/parser.y"
+#line 508 "src/parser.y"
                       { (yyval.node) = (yyvsp[0].node); }
 #line 3714 "gen/gen_parser.c"
     break;
 
   case 165: /* struct_list: struct_elem ";" struct_list  */
-#line 508 "src/parser.y"
+#line 511 "src/parser.y"
                                          { (yyval.node) = (yyvsp[-2].node); (yyvsp[-2].node)->next = (yyvsp[0].node); }
 #line 3720 "gen/gen_parser.c"
     break;
 
   case 166: /* struct_list: struct_elem ";"  */
-#line 509 "src/parser.y"
+#line 512 "src/parser.y"
                           { (yyval.node) = (yyvsp[-1].node); }
 #line 3726 "gen/gen_parser.c"
     break;
 
   case 167: /* union: "union" id "{" struct_list "}"  */
-#line 512 "src/parser.y"
+#line 515 "src/parser.y"
                                       {
 		(yyval.node) = gen_union((yyvsp[-3].node), NULL, (yyvsp[-1].node));
 	}
@@ -3736,7 +3736,7 @@ yyreduce:
     break;
 
   case 168: /* union: "union" id "(" generic_list ")" "{" struct_list "}"  */
-#line 515 "src/parser.y"
+#line 518 "src/parser.y"
                                                               {
 		(yyval.node) = gen_union((yyvsp[-6].node), (yyvsp[-4].node), (yyvsp[-1].node));
 	}
@@ -3744,25 +3744,25 @@ yyreduce:
     break;
 
   case 169: /* generic: id type  */
-#line 520 "src/parser.y"
+#line 523 "src/parser.y"
                  { (yyval.node) = gen_alias((yyvsp[-1].node), (yyvsp[0].node)); }
 #line 3748 "gen/gen_parser.c"
     break;
 
   case 170: /* generic_list: generic "," generic_list  */
-#line 521 "src/parser.y"
+#line 524 "src/parser.y"
                                        { (yyval.node) = (yyvsp[-2].node); (yyval.node)->next = (yyvsp[0].node); }
 #line 3754 "gen/gen_parser.c"
     break;
 
   case 171: /* generic_list: generic  */
-#line 522 "src/parser.y"
+#line 525 "src/parser.y"
                   { (yyval.node) = (yyvsp[0].node); }
 #line 3760 "gen/gen_parser.c"
     break;
 
   case 172: /* struct: "struct" id "{" struct_list "}"  */
-#line 525 "src/parser.y"
+#line 528 "src/parser.y"
                                         {
 		(yyval.node) = gen_struct((yyvsp[-3].node), NULL, (yyvsp[-1].node));
 	}
@@ -3770,7 +3770,7 @@ yyreduce:
     break;
 
   case 173: /* struct: "struct" id "(" generic_list ")" "{" struct_list "}"  */
-#line 528 "src/parser.y"
+#line 531 "src/parser.y"
                                                                {
 		(yyval.node) = gen_struct((yyvsp[-6].node), (yyvsp[-4].node), (yyvsp[-1].node));
 	}
@@ -3778,61 +3778,61 @@ yyreduce:
     break;
 
   case 174: /* template_elem: id ";"  */
-#line 535 "src/parser.y"
+#line 538 "src/parser.y"
                       { (yyval.node) = (yyvsp[-1].node); }
 #line 3782 "gen/gen_parser.c"
     break;
 
   case 175: /* template_elem: id func_sign ";"  */
-#line 536 "src/parser.y"
+#line 539 "src/parser.y"
                            { (yyval.node) = gen_proc((yyvsp[-2].node), (yyvsp[-1].node), NULL);  }
 #line 3788 "gen/gen_parser.c"
     break;
 
   case 176: /* template_elem: var_decl ";"  */
-#line 537 "src/parser.y"
+#line 540 "src/parser.y"
                        { (yyval.node) = (yyvsp[-1].node); }
 #line 3794 "gen/gen_parser.c"
     break;
 
   case 177: /* template_elem: union  */
-#line 538 "src/parser.y"
+#line 541 "src/parser.y"
                 { (yyval.node) = (yyvsp[0].node); }
 #line 3800 "gen/gen_parser.c"
     break;
 
   case 178: /* template_list: template_elem template_list  */
-#line 541 "src/parser.y"
+#line 544 "src/parser.y"
                                            { (yyval.node) = (yyvsp[-1].node); (yyvsp[-1].node)->next = (yyvsp[0].node); }
 #line 3806 "gen/gen_parser.c"
     break;
 
   case 179: /* template_list: template_elem  */
-#line 542 "src/parser.y"
+#line 545 "src/parser.y"
                          { (yyval.node) = (yyvsp[0].node); }
 #line 3812 "gen/gen_parser.c"
     break;
 
   case 180: /* type_list: type "," type_list  */
-#line 545 "src/parser.y"
+#line 548 "src/parser.y"
                               { (yyval.node) = (yyvsp[-2].node); (yyvsp[-2].node)->next = (yyvsp[0].node); }
 #line 3818 "gen/gen_parser.c"
     break;
 
   case 181: /* type_list: type  */
-#line 546 "src/parser.y"
+#line 549 "src/parser.y"
                { (yyval.node) = (yyvsp[0].node); }
 #line 3824 "gen/gen_parser.c"
     break;
 
   case 182: /* type_alias: "typedef" id type  */
-#line 549 "src/parser.y"
+#line 552 "src/parser.y"
                               { (yyval.node) = gen_alias((yyvsp[-1].node), (yyvsp[0].node));  }
 #line 3830 "gen/gen_parser.c"
     break;
 
   case 183: /* type_template: "typedef" id "{" template_list "}"  */
-#line 554 "src/parser.y"
+#line 557 "src/parser.y"
                                                   {
 		(yyval.node) = gen_template((yyvsp[-3].node), (yyvsp[-1].node));
 	}
@@ -3840,7 +3840,7 @@ yyreduce:
     break;
 
   case 184: /* type_template: "typedef" id "{" "}"  */
-#line 557 "src/parser.y"
+#line 560 "src/parser.y"
                                {
 		/* should match anything, but doesn't implement anything */
 		(yyval.node) = gen_template((yyvsp[-2].node), NULL);
@@ -3849,43 +3849,43 @@ yyreduce:
     break;
 
   case 185: /* enum_val: id  */
-#line 563 "src/parser.y"
+#line 566 "src/parser.y"
              { (yyval.node) = gen_val((yyvsp[0].node), NULL);  }
 #line 3853 "gen/gen_parser.c"
     break;
 
   case 186: /* enum_val: id "=" expr  */
-#line 564 "src/parser.y"
+#line 567 "src/parser.y"
                       { (yyval.node) = gen_val((yyvsp[-2].node), (yyvsp[0].node));  }
 #line 3859 "gen/gen_parser.c"
     break;
 
   case 187: /* enum_list: enum_val "," enum_list  */
-#line 567 "src/parser.y"
+#line 570 "src/parser.y"
                                   { (yyval.node) = (yyvsp[-2].node); (yyvsp[-2].node)->next = (yyvsp[0].node); }
 #line 3865 "gen/gen_parser.c"
     break;
 
   case 188: /* enum_list: enum_val ","  */
-#line 568 "src/parser.y"
+#line 571 "src/parser.y"
                        { (yyval.node) = (yyvsp[-1].node); }
 #line 3871 "gen/gen_parser.c"
     break;
 
   case 189: /* enum_list: enum_val  */
-#line 569 "src/parser.y"
+#line 572 "src/parser.y"
                    { (yyval.node) = (yyvsp[0].node); }
 #line 3877 "gen/gen_parser.c"
     break;
 
   case 190: /* enum: "enum" id ":" type "{" enum_list "}"  */
-#line 572 "src/parser.y"
+#line 575 "src/parser.y"
                                            { (yyval.node) = gen_enum((yyvsp[-5].node), (yyvsp[-3].node), (yyvsp[-1].node)); }
 #line 3883 "gen/gen_parser.c"
     break;
 
   case 191: /* enum: "enum" id "{" enum_list "}"  */
-#line 573 "src/parser.y"
+#line 576 "src/parser.y"
                                       {
 		(yyval.node) = gen_enum((yyvsp[-3].node), NULL, (yyvsp[-1].node));
 		ast_set_flags((yyval.node), AST_FLAG_UNTYPED);
@@ -3894,7 +3894,7 @@ yyreduce:
     break;
 
   case 192: /* top_if: "if" expr "{" unit "}"  */
-#line 579 "src/parser.y"
+#line 582 "src/parser.y"
                                {
 		(yyval.node) = gen_if((yyvsp[-3].node), (yyvsp[-1].node), NULL);
 		ast_set_flags((yyval.node), AST_FLAG_UNHYGIENIC);
@@ -3903,7 +3903,7 @@ yyreduce:
     break;
 
   case 193: /* top_if: "if" expr "{" unit "}" "else" "{" unit "}"  */
-#line 583 "src/parser.y"
+#line 586 "src/parser.y"
                                                      {
 		(yyval.node) = gen_if((yyvsp[-7].node), (yyvsp[-5].node), (yyvsp[-1].node));
 		ast_set_flags((yyval.node), AST_FLAG_UNHYGIENIC);
@@ -3912,7 +3912,7 @@ yyreduce:
     break;
 
   case 194: /* top_if: "if" expr "{" unit "}" "else" top_if  */
-#line 587 "src/parser.y"
+#line 590 "src/parser.y"
                                                {
 		(yyval.node) = gen_if((yyvsp[-5].node), (yyvsp[-3].node), (yyvsp[0].node));
 		ast_set_flags((yyval.node), AST_FLAG_UNHYGIENIC);
@@ -3921,127 +3921,127 @@ yyreduce:
     break;
 
   case 195: /* top: ";"  */
-#line 595 "src/parser.y"
+#line 598 "src/parser.y"
          { (yyval.node) = gen_empty(); }
 #line 3925 "gen/gen_parser.c"
     break;
 
   case 196: /* top: enum  */
-#line 596 "src/parser.y"
+#line 599 "src/parser.y"
                { (yyval.node) = (yyvsp[0].node); }
 #line 3931 "gen/gen_parser.c"
     break;
 
   case 197: /* top: proc  */
-#line 597 "src/parser.y"
+#line 600 "src/parser.y"
                { (yyval.node) = (yyvsp[0].node); }
 #line 3937 "gen/gen_parser.c"
     break;
 
   case 198: /* top: struct  */
-#line 598 "src/parser.y"
+#line 601 "src/parser.y"
                  { (yyval.node) = (yyvsp[0].node); }
 #line 3943 "gen/gen_parser.c"
     break;
 
   case 199: /* top: union  */
-#line 599 "src/parser.y"
+#line 602 "src/parser.y"
                 { (yyval.node) = (yyvsp[0].node); }
 #line 3949 "gen/gen_parser.c"
     break;
 
   case 200: /* top: macro  */
-#line 600 "src/parser.y"
+#line 603 "src/parser.y"
                 { (yyval.node) = (yyvsp[0].node); }
 #line 3955 "gen/gen_parser.c"
     break;
 
   case 201: /* top: "const" top_if  */
-#line 601 "src/parser.y"
+#line 604 "src/parser.y"
                          { (yyval.node) = (yyvsp[0].node); ast_set_flags((yyval.node), AST_FLAG_CONST); }
 #line 3961 "gen/gen_parser.c"
     break;
 
   case 202: /* top: import ";"  */
-#line 602 "src/parser.y"
+#line 605 "src/parser.y"
                      { (yyval.node) = (yyvsp[-1].node); }
 #line 3967 "gen/gen_parser.c"
     break;
 
   case 203: /* top: type_alias ";"  */
-#line 603 "src/parser.y"
+#line 606 "src/parser.y"
                          { (yyval.node) = (yyvsp[-1].node); }
 #line 3973 "gen/gen_parser.c"
     break;
 
   case 204: /* top: type_template  */
-#line 604 "src/parser.y"
+#line 607 "src/parser.y"
                         { (yyval.node) = (yyvsp[0].node); }
 #line 3979 "gen/gen_parser.c"
     break;
 
   case 205: /* top: "pub" enum  */
-#line 605 "src/parser.y"
+#line 608 "src/parser.y"
                      { (yyval.node) = (yyvsp[0].node); ast_set_flags((yyvsp[0].node), AST_FLAG_PUBLIC); }
 #line 3985 "gen/gen_parser.c"
     break;
 
   case 206: /* top: "pub" struct  */
-#line 606 "src/parser.y"
+#line 609 "src/parser.y"
                        { (yyval.node) = (yyvsp[0].node); ast_set_flags((yyvsp[0].node), AST_FLAG_PUBLIC); }
 #line 3991 "gen/gen_parser.c"
     break;
 
   case 207: /* top: "pub" union  */
-#line 607 "src/parser.y"
+#line 610 "src/parser.y"
                       { (yyval.node) = (yyvsp[0].node); ast_set_flags((yyvsp[0].node), AST_FLAG_PUBLIC); }
 #line 3997 "gen/gen_parser.c"
     break;
 
   case 208: /* top: "pub" proc  */
-#line 608 "src/parser.y"
+#line 611 "src/parser.y"
                      { (yyval.node) = (yyvsp[0].node); ast_set_flags((yyvsp[0].node), AST_FLAG_PUBLIC); }
 #line 4003 "gen/gen_parser.c"
     break;
 
   case 209: /* top: "pub" macro  */
-#line 609 "src/parser.y"
+#line 612 "src/parser.y"
                       { (yyval.node) = (yyvsp[0].node); ast_set_flags((yyvsp[0].node), AST_FLAG_PUBLIC); }
 #line 4009 "gen/gen_parser.c"
     break;
 
   case 210: /* top: "pub" import ";"  */
-#line 610 "src/parser.y"
+#line 613 "src/parser.y"
                            { (yyval.node) = (yyvsp[-1].node); ast_set_flags((yyvsp[-1].node), AST_FLAG_PUBLIC); }
 #line 4015 "gen/gen_parser.c"
     break;
 
   case 211: /* top: "pub" type_alias ";"  */
-#line 611 "src/parser.y"
+#line 614 "src/parser.y"
                                { (yyval.node) = (yyvsp[-1].node); ast_set_flags((yyvsp[-1].node), AST_FLAG_PUBLIC); }
 #line 4021 "gen/gen_parser.c"
     break;
 
   case 212: /* top: "pub" type_template  */
-#line 612 "src/parser.y"
+#line 615 "src/parser.y"
                               { (yyval.node) = (yyvsp[0].node); ast_set_flags((yyvsp[0].node), AST_FLAG_PUBLIC); }
 #line 4027 "gen/gen_parser.c"
     break;
 
   case 213: /* top: var ";"  */
-#line 613 "src/parser.y"
+#line 616 "src/parser.y"
                   { (yyval.node) = (yyvsp[-1].node); }
 #line 4033 "gen/gen_parser.c"
     break;
 
   case 214: /* top: "pub" var ";"  */
-#line 614 "src/parser.y"
+#line 617 "src/parser.y"
                         { (yyval.node) = (yyvsp[-1].node); ast_set_flags((yyvsp[-1].node), AST_FLAG_PUBLIC); }
 #line 4039 "gen/gen_parser.c"
     break;
 
   case 215: /* top: error  */
-#line 615 "src/parser.y"
+#line 618 "src/parser.y"
                 {
 	    (yyval.node) = gen_empty();
 	    parser->failed = true;
@@ -4059,19 +4059,19 @@ yyreduce:
     break;
 
   case 216: /* unit: top  */
-#line 630 "src/parser.y"
+#line 633 "src/parser.y"
           { (yyval.node) = (yyvsp[0].node); }
 #line 4063 "gen/gen_parser.c"
     break;
 
   case 217: /* unit: top unit  */
-#line 631 "src/parser.y"
+#line 634 "src/parser.y"
                    { (yyval.node) = (yyvsp[-1].node); (yyvsp[-1].node)->next = (yyvsp[0].node); }
 #line 4069 "gen/gen_parser.c"
     break;
 
   case 218: /* input: unit  */
-#line 634 "src/parser.y"
+#line 637 "src/parser.y"
             { parser->tree = (yyvsp[0].node); }
 #line 4075 "gen/gen_parser.c"
     break;
@@ -4306,5 +4306,5 @@ yyreturnlab:
   return yyresult;
 }
 
-#line 637 "src/parser.y"
+#line 640 "src/parser.y"
 

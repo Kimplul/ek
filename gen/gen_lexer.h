@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* SPDX-License-Identifier: copyleft-next-0.3.1 */
 
 #ifndef yyHEADER_H
 #define yyHEADER_H 1
@@ -487,7 +487,7 @@ extern int yylex (yyscan_t yyscanner);
 #undef yyTABLES_NAME
 #endif
 
-#line 213 "src/lexer.l"
+#line 216 "src/lexer.l"
 
 
 #line 492 "gen/gen_lexer.h"

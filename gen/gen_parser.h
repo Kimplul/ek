@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* SPDX-License-Identifier: copyleft-next-0.3.1 */
 
 /* A Bison parser, made by GNU Bison 3.8.2.  */
 
@@ -143,7 +143,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 24 "src/parser.y"
+#line 27 "src/parser.y"
 
 	struct ast_node *node;
 	long long integer;

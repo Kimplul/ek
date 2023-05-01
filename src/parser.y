@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: copyleft-next-0.3.1 */
+/* Copyright 2023 Kim Kuparinen < kimi.h.kuparinen@gmail.com > */
+
 %{
 
 /* TODO: clean up this mess and I guess fix location tracking, it works for the
