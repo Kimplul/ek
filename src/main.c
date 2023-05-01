@@ -9,7 +9,7 @@
 #include <ek/compiler.h>
 
 static const char *cmdline_usage =
-	"Copper compiler usage:\n"
+	"ek compiler usage:\n"
 	" cu [-I <dir>...] [-D <var>...] infile...\n"
 	"	-h       Show usage (this)\n"
 	"	-I <dir> Add directory to import path\n"
