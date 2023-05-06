@@ -1,4 +1,4 @@
-import "import/pub_import_hello.cu";
+import "import/pub_import_hello.ek";
 
 main()
 {

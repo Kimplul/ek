@@ -1,1 +1,1 @@
-pub import "pub_hello.cu";
+pub import "pub_hello.ek";
