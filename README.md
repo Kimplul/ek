@@ -181,6 +181,50 @@ pub import "some_file.ek";
 import "some_file.ek";
 ```
 
+### AST macros
+```
+define stuff(x, y) {
+        x + y;
+}
+
+...
+// equivalent to a u32 = (200 + 200) as u32;
+a u32 = stuff(20, 200) as u32;
+```
+
+Having macros is a useful feature, but they should be limited.
+Having the macros operate on the AST gives better control, and for example
+defining new functions is disallowed.
+
+By default macros are unhygienic, but you can create a new context to make
+them hygienic:
+```
+define hygienic(){
+{// this is hygienic}
+// this isn't
+}
+```
+
+### Compile time variadics
+```
+some_func(a u32, b u32, ...args) {
+        // const for is a compiletime loop that iterates over ...args
+        const for x : ...args {
+                ...
+        }
+}
+```
+
+Macros also support variadics. Macros and functions are in the same space, so
+```
+// OK, macro that doesn't take arguments
+define some_thing(){}
+// ERR, an object with matching signature already exists
+some_thing(){}
+// OK, the same name is used but the signature is different
+some_thing(a u32){}
+```
+
 # Architecture
 
 At the moment I'm aiming for transpiling Ek to C. I'm hoping that it will be possible
