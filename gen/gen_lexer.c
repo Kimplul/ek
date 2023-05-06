@@ -1,5 +1,3 @@
-/* SPDX-License-Identifier: copyleft-next-0.3.1 */
-
 #line 2 "gen/gen_lexer.c"
 
 #line 4 "gen/gen_lexer.c"

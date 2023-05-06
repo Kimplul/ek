@@ -1,5 +1,3 @@
-/* SPDX-License-Identifier: copyleft-next-0.3.1 */
-
 #ifndef yyHEADER_H
 #define yyHEADER_H 1
 #define yyIN_HEADER 1
