@@ -7,9 +7,8 @@
 /**
  * @file actualize.h
  *
- * Actualization stuff, that is stuff needed for turning raw AST
- * into processed AST that can be passed to a backend to generate
- * code.
+ * Actualization stuff  needed for turning raw AST
+ * into processed AST that can be passed to a backend to generate code.
  */
 
 #include <assert.h>

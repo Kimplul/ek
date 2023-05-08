@@ -87,7 +87,6 @@ void yyerror(YYLTYPE *yylloc, void *lexer, struct parser *parser,
 	issue.loc = to_src_loc(yylloc);
 	issue.fctx.fbuf = parser->buf;
 	issue.fctx.fname = parser->fname;
-	issue.offset = parser->buf_offset;
 	src_issue(issue, msg);
 }
 

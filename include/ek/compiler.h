@@ -12,7 +12,25 @@
 
 #include <ek/scope.h>
 
+/**
+ * Compile a root file.
+ * A root file is a file given on the command line, and is assumed to
+ * create a file tree that eventually results in a binary.
+ *
+ * @param file Root file to compile.
+ * @return \c 0 if compilation was succesful, otherwise some non-zero value.
+ */
 int compile(const char *file);
+
+/**
+ * Process a file, i.e. lex, parse and generate raw AST.
+ *
+ * @param parent Parent scope of file from which \p file is imported.
+ * \c NULL if root file.
+ * @param public \c 1 if \p file should be publicly imported, \c 0 otherwise.
+ * @param file File to process.
+ * @return \c 0 if compilation was succesful, otherwise some non-zero value.
+ */
 int process_file(struct scope **parent, int public, const char *file);
 
 #endif /* EK_COMPILER_H */

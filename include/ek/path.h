@@ -10,8 +10,29 @@
  * Path handling helpers.
  */
 
+/**
+ * Get basename of file path.
+ * E.g. src/some/file.c -> file.c
+ *
+ * @param file File path to get basename from.
+ * @return Basename of \p file.
+ */
 char *ek_basename(const char *file);
+
+/**
+ * Get directory name of path.
+ * E.g. src/some/file.c -> src/some
+ *
+ * @param file File path to get dirname from.
+ * @return Dirname of \p file.
+ */
 char *ek_dirname(const char *file);
+
+/**
+ * Get current working directory.
+ *
+ * @return Current working directory.
+ */
 char *ek_cwdname();
 
 #endif /* EK_PATH */

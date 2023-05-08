@@ -24,10 +24,20 @@
 #include <ek/path.h>
 #include <ek/res.h>
 
+/**
+ * Read whole file into a buffer and return pointer to buffer.
+ * Possibly kind of silly to have both \p file and \p f.
+ * Apparently there's no standardized way to get the file name of a
+ * file pointer.
+ *
+ * @param file Name of file to read.
+ * @param f File pointer.
+ * @return Pointer to buffer with file contents.
+ */
 static char *read_file(const char *file, FILE *f)
 {
 	fseek(f, 0, SEEK_END);
-	/* TODO: check how well standardized this actually is */
+	/** @todo check how well standardized this actually is */
 	long s = ftell(f);
 	if (s == LONG_MAX) {
 		error("%s might be a directory", file);
@@ -46,6 +56,16 @@ static char *read_file(const char *file, FILE *f)
 	return buf;
 }
 
+/**
+ * Helper for process_file(), actually processes the file
+ * after process_file() has done path lookups and working directory
+ * changes and whatnot.
+ *
+ * @param parent Parent file context. \c NULL if root file.
+ * @param public \c 1 if file is being imported publicly, \c 0 otherwise.
+ * @param file File name to process.
+ * @return \c 0 if processing was succesful, non-zero value otherwise.
+ */
 static int process(struct scope **parent, int public, const char *file)
 {
 	FILE *f = fopen(file, "rb");
@@ -99,7 +119,7 @@ static int process(struct scope **parent, int public, const char *file)
 int process_file(struct scope **scope, int public, const char *file)
 {
 	int res = -1;
-	/* TODO: report failure allocating stuff maybe? */
+	/** todo report failure allocating stuff maybe? */
 	struct res *r = res_create();
 	if (!r)
 		return -1;
@@ -153,7 +173,7 @@ int compile(const char *file) {
 	}
 
 	ret = actualize_main(root);
-	/* TODO: backend */
+	/** @todo backend */
 	destroy_scope(root);
 	return ret;
 }

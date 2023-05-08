@@ -16,6 +16,12 @@
 
 #include <ek/debug.h>
 
+/**
+ * Get string representation of issue_level.
+ *
+ * @param level issue_level to get string representation for.
+ * @return \p level as a string.
+ */
 const char *issue_level_str(enum issue_level level)
 {
 	switch (level) {
@@ -27,9 +33,19 @@ const char *issue_level_str(enum issue_level level)
 	return "unknown";
 }
 
+/**
+ * Find position in file buffer where line number \p no
+ * starts. Lines are assumed to be one-indexed, with
+ * \p no = \c 0 and \p no = \c 1 both considered the first line.
+ *
+ * @param buf Buffer to look in.
+ * @param no Line number whose start to look for.
+ * @return Pointer to location in buffer where line number \p no
+ * starts.
+ */
 static const char *find_lineno(const char *buf, size_t no)
 {
-	if (no == 1)
+	if (no == 0 || no == 1)
 		return buf;
 
 	char c;
@@ -46,6 +62,13 @@ static const char *find_lineno(const char *buf, size_t no)
 	return buf;
 }
 
+/**
+ * Helper for printing out an issue.
+ *
+ * @param issue Issue context.
+ * @param fmt Format string. Follows standard printf() formatting.
+ * @param args Arguments for \p fmt.
+ */
 static void _issue(struct src_issue issue, const char *fmt, va_list args)
 {
 	/* get start and end of current line in buffer */
@@ -97,8 +120,6 @@ void src_issue(struct src_issue issue, const char *err_msg, ...)
 	va_end(args);
 }
 
-/* TODO: should really implement these better, the bad error messages are
- * starting to play a role in debugging */
 void semantic_error(struct file_ctx fctx, struct ast_node *node,
                     const char *fmt, ...)
 {
@@ -148,6 +169,12 @@ void internal_error(const char *fmt, ...)
 	va_end(args);
 }
 
+/**
+ * Workhorse for type_str().
+ *
+ * @param fp File pointer to write string representation to.
+ * @param type Type to generate string representation for.
+ */
 static void _type_str(FILE *fp, struct ast_node *type)
 {
 	if (!type)
@@ -269,6 +296,12 @@ char *type_str(struct ast_node *node)
 	return buf;
 }
 
+/**
+ * Workhorse for call_str().
+ *
+ * @param f File pointer to write string representation to.
+ * @param call Call to generate string representation for.
+ */
 static void _call_str(FILE *f, struct ast_node *call)
 {
 	struct ast_node *id = call->_call.id;

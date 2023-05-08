@@ -9,11 +9,12 @@
 
 static void update_yylloc(struct parser *parser, YYLTYPE *lloc, const char *text)
 {
+	(void)parser;
+
 	lloc->first_line = lloc->last_line;
 	lloc->first_column = lloc->last_column;
 
 	for (size_t i = 0; text[i] != 0; ++i) {
-		parser->buf_offset++;
 		if (text[i] == '\n') {
 			lloc->last_line++;
 			/* flex uses 1 based indexing */
@@ -209,7 +210,6 @@ STRING		\"(\\.|[^"\\])*\"
 	issue.loc = to_src_loc(yylloc);
 	issue.fctx.fbuf = parser->buf;
 	issue.fctx.fname = parser->fname;
-	issue.offset = parser->buf_offset;
 	src_issue(issue, "Unexpected token: %s", yytext);
 	parser->failed = true;
 }
