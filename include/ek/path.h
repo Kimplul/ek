@@ -4,6 +4,12 @@
 #ifndef EK_PATH
 #define EK_PATH
 
+/**
+ * @file path.h
+ *
+ * Path handling helpers.
+ */
+
 char *ek_basename(const char *file);
 char *ek_dirname(const char *file);
 char *ek_cwdname();

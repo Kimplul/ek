@@ -4,6 +4,14 @@
 #ifndef ANALYZE_H
 #define ANALYZE_H
 
+/**
+ * @file actualize.h
+ *
+ * Actualization stuff, that is stuff needed for turning raw AST
+ * into processed AST that can be passed to a backend to generate
+ * code.
+ */
+
 #include <assert.h>
 
 #include "ast.h"

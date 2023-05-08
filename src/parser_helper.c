@@ -1,6 +1,12 @@
 /* SPDX-License-Identifier: copyleft-next-0.3.1 */
 /* Copyright 2023 Kim Kuparinen < kimi.h.kuparinen@gmail.com > */
 
+/**
+ * @file parser_helper.c
+ *
+ * Stuff to aid in parsing.
+ */
+
 #include <stdarg.h>
 
 #include <ek/parser.h>

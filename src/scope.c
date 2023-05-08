@@ -1,6 +1,11 @@
 /* SPDX-License-Identifier: copyleft-next-0.3.1 */
 /* Copyright 2023 Kim Kuparinen < kimi.h.kuparinen@gmail.com > */
 
+/** @file scope.c
+ *
+ * Implementations for scope handling stuff.
+ */
+
 #include <stddef.h>
 #include <string.h>
 #include <stdio.h>

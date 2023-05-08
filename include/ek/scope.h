@@ -4,6 +4,12 @@
 #ifndef SCOPE_H
 #define SCOPE_H
 
+/**
+ * @file scope.h
+ *
+ * Scope handling stuff.
+ */
+
 #include "ast.h"
 #include "debug.h"
 

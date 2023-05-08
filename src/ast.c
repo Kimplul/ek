@@ -1,6 +1,12 @@
 /* SPDX-License-Identifier: copyleft-next-0.3.1 */
 /* Copyright 2023 Kim Kuparinen < kimi.h.kuparinen@gmail.com > */
 
+/**
+ * @file ast.c
+ *
+ * Abstract syntax tree handling implementations.
+ */
+
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>

@@ -4,6 +4,12 @@
 #ifndef AST_H
 #define AST_H
 
+/**
+ * @file ast.h
+ *
+ * Abstract syntax tree handling.
+ */
+
 enum ast_binops {
 	AST_ADD,
 	AST_SUB,

@@ -4,6 +4,12 @@
 #ifndef EK_DEBUG_H
 #define EK_DEBUG_H
 
+/**
+ * @file debug.h
+ *
+ * Debugging and general information printing helpers.
+ */
+
 #include <stdio.h>
 
 #include <ek/ast.h>

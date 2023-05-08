@@ -4,6 +4,14 @@
 #ifndef EK_IMPORTS_H
 #define EK_IMPORTS_H
 
+/**
+ * @file imports.h
+ *
+ * File import handling.
+ * Currently mostly unimplemented, but intended to keep track
+ * of which files have been imported.
+ */
+
 #include <stdbool.h>
 
 void add_import_path(const char *dir);

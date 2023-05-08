@@ -4,6 +4,12 @@
 #ifndef EK_COMPILER_H
 #define EK_COMPILER_H
 
+/**
+ * @file compiler.h
+ *
+ * Top level compiler.
+ */
+
 #include <ek/scope.h>
 
 int compile(const char *file);

@@ -4,6 +4,13 @@
 #ifndef EK_STRING_H
 #define EK_STRING_H
 
+/**
+ * @file string.h
+ *
+ * String handling helper stuff.
+ * At the moment mostly unused.
+ */
+
 #include <stddef.h>
 #include <string.h>
 #include <stdbool.h>

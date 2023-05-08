@@ -4,6 +4,12 @@
 #ifndef PARSER_H
 #define PARSER_H
 
+/**
+ * @file parser.h
+ *
+ * Glue file to get lexer and parser to play nice.
+ */
+
 #include <stddef.h>
 #include <stdbool.h>
 #include <ek/ast.h>
