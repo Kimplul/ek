@@ -28,7 +28,6 @@ void parse(struct parser *p, const char *fname, const char *buf)
 	p->fname = fname;
 	p->buf = buf;
 
-	p->buf_offset = 0;
 	p->comment_nesting = 0;
 
 	p->failed = false;

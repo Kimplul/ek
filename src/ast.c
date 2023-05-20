@@ -3027,23 +3027,22 @@ size_t ast_list_len(struct ast_node *node)
 	return count;
 }
 
-struct ast_node *ast_last_node(struct ast_node *n)
+struct ast_node *ast_last_node(struct ast_node *list)
 {
-	if (!n)
+	if (!list)
 		return NULL;
 
-	while (n->next)
-		n = n->next;
+	while (list->next)
+		list = list->next;
 
-	return n;
+	return list;
 }
 
-struct ast_node *ast_block_last(struct ast_node *n)
+struct ast_node *ast_block_last(struct ast_node *block)
 {
-	struct ast_node *b = ast_last_node(n);
+	struct ast_node *b = ast_last_node(block);
 	if (b && b->node_type == AST_BLOCK)
 		return ast_block_last(b->_block.body);
 
 	return b;
 }
-
