@@ -1,0 +1,7 @@
+define macro(a, b, ... c)
+{
+	const for i : a, b, ... c {
+	}
+}
+
+proc(a u32, b u32, ... c) {}

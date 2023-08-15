@@ -142,7 +142,7 @@
 %nterm <node> import binop unop arg args decls expr
 %nterm <node> while do_while statement statements body references macro
 %nterm <node> exprs if for case cases switch const
-%nterm <node> simple_sign func_sign type var_decl var
+%nterm <node> func_sign type var_decl var captures
 %nterm <node> var_init proc lambda template_elem template_elems types
 %nterm <node> alias template enum_val enums enum top unit id
 %nterm <node> embed param_decl union struct members struct_elem
@@ -245,6 +245,7 @@ decls
 	| param_decl "," decls { $$ = $1; $1->next = $3; }
 	| var_decl { $$ = $1; }
 	| param_decl { $$ = $1; }
+	| "..." id { $$ = $2; ast_set_flags($$, AST_FLAG_VARIADIC); }
 
 defer
 	: "defer" expr { $$ = gen_defer($2);  }
@@ -379,6 +380,7 @@ body
 references
 	: id "," references { $$ = $1; $$->next = $3; }
 	| id { $$ = $1; }
+	| "..." id { $$ = $2; ast_set_flags($$, AST_FLAG_VARIADIC); }
 
 /* TODO: rethink how macros play into everyting */
 macro
@@ -468,7 +470,7 @@ const
 	: "const" const_if { $$ = $2; ast_set_flags($$, AST_FLAG_CONST); }
 	| "const" const_for { $$ = $2; ast_set_flags($$, AST_FLAG_CONST); }
 
-simple_sign
+func_sign
 	: "(" decls "=>" type ")" {
 		$$ = gen_type(AST_TYPE_SIGN, NULL, $2, $4);
 	}
@@ -477,17 +479,9 @@ simple_sign
 	| "(" "=>" type ")" { $$ = gen_type(AST_TYPE_SIGN, NULL, NULL, $3); }
 	| "(" ")" { $$ = gen_type(AST_TYPE_SIGN, NULL, NULL, NULL); }
 
-func_sign
-	: simple_sign { $$ = $1; }
-	| "(" decls "..." id "=>" type ")" {
-		ast_append($2, $4);
-		$$ = gen_type(AST_TYPE_SIGN, NULL, $2, $6);
-		ast_set_flags($$, AST_FLAG_VARIADIC);
-	}
-
 type
 	: id { $$ = gen_type(AST_TYPE_ID, $1, NULL, NULL); }
-	| "@" simple_sign {
+	| "@" func_sign {
 		$$ = gen_type(AST_TYPE_POINTER, NULL, NULL, NULL);
 		$$->_type.next = $2;
 	}
@@ -533,14 +527,19 @@ proc
 		$$ = gen_proc($1, $2, $3);
 		ast_set_flags($$, $2->flags);
 	}
-	| "extern" id simple_sign {
+	| "extern" id func_sign {
+		/* todo check that we don't have a variadic function */
 		$$ = gen_proc($2, $3, NULL);
 		ast_set_flags($$, AST_FLAG_EXTERN);
 	}
 
+captures
+	: id "," captures { $$ = $1; $1->next = $3; }
+	| id { $$ = $1; }
+
 lambda
-	: "[" references "]" simple_sign body { $$ = gen_lambda($2, $4, $5); }
-	| "[" references "]" body { $$ = gen_lambda($2, NULL, $4); }
+	: "[" captures "]" func_sign body { $$ = gen_lambda($2, $4, $5); }
+	| "[" captures "]" body { $$ = gen_lambda($2, NULL, $4); }
 
 struct_elem
 	: var_decl { $$ = $1; }
@@ -576,7 +575,7 @@ struct
  * we can keep a pretty clean separation between procs and supertraits */
 template_elem
 	: id ";" { $$ = $1; }
-	| id simple_sign ";" { $$ = gen_proc($1, $2, NULL);  }
+	| id func_sign ";" { $$ = gen_proc($1, $2, NULL);  }
 	| var_decl ";" { $$ = $1; }
 	| union { $$ = $1; }
 
