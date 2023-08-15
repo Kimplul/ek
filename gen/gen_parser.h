@@ -58,81 +58,84 @@ extern int yydebug;
     FLOAT = 259,                   /* FLOAT  */
     STRING = 260,                  /* STRING  */
     ID = 261,                      /* ID  */
-    SQUOTE = 262,                  /* "'"  */
-    TO = 263,                      /* "="  */
-    ELLIPSIS = 264,                /* "..."  */
-    SEMICOLON = 265,               /* ";"  */
-    COLON = 266,                   /* ":"  */
-    BANG = 267,                    /* "!"  */
-    TYPEOF = 268,                  /* "typeof"  */
-    SIZEOF = 269,                  /* "sizeof"  */
-    PASTE = 270,                   /* "##"  */
-    STAR = 271,                    /* "*"  */
-    DIV = 272,                     /* "/"  */
-    REM = 273,                     /* "%"  */
-    MINUS = 274,                   /* "-"  */
-    PLUS = 275,                    /* "+"  */
-    POW = 276,                     /* "^^"  */
-    XOR = 277,                     /* "^"  */
-    AND = 278,                     /* "&"  */
-    OR = 279,                      /* "|"  */
-    LAND = 280,                    /* "&&"  */
-    LOR = 281,                     /* "||"  */
-    TILDE = 282,                   /* "~"  */
-    LT = 283,                      /* "<"  */
-    GT = 284,                      /* ">"  */
-    LE = 285,                      /* "<="  */
-    GE = 286,                      /* ">="  */
-    NE = 287,                      /* "!="  */
-    EQ = 288,                      /* "=="  */
-    LSHIFT = 289,                  /* "<<"  */
-    RSHIFT = 290,                  /* ">>"  */
-    PLUSSELF = 291,                /* "+="  */
-    MINUSSELF = 292,               /* "-="  */
-    STARSELF = 293,                /* "*="  */
-    DIVSELF = 294,                 /* "/="  */
-    REMSELF = 295,                 /* "%="  */
-    XORSELF = 296,                 /* "^="  */
-    POWSELF = 297,                 /* "^^="  */
-    ANDSELF = 298,                 /* "&="  */
-    ORSELF = 299,                  /* "|="  */
-    LSHIFTSELF = 300,              /* "<<="  */
-    RSHIFTSELF = 301,              /* ">>="  */
-    AT = 302,                      /* "@"  */
-    COMMA = 303,                   /* ","  */
-    PUB = 304,                     /* "pub"  */
-    STRUCT = 305,                  /* "struct"  */
-    UNION = 306,                   /* "union"  */
-    TYPEDEF = 307,                 /* "typedef"  */
-    IMPORT = 308,                  /* "import"  */
-    DEFER = 309,                   /* "defer"  */
-    GOTO = 310,                    /* "goto"  */
-    EMBED = 311,                   /* "embed"  */
-    IF = 312,                      /* "if"  */
-    ELSE = 313,                    /* "else"  */
-    BREAK = 314,                   /* "break"  */
-    CONTINUE = 315,                /* "continue"  */
-    SWITCH = 316,                  /* "switch"  */
-    CASE = 317,                    /* "case"  */
-    FOR = 318,                     /* "for"  */
-    WHILE = 319,                   /* "while"  */
-    DO = 320,                      /* "do"  */
-    MUT = 321,                     /* "mut"  */
-    RETURN = 322,                  /* "return"  */
-    CONST = 323,                   /* "const"  */
-    EXTERN = 324,                  /* "extern"  */
-    ENUM = 325,                    /* "enum"  */
-    DEFINE = 326,                  /* "define"  */
-    LPAREN = 327,                  /* "("  */
-    RPAREN = 328,                  /* ")"  */
-    LBRACE = 329,                  /* "{"  */
-    RBRACE = 330,                  /* "}"  */
-    LBRACKET = 331,                /* "["  */
-    RBRACKET = 332,                /* "]"  */
-    AS = 333,                      /* "as"  */
-    DOT = 334,                     /* "."  */
-    SCOPE = 335,                   /* "::"  */
-    FATARROW = 336                 /* "=>"  */
+    APPLY = 262,                   /* APPLY  */
+    QUESTION = 263,                /* "?"  */
+    SQUOTE = 264,                  /* "'"  */
+    TO = 265,                      /* "="  */
+    ELLIPSIS = 266,                /* "..."  */
+    SEMICOLON = 267,               /* ";"  */
+    COLON = 268,                   /* ":"  */
+    BANG = 269,                    /* "!"  */
+    TYPEOF = 270,                  /* "typeof"  */
+    SIZEOF = 271,                  /* "sizeof"  */
+    PASTE = 272,                   /* "##"  */
+    STAR = 273,                    /* "*"  */
+    DIV = 274,                     /* "/"  */
+    REM = 275,                     /* "%"  */
+    MINUS = 276,                   /* "-"  */
+    PLUS = 277,                    /* "+"  */
+    POW = 278,                     /* "^^"  */
+    XOR = 279,                     /* "^"  */
+    AND = 280,                     /* "&"  */
+    OR = 281,                      /* "|"  */
+    LAND = 282,                    /* "&&"  */
+    LOR = 283,                     /* "||"  */
+    TILDE = 284,                   /* "~"  */
+    LT = 285,                      /* "<"  */
+    GT = 286,                      /* ">"  */
+    LE = 287,                      /* "<="  */
+    GE = 288,                      /* ">="  */
+    NE = 289,                      /* "!="  */
+    EQ = 290,                      /* "=="  */
+    LSHIFT = 291,                  /* "<<"  */
+    RSHIFT = 292,                  /* ">>"  */
+    PLUSSELF = 293,                /* "+="  */
+    MINUSSELF = 294,               /* "-="  */
+    STARSELF = 295,                /* "*="  */
+    DIVSELF = 296,                 /* "/="  */
+    REMSELF = 297,                 /* "%="  */
+    XORSELF = 298,                 /* "^="  */
+    POWSELF = 299,                 /* "^^="  */
+    ANDSELF = 300,                 /* "&="  */
+    ORSELF = 301,                  /* "|="  */
+    LSHIFTSELF = 302,              /* "<<="  */
+    RSHIFTSELF = 303,              /* ">>="  */
+    AT = 304,                      /* "@"  */
+    COMMA = 305,                   /* ","  */
+    PUB = 306,                     /* "pub"  */
+    STRUCT = 307,                  /* "struct"  */
+    UNION = 308,                   /* "union"  */
+    TYPEDEF = 309,                 /* "typedef"  */
+    IMPORT = 310,                  /* "import"  */
+    DEFER = 311,                   /* "defer"  */
+    GOTO = 312,                    /* "goto"  */
+    EMBED = 313,                   /* "embed"  */
+    IF = 314,                      /* "if"  */
+    ELSE = 315,                    /* "else"  */
+    BREAK = 316,                   /* "break"  */
+    CONTINUE = 317,                /* "continue"  */
+    DEFAULT = 318,                 /* "default"  */
+    SWITCH = 319,                  /* "switch"  */
+    CASE = 320,                    /* "case"  */
+    FOR = 321,                     /* "for"  */
+    WHILE = 322,                   /* "while"  */
+    DO = 323,                      /* "do"  */
+    MUT = 324,                     /* "mut"  */
+    RETURN = 325,                  /* "return"  */
+    CONST = 326,                   /* "const"  */
+    EXTERN = 327,                  /* "extern"  */
+    ENUM = 328,                    /* "enum"  */
+    DEFINE = 329,                  /* "define"  */
+    LPAREN = 330,                  /* "("  */
+    RPAREN = 331,                  /* ")"  */
+    LBRACE = 332,                  /* "{"  */
+    RBRACE = 333,                  /* "}"  */
+    LBRACKET = 334,                /* "["  */
+    RBRACKET = 335,                /* "]"  */
+    AS = 336,                      /* "as"  */
+    DOT = 337,                     /* "."  */
+    SCOPE = 338,                   /* "::"  */
+    FATARROW = 339                 /* "=>"  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -141,14 +144,14 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 27 "src/parser.y"
+#line 28 "src/parser.y"
 
 	struct ast_node *node;
 	long long integer;
 	double dbl;
 	char *str;
 
-#line 152 "gen/gen_parser.h"
+#line 155 "gen/gen_parser.h"
 
 };
 typedef union YYSTYPE YYSTYPE;

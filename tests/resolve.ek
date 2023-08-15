@@ -30,6 +30,6 @@ some_func(generic){5;}
 
 main(){
 	// TODO: not fully qualified types in bodies should cause an error
-	a generic(i64, generic);
+	a [20]generic![i64, generic];
 	some_func(a);
 }

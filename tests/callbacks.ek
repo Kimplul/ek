@@ -1,4 +1,4 @@
-do_stuff(proc '(u32))
+do_stuff(proc @(u32))
 {
 	proc();
 }
@@ -13,5 +13,5 @@ other_proc()
 
 main()
 {
-	do_stuff(other_proc as '(u32));
+	do_stuff(other_proc as @(u32));
 }

@@ -1190,6 +1190,8 @@ static struct ast_node *match_proc(enum match_flags flags, struct scope *scope,
 	while (cb) {
 		if (identical_ast_nodes(0, cb->id, id))
 			return proc_resolve(scope, cb->root, args);
+
+		cb = cb->next;
 	}
 	return NULL;
 }
@@ -1597,12 +1599,15 @@ struct ast_node *file_scope_resolve_type(struct scope *scope,
 /* this might be useful somewhere else as well */
 static const char *default_types[] = {"u8", "u16", "u32", "u64",
 	                              "i8" "i16", "i32", "i64",
-	                              "usize", "isize", "f32", "f64", "void"};
+	                              "usize", "isize",
+	                              "f32", "f64",
+	                              "bool", "void"};
 
 /* TODO: add error checking */
 int scope_add_defaults(struct scope *root)
 {
-	for (size_t i = 0; i < sizeof(default_types) / sizeof(default_types[0]);
+	for (size_t i = 0;
+	     i < sizeof(default_types) / sizeof(default_types[0]);
 	     ++i) {
 		const char *type = default_types[i];
 		struct ast_node *n = gen_id(strdup(type));
@@ -1625,7 +1630,8 @@ void scope_destroy_defaults(struct scope *scope)
 	struct ast_node type = {0};
 	type.node_type = AST_ID;
 
-	for (size_t i = 0; i < sizeof(default_types) / sizeof(default_types[0]);
+	for (size_t i = 0;
+	     i < sizeof(default_types) / sizeof(default_types[0]);
 	     ++i) {
 		type._id.id = default_types[i];
 		struct ast_node *n = scope_find_alias(scope, &type);

@@ -411,7 +411,7 @@ struct ast_node *gen_case(struct ast_node *cond, struct ast_node *body)
 	n->_case.body = body;
 	/* TODO: where should I check the fallthrough flag? In the
 	 * actualization stage, I guess */
-	n->loc = cond->loc;
+	n->loc = body->loc;
 	return n;
 }
 
@@ -461,7 +461,8 @@ struct ast_node *gen_type(enum ast_type_kind kind, struct ast_node *id,
 
 	case AST_TYPE_ARR:
 		n->_type.arr.size = expr;
-		n->loc = expr->loc;
+		if (expr)
+			n->loc = expr->loc;
 		break;
 
 	case AST_TYPE_TYPEOF:
@@ -682,7 +683,7 @@ struct ast_node *gen_lambda(struct ast_node *captures,
 	n->_lambda.captures = captures;
 	n->_lambda.sign = type;
 	n->_lambda.body = body;
-	n->loc = type->loc;
+	n->loc = captures->loc;
 	return n;
 }
 

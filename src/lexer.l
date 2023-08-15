@@ -40,6 +40,7 @@ DECF		[+-]?[0-9]+[.]([eE]?[+-]?[0-9]+)?[fF]?
 FLOAT		{HEXF}|{DECF}|inf|nan
 
 ID		[_a-zA-Z][_a-zA-Z0-9]*
+APPLY		{ID}[[:space:]]*!
 
 STRING		\"(\\.|[^"\\])*\"
 
@@ -60,8 +61,8 @@ STRING		\"(\\.|[^"\\])*\"
 
 	"*"+ {}
 	[^/*\n]+ {}
-	    [/] {}
-	    \n {}
+	[/] {}
+	\n {}
 }
 
 "::"		{return SCOPE;}
@@ -119,6 +120,7 @@ STRING		\"(\\.|[^"\\])*\"
 	return INT;
 }
 
+"?"		{return QUESTION;}
 "'"		{return SQUOTE;}
 
 "&"		{return AND;}
@@ -178,6 +180,7 @@ STRING		\"(\\.|[^"\\])*\"
 "define"	{return DEFINE;}
 "break"		{return BREAK;}
 "continue"	{return CONTINUE;}
+"default"	{return DEFAULT;}
 
 {STRING} {
 	/* seems risky, I know, but letting the parser choose when to allocate a
@@ -199,6 +202,15 @@ STRING		\"(\\.|[^"\\])*\"
 {ID} {
 	yylval->str = yytext;
 	return ID;
+}
+
+{APPLY} {
+	/* strip trailing '!' */
+	char *s = yytext + strlen(yytext);
+	s[-1] = '\0';
+
+	yylval->str = yytext;
+	return APPLY;
 }
 
 
