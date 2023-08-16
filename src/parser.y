@@ -572,7 +572,9 @@ func_sign
 
 type
 	: id { $$ = gen_type(AST_TYPE_ID, $1, NULL, NULL); }
-	| "@" func_sign {
+	| "::" func_sign {
+		/* still not entirely sold on this signature, but it's not terrible I
+		 * guess */
 		$$ = gen_type(AST_TYPE_POINTER, NULL, NULL, NULL);
 		$$->_type.next = $2;
 	}
