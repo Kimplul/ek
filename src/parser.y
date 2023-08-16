@@ -156,6 +156,9 @@
 /* constant operations */
 %nterm <node> const_expr const_unop const_binop
 
+/* array stuff */
+%nterm <node> arr arr_inits arr_init
+
 %destructor {} FLOAT INT STRING ID APPLY
 %destructor { destroy_ast_tree($$); } <*>
 
@@ -248,8 +251,8 @@ apply
 	}
 
 var
-	: var_decl { $$ = $1; }
-	| var_init { $$ = $1; }
+	: var_decl
+	| var_init
 
 embed
 	: "embed" "(" STRING ")" { $$ = gen_embed(clone_string($3));  }
@@ -302,24 +305,37 @@ unop
 	| "'" expr { $$ = gen_unop(AST_DEREF, $2);  }
 	| "~" expr { $$ = gen_unop(AST_NOT, $2);  }
 
+arr_init
+	: "=>" const_expr "..." const_expr "=" arg { $$ = gen_var($2, $4, $6); }
+	| "=>" const_expr "=" arg { $$ = gen_var($2, NULL, $4); }
+	| arg
+
+arr_inits
+	: arr_init "," arr_inits { $$ = $1; $1->next = $3; }
+	| arr_init
+
+arr
+	: "[" arr_inits "]" { $$ = $2; }
+
 arg
 	: "&" var_decl { $$ = gen_unop(AST_REF, $2);  }
-	| var_decl { $$ = $1; }
-	| expr { $$ = $1; }
+	| construct
+	| var_decl
+	| expr
+	| arr
 
 args
 	: arg "," args { $$ = $1; $1->next = $3; }
-	| arg { $$ = $1; }
+	| arg
 
 param_decl
 	: type { $$ = gen_var(NULL, $1, NULL);  }
+	| var_decl
 
 decls
-	: var_decl "," decls { $$ = $1; $1->next = $3; }
-	| param_decl "," decls { $$ = $1; $1->next = $3; }
-	| var_decl { $$ = $1; }
-	| param_decl { $$ = $1; }
+	: param_decl "," decls { $$ = $1; $1->next = $3; }
 	| "..." id { $$ = $2; ast_set_flags($$, AST_FLAG_VARIADIC); }
+	| param_decl
 
 defer
 	: "defer" expr { $$ = gen_defer($2);  }
@@ -352,16 +368,15 @@ const_unop
 
 const_expr
 	: "(" const_expr ")" { $$ = $2; }
-	| id { $$ = $1; }
 	| INT { $$ = gen_int($1); }
 	| FLOAT { $$ = gen_float($1); }
-	| const_binop { $$ = $1; }
-	| const_unop { $$ = $1; }
+	| const_binop
+	| const_unop
+	| id
 
 /* TODO: concatenate multiple strings together? Or is that the lexer's job? */
 expr
-	: id { $$ = $1; }
-	| expr "." id { $$ = gen_dot($1, $3); }
+	: expr "." id { $$ = gen_dot($1, $3); }
 	| "..." id { $$ = $2; }
 	| INT { $$ = gen_int($1); $$->loc = to_src_loc(&yylloc); }
 	| FLOAT { $$ = gen_float($1); $$->loc = to_src_loc(&yylloc);  }
@@ -370,25 +385,25 @@ expr
 		$$->loc = to_src_loc(&yylloc);
 	}
 	| "(" expr ")" { $$ = $2; }
-	| assign { $$ = $1; }
 	| expr "(" args ")" { $$ = gen_call($1, $3); }
 	| expr "(" ")" { $$ = gen_call($1, NULL); }
 	| expr "[" expr "]" { $$ = gen_call($1, $3); /** @todo add arr access */}
 	| apply "(" args ")" { $$ = gen_call($1, $3); /* macro call */}
 	| apply "(" ")" { $$ = gen_call($1, NULL); /* macro call */}
-	| binop { $$ = $1; }
-	| unop { $$ = $1; }
 	| "(" var_init ")" { $$ = $2; }
 	| "sizeof" expr { $$ = gen_sizeof($2); }
 	| expr "as" type { $$ = gen_cast($1, $3);  }
 	| id "::" type { $$ = gen_fetch($1, $3); }
 	| "as" type { $$ = gen_as($2); }
-	| embed { $$ = $1; }
-	| lambda { $$ = $1; }
-	| if { $$ = $1; }
-	| switch { $$ = $1; }
-	| construct { $$ = $1; }
-	| "(" body ")" { $$ = $2; }
+	| lambda
+	| switch
+	| assign
+	| embed
+	| binop
+	| unop
+	| body
+	| if
+	| id
 
 while
 	: "while" expr body { $$ = gen_while($2, $3);  }
@@ -403,26 +418,25 @@ goto
 	: "goto" id { $$ = gen_goto(gen_label($2));  }
 
 statelet
-	: expr { $$ = $1; }
-	| "return" expr { $$ = gen_return($2);  }
+	: "return" args { $$ = gen_return($2);  }
 	| "return" { $$ = gen_return(NULL); }
 	| "break" { $$ = gen_ctrl(AST_CTRL_BREAK, to_src_loc(&yylloc)); }
 	| "continue" { $$ = gen_ctrl(AST_CTRL_CONTINUE, to_src_loc(&yylloc)); }
-	| import { $$ = $1; }
-	| var { $$ = $1; }
-	| goto { $$ = $1; }
 	| id ":" { $$ = gen_label($1);  }
-	| for { $$ = $1; }
-	| const { $$ = $1; }
-	| while { $$ = $1; }
-	| do_while { $$ = $1; }
-	| macro { $$ = $1; }
-	| struct { $$ = $1; }
-	| alias { $$ = $1; }
-	| template { $$ = $1; }
-	| defer { $$ = $1; }
-	| enum { $$ = $1; }
-	| body { $$ = $1; }
+	| do_while
+	| template
+	| import
+	| struct
+	| alias
+	| macro
+	| defer
+	| while
+	| exprs
+	| const
+	| enum
+	| goto
+	| var
+	| for
 	| ";" { $$ = gen_empty();  }
 	| error {
 	    /* TODO: figure out how to destroy any and all possible ast nodes we
@@ -437,15 +451,15 @@ statelet
 	    }
 	    yyclearin;
 	    yyerrok;
-	    }
+	}
 
 statement
-	: statelet ";" { $$ = $1; }
+	: statelet ";"
 
 statements
 	: statement statements { $$ = $1; $1->next = $2; }
-	| statement { $$ = $1; }
-	| statelet { $$ = $1; }
+	| statement
+	| statelet
 
 body
 	: "{" statements "}" { $$ = gen_block($2);  }
@@ -453,8 +467,8 @@ body
 
 references
 	: id "," references { $$ = $1; $$->next = $3; }
-	| id { $$ = $1; }
 	| "..." id { $$ = $2; ast_set_flags($$, AST_FLAG_VARIADIC); }
+	| id
 
 /* TODO: rethink how macros play into everyting */
 macro
@@ -476,21 +490,20 @@ macro
 
 exprs
 	: expr "," exprs { $$ = $1; $1->next = $3; }
-	| expr { $$ = $1; }
+	| expr
 
 construct_arg
-	: expr { $$ = $1; }
-	| "." id "=" expr {
+	: "." id "=" expr {
 		$$ = gen_var($2, NULL, $4);
 		ast_set_flags($$, AST_FLAG_MEMBER);
 	}
 
 construct_args
 	: construct_arg "," construct_args { $$ = $1; $1->next = $3; }
-	| construct_arg { $$ = $1; }
+	| construct_arg
 
 construct
-	: "!" "{" construct_args "}" { $$ = gen_init($3); }
+	: "{" construct_args "}" { $$ = gen_init($2); }
 
 if
 	: "if" expr body { $$ = gen_if($2, $3, NULL);  }
@@ -504,20 +517,24 @@ for
 case
 	: "case" const_expr ":" statements {
 		$$ = gen_case($2, $4);  }
+	| "case" const_expr "..." const_expr ":" statements {
+		(void)$6; /* what to do with this one? */
+		$$ = gen_case($2, $4);
+	}
 	| "default" ":" statements {
 		$$ = gen_case(NULL, $3);
 	}
 
 cases
 	: case cases { $$ = $1; $1->next = $2; }
-	| case { $$ = $1; }
+	| case
 
 switch
 	: "switch" expr "{" cases "}" { $$ = gen_switch($2, $4); }
 
 /* could there be a use case for number based iteration? */
 const_for
-	: "for" id ":" exprs body {
+	: "for" id ":" args body {
 		/* TODO: should id be a separate rule? */
 		$$ = gen_for($2, NULL, $4, $5);
 		ast_set_flags($5, AST_FLAG_UNHYGIENIC);
@@ -586,12 +603,12 @@ var_decl
 	| id type { $$ = gen_var($1, $2, NULL);  }
 
 var_init
-	: var_decl "=" expr { $$ = $1; $1->_var.init = $3; }
-	| id "mut" "=" expr {
+	: var_decl "=" arg { $$ = $1; $1->_var.init = $3; }
+	| id "mut" "=" arg {
 		$$ = gen_var($1, NULL, $4);
 		ast_set_flags($$, AST_FLAG_UNTYPED | AST_FLAG_MUTABLE);
 	}
-	| id "const" "=" expr {
+	| id "const" "=" arg {
 		$$ = gen_var($1, NULL, $4);
 		ast_set_flags($$, AST_FLAG_UNTYPED);
 	}
@@ -612,8 +629,8 @@ captures
 	| id { $$ = $1; }
 
 lambda
-	: "[" captures "]" func_sign body { $$ = gen_lambda($2, $4, $5); }
-	| "[" captures "]" body { $$ = gen_lambda($2, NULL, $4); }
+	: "|" captures "|" func_sign body { $$ = gen_lambda($2, $4, $5); }
+	| "|" captures "|" body { $$ = gen_lambda($2, NULL, $4); }
 
 struct_elem
 	: var_decl { $$ = $1; }
