@@ -19,7 +19,6 @@ CC		= gcc
 SOURCES		:=
 
 include src/source.mk
-include gen/source.mk
 
 COMPILE		= $(CROSS_COMPILE)$(CC) $(DEBUGFLAGS)\
 		  $(CFLAGS) $(DEPFLAGS) $(COMPILEFLAGS) $(INCLUDEFLAGS)

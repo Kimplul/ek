@@ -10,8 +10,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <ek/parser.h>
-#include <ek/ast.h>
 
 %}
 
@@ -158,6 +158,80 @@
 
 %destructor {} FLOAT INT STRING ID APPLY
 %destructor { destroy_ast_tree($$); } <*>
+
+%{
+
+/** Modifies the signature of yylex to fit our parser better. */
+#define YY_DECL int yylex(YYSTYPE *yylval, YYLTYPE *yylloc, \
+	                  void *yyscanner, struct parser *parser)
+
+/**
+ * Declare yylex.
+ *
+ * @param yylval Bison current value.
+ * @param yylloc Bison location info.
+ * @param yyscanner Flex scanner.
+ * @param parser Current parser state.
+ * @return \c 0 when succesful, \c 1 otherwise.
+ * More info on yylex() can be found in the flex manual.
+ */
+YY_DECL;
+
+/**
+ * Gobble tokens until we reach the next interesting feature.
+ * Interesting features are generally new statements.
+ * Mainly intended for trying to get to a sensible
+ * location to continue parser after an error has occured.
+ *
+ * @param yylval Current parser value.
+ * @param yylloc Parser location info.
+ * @param scanner Lex scanner.
+ * @param parser Current parser.
+ * @return \c 0 on success, non-zero otherwise.
+ */
+static int next_interesting_feature(YYSTYPE *yylval, YYLTYPE *yylloc,
+                             void *scanner, struct parser *parser);
+
+/**
+ * Convert bison location info to our own source location info.
+ *
+ * @param yylloc Bison location info.
+ * @return Internal location info.
+ */
+static struct src_loc to_src_loc(YYLTYPE *yylloc);
+
+/**
+ * Print parsing error.
+ * Automatically called by bison.
+ *
+ * @param yylloc Location of error.
+ * @param lexer Lexer.
+ * @param parser Parser state.
+ * @param msg Message to print.
+ */
+static void yyerror(YYLTYPE *yylloc, void *lexer,
+		struct parser *parser, const char *msg);
+
+/**
+ * Try to convert escape code to its actual value.
+ * I.e. '\n' -> 0x0a.
+ *
+ * @param c Escape character without backslash.
+ * @return Corresponding value.
+ */
+static long long match_escape(char c);
+
+/**
+ * Similar to strdup() but skips quotation marks that would
+ * otherwise be included.
+ * I.e. "something" -> something.
+ *
+ * @param s String to clone, with quotation marks surrounding it.
+ * @return Identical string but without quotation marks around it.
+ */
+static const char *clone_string(const char *s);
+
+%}
 
 %start input;
 %%
@@ -697,3 +771,125 @@ input
 	| /* empty */
 
 %%
+
+#include "gen_lexer.inc"
+
+/* I'm not convinced this is foolproof quite yet, more testing would be nice. */
+static int next_interesting_feature(YYSTYPE *yylval, YYLTYPE *yylloc,
+				void *scanner, struct parser *parser)
+{
+	size_t depth = 0;
+	while (1) {
+		int ret = yylex(yylval, yylloc, scanner, parser);
+		if (ret == LBRACE) {
+			depth++;
+			continue;
+		}
+
+		if (ret == RBRACE && depth > 0)
+			depth--;
+
+		if (ret == RBRACE && depth == 0)
+			return 0;
+
+		if (ret == SEMICOLON && depth == 0)
+			return 0;
+
+		/* return fatal error and parser should abort */
+		if (ret == YYEOF)
+			/* some error for unmatched braces would be cool I think */
+			return 1;
+	}
+}
+
+
+static struct src_loc to_src_loc(YYLTYPE *yylloc)
+{
+	struct src_loc loc;
+	loc.first_line = yylloc->first_line;
+	loc.last_line = yylloc->last_line;
+	loc.first_col = yylloc->first_column;
+	loc.last_col = yylloc->last_column;
+	return loc;
+}
+
+static void yyerror(YYLTYPE *yylloc, void *lexer,
+		struct parser *parser, const char *msg)
+{
+	(void)lexer;
+
+	struct src_issue issue;
+	issue.level = SRC_ERROR;
+	issue.loc = to_src_loc(yylloc);
+	issue.fctx.fbuf = parser->buf;
+	issue.fctx.fname = parser->fname;
+	src_issue(issue, msg);
+}
+
+static long long match_escape(char c)
+{
+	switch (c) {
+	case '\'': return '\'';
+	case '\\': return '\\';
+	case 'a': return '\a';
+	case 'b': return '\b';
+	case 'f': return '\f';
+	case 'n': return '\n';
+	case 'r': return '\r';
+	case 't': return '\t';
+	case 'v': return '\v';
+	}
+
+	return c;
+}
+
+static const char *clone_string(const char *str)
+{
+	const size_t len = strlen(str) + 1;
+	char *buf = malloc(len);
+	if (!buf) {
+		/* should probably try to handle the error in some way... */
+		internal_error("failed allocating buffer for string clone");
+		return NULL;
+	}
+
+	/* skip quotation marks */
+	size_t j = 0;
+	for (size_t i = 1; i < len - 2; ++i) {
+		char c = str[i];
+
+		if (c == '\\')
+			c = match_escape(str[++i]);
+
+		buf[j++] = c;
+	}
+
+	buf[j] = 0;
+	return buf;
+
+}
+
+struct parser *create_parser()
+{
+	return calloc(1, sizeof(struct parser));
+}
+
+void destroy_parser(struct parser *p)
+{
+	yylex_destroy(p->lexer);
+	free(p);
+}
+
+void parse(struct parser *p, const char *fname, const char *buf)
+{
+	p->fname = fname;
+	p->buf = buf;
+
+	p->comment_nesting = 0;
+
+	p->failed = false;
+
+	yylex_init(&p->lexer);
+	yy_scan_string(buf, p->lexer);
+	yyparse(p->lexer, p);
+}
