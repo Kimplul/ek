@@ -14,6 +14,7 @@ to be used to interface with C
 
 + Build new type system (current one build on top of AST fucking sucks)
 + Build the consteval stuff
++ Use built in location tracking with @$ in bison?
 
 OPTIMIZATIONS:
 + Use hashmaps or something similar for lookups for types and calls

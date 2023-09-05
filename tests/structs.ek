@@ -1,26 +1,26 @@
 typedef any {}
 
 struct basic_struct {
-	a i64;
-	b i64;
-	c i64;
+	i64 a;
+	i64 b;
+	i64 c;
 }
 
-struct complex_struct (A any, B any, C any) {
-	a A;
-	b B;
-	c C;
+struct complex_struct (any A, any B, any C) {
+	A a;
+	B b;
+	C c;
 }
 
 main()
 {
 	/* infer types */
-	simple_named const = {.a = 1, .b = 2, .c = 3} as basic_struct;
-	complex_named const = {.a = 1, .b = 2, .c = 3} as complex_struct;
+	const simple_named = {.a = 1, .b = 2, .c = 3} as basic_struct;
+	const complex_named = {.a = 1, .b = 2, .c = 3} as complex_struct;
 
 	/* force types */
-	force_named complex_struct![u32, u32, u32] = {.a = 1, .b = 2, .c = 3};
-	force_inferred_named mut = {.a = 1, .b = 2, .c = 3} as
+	complex_struct![u32, u32, u32] force_named = {.a = 1, .b = 2, .c = 3};
+	mut force_inferred_named = {.a = 1, .b = 2, .c = 3} as
 		complex_struct![u32, u32, u32];
 
 	/* types should be inferred */

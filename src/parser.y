@@ -104,6 +104,7 @@
 %token MUT "mut"
 %token RETURN "return"
 %token CONST "const"
+%token LET "let"
 %token EXTERN "extern"
 %token ENUM "enum"
 %token DEFINE "define"
@@ -302,7 +303,7 @@ unop
 	: "-" expr { $$ = gen_unop(AST_NEG, $2);  }
 	| "!" expr { $$ = gen_unop(AST_LNOT, $2);  }
 	| "&" expr { $$ = gen_unop(AST_REF, $2);  }
-	| "'" expr { $$ = gen_unop(AST_DEREF, $2);  }
+	| "*" expr { $$ = gen_unop(AST_DEREF, $2);  }
 	| "~" expr { $$ = gen_unop(AST_NOT, $2);  }
 
 arr_init
@@ -319,8 +320,6 @@ arr
 
 arg
 	: "&" var_decl { $$ = gen_unop(AST_REF, $2);  }
-	| construct
-	| var_decl
 	| expr
 	| arr
 
@@ -395,6 +394,7 @@ expr
 	| expr "as" type { $$ = gen_cast($1, $3);  }
 	| id "::" type { $$ = gen_fetch($1, $3); }
 	| "as" type { $$ = gen_as($2); }
+	| construct
 	| lambda
 	| switch
 	| assign
@@ -568,11 +568,12 @@ func_sign
 	| "(" decls ")" { $$ = gen_type(AST_TYPE_SIGN, NULL, $2, NULL); }
 	| "(" decls "=>" ")" { $$ = gen_type(AST_TYPE_SIGN, NULL, $2, NULL); }
 	| "(" "=>" type ")" { $$ = gen_type(AST_TYPE_SIGN, NULL, NULL, $3); }
+	| "(" "=>" ")" { $$ = gen_type(AST_TYPE_SIGN, NULL, NULL, NULL); }
 	| "(" ")" { $$ = gen_type(AST_TYPE_SIGN, NULL, NULL, NULL); }
 
 type
 	: id { $$ = gen_type(AST_TYPE_ID, $1, NULL, NULL); }
-	| "::" func_sign {
+	| "^" func_sign {
 		/* still not entirely sold on this signature, but it's not terrible I
 		 * guess */
 		$$ = gen_type(AST_TYPE_POINTER, NULL, NULL, NULL);
@@ -581,13 +582,13 @@ type
 	| apply "[" types "]" {
 		$$ = gen_type(AST_TYPE_GENERIC, $1, $3, NULL);
 	}
-	| "'" type {
+	| "*" type {
 		$$ = gen_type(AST_TYPE_POINTER, NULL, NULL, NULL);
 		$$->_type.next = $2;
 	}
-	| "'" "[" const_expr "]" type {
-		$$ = gen_type(AST_TYPE_ARR, NULL, $3, NULL);
-		$$->_type.next = $5;
+	| "[" const_expr "]" type {
+		$$ = gen_type(AST_TYPE_ARR, NULL, $2, NULL);
+		$$->_type.next = $4;
 	}
 	| "typeof" expr {
 		$$ = gen_type(AST_TYPE_TYPEOF, NULL, $2, NULL);
@@ -595,24 +596,22 @@ type
 	| id "::" type {
 		$$ = gen_type(AST_TYPE_MEMBER, $1, $3, NULL);
 	}
+	| "const" type {
+		$$ = $2;
+	}
+	| "mut" type {
+		$$ = $2; ast_set_flags($$, AST_FLAG_MUTABLE);
+	}
 
 var_decl
-	: id "mut" type {
-		$$ = gen_var($1, $3, NULL);
-		ast_set_flags($$, AST_FLAG_MUTABLE);
-	}
-	| id "const" type { $$ = gen_var($1, $3, NULL);  }
-	| id type { $$ = gen_var($1, $2, NULL);  }
+	: type id { $$ = gen_var($2, $1, NULL);  }
 
 var_init
-	: var_decl "=" arg { $$ = $1; $1->_var.init = $3; }
-	| id "mut" "=" arg {
-		$$ = gen_var($1, NULL, $4);
-		ast_set_flags($$, AST_FLAG_UNTYPED | AST_FLAG_MUTABLE);
-	}
-	| id "const" "=" arg {
-		$$ = gen_var($1, NULL, $4);
-		ast_set_flags($$, AST_FLAG_UNTYPED);
+	: var_decl "=" arg { $$ = $1; $$->_var.init = $3; }
+	| "const" id "=" arg { $$ = gen_var($2, NULL, $4); }
+	| "mut" id "=" arg {
+		$$ = gen_var($2, NULL, $4);
+		ast_set_flags($$, AST_FLAG_MUTABLE);
 	}
 
 proc
@@ -650,7 +649,7 @@ union
 	}
 
 generic
-	: id type { $$ = gen_alias($1, $2); }
+	: type id { $$ = gen_alias($1, $2); }
 
 generics
 	: generic "," generics { $$ = $1; $$->next = $3; }
@@ -725,17 +724,12 @@ top_if
 	}
 
 top_var_decl
-	: id "mut" type {
-		$$ = gen_var($1, $3, NULL);
-		ast_set_flags($$, AST_FLAG_MUTABLE);
-	}
-	| id "const" type { $$ = gen_var($1, $3, NULL); }
-	| id type { $$ = gen_var($1, $2, NULL); }
+	: type id { $$ = gen_var($2, $1, NULL); }
 
 top_var_init
-	: top_var_decl "=" const_expr { $$ = $1; $1->_var.init = $3; }
-	| id "mut" "=" const_expr { $$ = $1; $1->_var.init = $4; }
-	| id "const" "=" const_expr { $$ = $1; $1->_var.init = $4; }
+	: top_var_decl "=" const_expr { $$ = $1; $$->_var.init = $3; }
+	| "const" id "=" const_expr { $$ = gen_var($2, NULL, $4); }
+	| "mut" id "=" const_expr { $$ = gen_var($2, NULL, $4); }
 
 top_var
 	: top_var_decl { $$ = $1; }

@@ -9,6 +9,6 @@ enum B: u8 {
 
 main()
 {
-	a const = a::A;
-	b const = b::B;
+	const a = a::A;
+	const b = b::B;
 }

@@ -172,6 +172,7 @@ STRING		\"(\\.|[^"\\])*\"
 "for"		{return FOR;}
 "while"		{return WHILE;}
 "do"		{return DO;}
+"let"		{return LET;}
 "mut"		{return MUT;}
 "const"		{return CONST;}
 "return"	{return RETURN;}

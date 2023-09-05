@@ -2,13 +2,13 @@ typedef some_type {
 	add(some_type, some_type => some_type);
 }
 
-add(a u32, b u32 => u32)
+add(u32 a, u32 b => u32)
 {
 	return a + b;
 }
 
 /* ah fuck, analyze_proc gobbles up the typeof */
-some_proc(a some_type, b typeof a => typeof a)
+some_proc(some_type a, typeof a b => typeof a)
 {
 	return add(a, b);
 }

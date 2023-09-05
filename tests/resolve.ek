@@ -1,13 +1,13 @@
 typedef A {}
 
 struct generic (T1 A, T2 A) {
-	a T1;
-	b T2;
+	T1 a;
+	T2 b;
 }
 
 struct other_generic(T1 A) {
-	a T1;
-	b T1;
+	T1 a;
+	T2 b;
 }
 
 /* wow this works pretty good */
@@ -30,6 +30,6 @@ some_func(generic){5;}
 
 main(){
 	// TODO: not fully qualified types in bodies should cause an error
-	a [20]generic![i64, generic];
+	[20]generic![i64, generic] a;
 	some_func(a);
 }
