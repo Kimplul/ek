@@ -16,6 +16,9 @@ to be used to interface with C
 + Build the consteval stuff
 + Use built in location tracking with @$ in bison?
 
++ For now it might be a good idea to just implement generic types to get
+started, and add stuff like lambdas and so on later?
+
 OPTIMIZATIONS:
 + Use hashmaps or something similar for lookups for types and calls
 + Output one procedure at a time through the backend, would allow us to free

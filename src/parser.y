@@ -143,8 +143,8 @@
 %nterm <node> import binop unop arg args decls expr
 %nterm <node> while do_while statement statements body references macro
 %nterm <node> exprs if for case cases switch const
-%nterm <node> func_sign type var_decl var captures
-%nterm <node> var_init proc lambda template_elem template_elems types
+%nterm <node> func_sign type var_decl var
+%nterm <node> var_init proc template_elem template_elems types
 %nterm <node> alias template enum_val enums enum top unit id
 %nterm <node> embed param_decl union struct members struct_elem
 %nterm <node> top_if const_if const_for defer goto assign
@@ -321,7 +321,10 @@ arr
 arg
 	: "&" var_decl { $$ = gen_unop(AST_REF, $2);  }
 	| expr
+	| switch
+	| if
 	| arr
+	| body
 
 args
 	: arg "," args { $$ = $1; $1->next = $3; }
@@ -333,11 +336,10 @@ param_decl
 
 decls
 	: param_decl "," decls { $$ = $1; $1->next = $3; }
-	| "..." id { $$ = $2; ast_set_flags($$, AST_FLAG_VARIADIC); }
 	| param_decl
 
 defer
-	: "defer" expr { $$ = gen_defer($2);  }
+	: "defer" body { $$ = gen_defer($2);  }
 
 const_binop
 	: const_expr "+" const_expr { $$ = gen_binop(AST_ADD, $1, $3);  }
@@ -395,14 +397,10 @@ expr
 	| id "::" type { $$ = gen_fetch($1, $3); }
 	| "as" type { $$ = gen_as($2); }
 	| construct
-	| lambda
-	| switch
 	| assign
 	| embed
 	| binop
 	| unop
-	| body
-	| if
 	| id
 
 while
@@ -422,21 +420,13 @@ statelet
 	| "return" { $$ = gen_return(NULL); }
 	| "break" { $$ = gen_ctrl(AST_CTRL_BREAK, to_src_loc(&yylloc)); }
 	| "continue" { $$ = gen_ctrl(AST_CTRL_CONTINUE, to_src_loc(&yylloc)); }
-	| id ":" { $$ = gen_label($1);  }
-	| do_while
 	| template
 	| import
-	| struct
 	| alias
-	| macro
-	| defer
-	| while
 	| exprs
 	| const
-	| enum
 	| goto
 	| var
-	| for
 	| ";" { $$ = gen_empty();  }
 	| error {
 	    /* TODO: figure out how to destroy any and all possible ast nodes we
@@ -455,15 +445,26 @@ statelet
 
 statement
 	: statelet ";"
+	| switch
+	| while
+	| do_while
+	| body
+	| struct
+	| for
+	| defer
+	| if
+	| enum
+	| macro
+	| id ":" { $$ = gen_label($1);  }
 
 statements
 	: statement statements { $$ = $1; $1->next = $2; }
 	| statement
-	| statelet
 
 body
 	: "{" statements "}" { $$ = gen_block($2);  }
-	| "{" "}" { $$ = gen_block(gen_empty());  }
+	| "{" statelet "}" { $$ = gen_block($2);  }
+	| "{" "}" { $$ = gen_block(gen_empty()); }
 
 references
 	: id "," references { $$ = $1; $$->next = $3; }
@@ -625,14 +626,6 @@ proc
 		ast_set_flags($$, AST_FLAG_EXTERN);
 	}
 
-captures
-	: id "," captures { $$ = $1; $1->next = $3; }
-	| id { $$ = $1; }
-
-lambda
-	: "|" captures "|" func_sign body { $$ = gen_lambda($2, $4, $5); }
-	| "|" captures "|" body { $$ = gen_lambda($2, NULL, $4); }
-
 struct_elem
 	: var_decl { $$ = $1; }
 
@@ -659,7 +652,7 @@ struct
 	: "struct" id "{" members "}" {
 		$$ = gen_struct($2, NULL, $4);
 	}
-	| "struct" id "(" generics ")" "{" members "}" {
+	| "struct" id "[" generics "]" "{" members "}" {
 		$$ = gen_struct($2, $4, $7);
 	}
 

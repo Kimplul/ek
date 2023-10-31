@@ -142,6 +142,7 @@ STRING		\"(\\.|[^"\\])*\"
 "<<"		{return LSHIFT;}
 ">>"		{return RSHIFT;}
 
+"*="		{return STARSELF;}
 "+="		{return PLUSSELF;}
 "-="		{return MINUSSELF;}
 "/="		{return DIVSELF;}

@@ -1,0 +1,35 @@
+struct vec[any T]
+{
+	u27 size;
+	u27 cap;
+	*T  buf;
+}
+
+append(*vec v, T::typeof(v) e)
+{
+	if v.size == v.cap {
+		v.cap *= 3;
+		v.buf = realloc(v.buf, v.cap);
+	}
+	u27 a = {
+		2
+	};
+
+	{
+		here();
+	}
+
+	u27 a = {
+		.what = 200,
+		.wow = 200
+	};
+
+	u27 a = switch (b) {
+		default: 20;
+	};
+
+	label: while a {
+	}
+
+	v.buf[v.size] = e;
+}
