@@ -193,18 +193,18 @@ static void _type_str(FILE *fp, struct ast_node *type)
 		break;
 	}
 
-	case AST_TYPE_TEMPLATE: {
-		struct ast_node *template = type->_type.template.template;
-		assert(template);
+	case AST_TYPE_TRAIT: {
+		struct ast_node *trait = type->_type.trait.trait;
+		assert(trait);
 
-		struct ast_node *template_id = template->_template.id;
-		struct ast_node *template_act = type->_type.template.actual;
-		if (template_act) {
-			fprintf(fp, "%s as ", template_id->_id.id);
-			_type_str(fp, template_act);
+		struct ast_node *trait_id = trait->_trait.id;
+		struct ast_node *trait_act = type->_type.trait.actual;
+		if (trait_act) {
+			fprintf(fp, "%s as ", trait_id->_id.id);
+			_type_str(fp, trait_act);
 		}
 		else {
-			fprintf(fp, "%s", template_id->_id.id);
+			fprintf(fp, "%s", trait_id->_id.id);
 		}
 		break;
 	}
@@ -284,7 +284,7 @@ char *type_str(struct ast_node *node)
 	char *buf = NULL; size_t size = 0;
 	FILE *memstream = open_memstream(&buf, &size);
 
-	/* TODO: improve template detection */
+	/* TODO: improve trait detection */
 	/* we were given a plain type, pass it directly along to _type_str */
 	if (node->node_type == AST_TYPE)
 		_type_str(memstream, node);

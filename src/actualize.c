@@ -35,7 +35,7 @@ struct act_state {
 	enum act_flags flags;
 
 	struct ast_node *last_var;
-	struct ast_node *cur_template;
+	struct ast_node *cur_trait;
 	struct ast_node *cur_proc;
 	struct act_stack *defer_stack;
 	struct act_stack *goto_stack;
@@ -359,7 +359,7 @@ static int analyze_file_visibility(struct scope *scope, struct ast_node *node)
 		break;
 	}
 
-	case AST_TEMPLATE: {
+	case AST_TRAIT: {
 		ret |= scope_add_type(scope, node);
 		break;
 	}
@@ -473,13 +473,13 @@ int analyze_root(struct scope *scope, struct ast_node *tree)
 	return 0;
 }
 
-int template_match(struct ast_node *a, struct ast_node *b)
+int trait_match(struct ast_node *a, struct ast_node *b)
 {
-	while (a && a->_type.kind == AST_TYPE_TEMPLATE)
-		a = a->_type.template.actual;
+	while (a && a->_type.kind == AST_TYPE_TRAIT)
+		a = a->_type.trait.actual;
 
-	while (b && b->_type.kind == AST_TYPE_TEMPLATE)
-		b = b->_type.template.actual;
+	while (b && b->_type.kind == AST_TYPE_TRAIT)
+		b = b->_type.trait.actual;
 
 	return types_match(a, b);
 }
@@ -592,10 +592,10 @@ int types_match(struct ast_node *a, struct ast_node *b)
 	}
 
 	/* handle special cases that should match even with different type kinds */
-	if (a->_type.kind == AST_TYPE_TEMPLATE ||
-	    b->_type.kind == AST_TYPE_TEMPLATE) {
-		/* TODO: check template type name */
-		if (template_match(a, b))
+	if (a->_type.kind == AST_TYPE_TRAIT ||
+	    b->_type.kind == AST_TYPE_TRAIT) {
+		/* TODO: check trait type name */
+		if (trait_match(a, b))
 			return 1;
 		return 0;
 	}
@@ -705,41 +705,41 @@ struct ast_node *extract_typeof(struct ast_node *type)
 	return extract_typeof(type->_type.next);
 }
 
-struct ast_node *extract_template(struct ast_node *type)
+struct ast_node *extract_trait(struct ast_node *type)
 {
 	if (!type)
 		return 0;
 
 	assert(type->node_type == AST_TYPE);
-	if (type->_type.kind == AST_TYPE_TEMPLATE)
+	if (type->_type.kind == AST_TYPE_TRAIT)
 		return type;
 
-	return extract_template(type->_type.next);
+	return extract_trait(type->_type.next);
 }
 
-static void actualize_template_types(struct ast_node *params,
+static void actualize_trait_types(struct ast_node *params,
                                      struct ast_node *args)
 {
 	/* replace parameter types with argument types */
 	if (args)
 		do {
 			assert(params->type);
-			struct ast_node *template = extract_template(
+			struct ast_node *trait = extract_trait(
 				params->type);
-			if (template) {
+			if (trait) {
 				/* at this point we know that the types will
 				 * match, otherwise match_proc and friends
 				 * fucked up */
 				struct ast_node *type = params->type;
 				struct ast_node *base = args->type;
-				while (type != template) {
+				while (type != trait) {
 					type = type->_type.next;
 					base = base->_type.next;
 					assert(type);
 					assert(base);
 				}
 
-				template->_type.template.actual = base;
+				trait->_type.trait.actual = base;
 			}
 			params = params->next;
 			args = args->next;
@@ -799,7 +799,7 @@ static int actualize_proc_call(struct act_state *state,
 		struct ast_node *params = sign->_type.sign.params;
 		struct ast_node *args = call->_call.args;
 		/* fuck, analyze_proc gobbles up the return type typeof */
-		actualize_template_types(params, args);
+		actualize_trait_types(params, args);
 
 		if (actualize(state, tmp, sign))
 			return -1;
@@ -809,7 +809,7 @@ static int actualize_proc_call(struct act_state *state,
 	}
 
 	/* clone procedure definition to
-	 * replace template types with actual types and actualize it */
+	 * replace trait types with actual types and actualize it */
 	struct ast_node *def = clone_ast_node(proc);
 	if (!def) {
 		/* internal error */
@@ -820,7 +820,7 @@ static int actualize_proc_call(struct act_state *state,
 	struct ast_node *sign = def->_proc.sign;
 	struct ast_node *params = sign->_type.sign.params;
 	struct ast_node *args = call->_call.args;
-	actualize_template_types(params, args);
+	actualize_trait_types(params, args);
 
 	if (actualize(state, def->scope, def))
 		return -1;
@@ -974,7 +974,7 @@ static int undefined_gotos(struct act_state *state, struct scope *scope)
 static int actualize_proc(struct act_state *state,
                           struct scope *scope, struct ast_node *proc)
 {
-	/* actualize_proc is called on template procs as well, but I believe
+	/* actualize_proc is called on trait procs as well, but I believe
 	 * that's fine? */
 	assert(proc && proc->node_type == AST_PROC);
 	int ret = 0;
@@ -1084,8 +1084,8 @@ static int actualize_binop(struct act_state *state,
 		return -1;
 	}
 
-	/* TODO: also check template types, just because two templates collapse
-	 * to the same actual type doesn't mean that the two template types
+	/* TODO: also check trait types, just because two traits collapse
+	 * to the same actual type doesn't mean that the two trait types
 	 * should be allowed to operate on eachother */
 
 	/* types are the same, so the type of this expression is whichever */
@@ -1213,11 +1213,11 @@ static int actualize_var(struct act_state *state,
 
 #define ENTER_ACT()                              \
 	enum act_flags old_flags = state->flags; \
-	struct ast_node *old_template = state->cur_template;
+	struct ast_node *old_trait = state->cur_trait;
 
 #define EXIT_ACT(r)                                 \
 	do {                                        \
-		state->cur_template = old_template; \
+		state->cur_trait = old_trait; \
 		state->flags = old_flags;           \
 		return r;                           \
 	} while (0);
@@ -1264,7 +1264,7 @@ static int actualize_type(struct act_state *state,
 		}
 
 		/* this could be more clear, maybe add into the parser some kind
-		 * of meta class for templated types? */
+		 * of meta class for traitd types? */
 		if (exists->node_type == AST_UNION)
 			type->_type.kind = AST_TYPE_UNION;
 
@@ -1274,12 +1274,12 @@ static int actualize_type(struct act_state *state,
 			break;
 
 		assert(exists->node_type == AST_ALIAS
-		       || exists->node_type == AST_TEMPLATE
+		       || exists->node_type == AST_TRAIT
 		       || exists->node_type == AST_STRUCT
 		       || exists->node_type == AST_ENUM
 		       || exists->node_type == AST_UNION);
 		/* actualize whatever type we have on demand, either alias or
-		 * template */
+		 * trait */
 		if (!ast_flags(exists, AST_FLAG_ACTUAL))
 			if (actualize(state, exists->scope, exists))
 				EXIT_ACT(-1);
@@ -1292,11 +1292,11 @@ static int actualize_type(struct act_state *state,
 			type->_type.alias.alias = exists;
 			type->_type.alias.actual = exists->_alias.type;
 		}
-		else if (exists->node_type == AST_TEMPLATE) {
-			type->_type.kind = AST_TYPE_TEMPLATE;
-			type->_type.template.template = exists;
+		else if (exists->node_type == AST_TRAIT) {
+			type->_type.kind = AST_TYPE_TRAIT;
+			type->_type.trait.trait = exists;
 			/* this should be populated later */
-			type->_type.template.actual = NULL;
+			type->_type.trait.actual = NULL;
 		}
 		else if (exists->node_type == AST_STRUCT) {
 			/* I think, will still have to TODO: check */
@@ -1396,7 +1396,7 @@ static int actualize_type(struct act_state *state,
 		while (types) {
 			if (!primitive_type(types)) {
 				semantic_error(scope->fctx, types,
-				               "only primitive types allowed in template initialization");
+				               "only primitive types allowed in trait initialization");
 				EXIT_ACT(-1);
 			}
 
@@ -1727,9 +1727,9 @@ struct ast_node *actual_type(struct ast_node *type)
 		return type;
 	}
 
-	if (type->_type.kind == AST_TYPE_TEMPLATE) {
-		if (type->_type.template.actual)
-			return actual_type(type->_type.template.actual);
+	if (type->_type.kind == AST_TYPE_TRAIT) {
+		if (type->_type.trait.actual)
+			return actual_type(type->_type.trait.actual);
 
 		return type;
 	}
@@ -1921,33 +1921,33 @@ static int actualize_alias(struct act_state *state, struct scope *scope,
 	return 0;
 }
 
-static int actualize_template(struct act_state *state, struct scope *scope,
-                              struct ast_node *template)
+static int actualize_trait(struct act_state *state, struct scope *scope,
+                              struct ast_node *trait)
 {
-	assert(template->node_type == AST_TEMPLATE);
-	ast_set_flags(template, AST_FLAG_ACTUAL);
+	assert(trait->node_type == AST_TRAIT);
+	ast_set_flags(trait, AST_FLAG_ACTUAL);
 	ENTER_ACT();
-	state->cur_template = template;
+	state->cur_trait = trait;
 
 	/* will still have to figure out how I want to inform the actualizer
 	 * that a some_type in a some_type just means whichever type we're
 	 * testing for */
 	act_set_flags(state, ACT_ONLY_TYPES);
-	if (actualize(state, template->scope, template->_template.body)) {
-		semantic_error(scope->fctx, template,
-		               "failed actualizing template");
+	if (actualize(state, trait->scope, trait->_trait.body)) {
+		semantic_error(scope->fctx, trait,
+		               "failed actualizing trait");
 		EXIT_ACT(-1);
 	}
 
-	/* TODO: check that all procs in the template have something to do with
+	/* TODO: check that all procs in the trait have something to do with
 	 * the type, either as an argument or as a return type or something */
 
-	/* TODO: implement supertemplates, i.e. adding some previous template to
-	 * this template */
+	/* TODO: implement supertraits, i.e. adding some previous trait to
+	 * this trait */
 
-	/* TODO: make sure that the template itself doesn't have duplicates */
+	/* TODO: make sure that the trait itself doesn't have duplicates */
 
-	template->type = template;
+	trait->type = trait;
 	EXIT_ACT(0);
 }
 
@@ -2235,8 +2235,8 @@ static int actualize_union(struct act_state *state,
 }
 
 /* could maybe be renamed, but essentially dot in copper works as either
- * -> or . in C, so allow structures or templates and single level pointers to
- *  structures or templates. */
+ * -> or . in C, so allow structures or traits and single level pointers to
+ *  structures or traits. */
 static int has_members(struct ast_node *type)
 {
 	if (type->_type.kind == AST_TYPE_ALIAS)
@@ -2249,7 +2249,7 @@ static int has_members(struct ast_node *type)
 	if (type->_type.kind == AST_TYPE_STRUCT)
 		return 1;
 
-	if (type->_type.kind == AST_TYPE_TEMPLATE)
+	if (type->_type.kind == AST_TYPE_TRAIT)
 		return 1;
 
 	return 0;
@@ -2281,7 +2281,7 @@ static int actualize_dot(struct act_state *state,
 	}
 
 	/* TODO: actually look through stuff */
-	/* TODO: figure out how to match templated structures to actual */
+	/* TODO: figure out how to match traitd structures to actual */
 	return 0;
 }
 
@@ -2427,7 +2427,7 @@ static int actualize(struct act_state *state, struct scope *scope,
 		ret |= actualize_proc(state, scope, node);
 		break;
 
-	case AST_TEMPLATE: ret |= actualize_template(state, scope, node); break;
+	case AST_TRAIT: ret |= actualize_trait(state, scope, node); break;
 	case AST_ALIAS: ret |= actualize_alias(state, scope, node); break;
 	case AST_MACRO: ret |= actualize_macro(state, scope, node); break;
 	case AST_CALL: ret |= actualize_call(state, scope, node); break;
@@ -2541,7 +2541,7 @@ void replace_type(struct ast_node *type, struct ast_node *from,
 void replace_param_types(struct ast_node *param, struct ast_node *param_type,
                          struct ast_node *arg_type)
 {
-	if (arg_type->_type.kind == AST_TYPE_TEMPLATE) {
+	if (arg_type->_type.kind == AST_TYPE_TRAIT) {
 		replace_param_types(param, param_type, arg_type);
 		return;
 	}
@@ -2552,33 +2552,33 @@ void replace_param_types(struct ast_node *param, struct ast_node *param_type,
 	}
 }
 
-void init_template_type(struct ast_node *type, struct ast_node *param_type,
+void init_trait_type(struct ast_node *type, struct ast_node *param_type,
                         struct ast_node *arg_type)
 {
 	if (!types_match(type, param_type))
 		return;
 
-	struct ast_node *template = extract_template(type);
-	if (template) {
+	struct ast_node *trait = extract_trait(type);
+	if (trait) {
 		/* TODO: this shares a fair bit of similarities with
-		 * actualize_template_types, could probably create a common
+		 * actualize_trait_types, could probably create a common
 		 * backend? */
-		while (type != template) {
+		while (type != trait) {
 			type = param_type->_type.next;
 			arg_type = arg_type->_type.next;
 			assert(type);
 			assert(arg_type);
 		}
 
-		template->_type.template.actual = arg_type;
+		trait->_type.trait.actual = arg_type;
 	}
 }
 
-void init_template_types(struct ast_node *params, struct ast_node *param_type,
+void init_trait_types(struct ast_node *params, struct ast_node *param_type,
                          struct ast_node *arg_type)
 {
 	while (params) {
-		init_template_type(params->type, param_type, arg_type);
+		init_trait_type(params->type, param_type, arg_type);
 		params = params->next;
 	}
 }

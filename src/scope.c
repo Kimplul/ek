@@ -22,7 +22,7 @@ static int generics_trait_type(struct ast_node *generics)
 	if (!generics)
 		return 0;
 
-	if (actual_type(generics)->_type.kind == AST_TYPE_TEMPLATE)
+	if (actual_type(generics)->_type.kind == AST_TYPE_TRAIT)
 		return 1;
 
 	return generics_trait_type(generics->_type.next);
@@ -40,8 +40,8 @@ static int generic_type(struct ast_node *type)
 		return generics_trait_type(type->_type.unio.impls);
 	}
 
-	if (type->_type.kind == AST_TYPE_TEMPLATE)
-		return type->_type.template.actual == NULL;
+	if (type->_type.kind == AST_TYPE_TRAIT)
+		return type->_type.trait.actual == NULL;
 
 	return generic_type(type->_type.next);
 }
@@ -79,7 +79,7 @@ int fully_qualified(struct ast_node *type)
 	if (!type)
 		return 1;
 
-	assert(type->_type.kind != AST_TYPE_TEMPLATE);
+	assert(type->_type.kind != AST_TYPE_TRAIT);
 	if (type->_type.kind == AST_TYPE_STRUCT) {
 		if (!ast_flags(type, AST_FLAG_GENERIC))
 			return 1;
@@ -394,8 +394,8 @@ static struct ast_node *proc_resolve(struct scope *scope,
 	if (implements(0, scope, args->type, fallback->type)) {
 		/* my idea is that we could lock each node individually and
 		 * allow multithreading scopes, but I realize that recursively
-		 * checking templates might cause a lock... */
-		init_template_type(fallback->type, fallback->type, args->type);
+		 * checking traits might cause a lock... */
+		init_trait_type(fallback->type, fallback->type, args->type);
 		return proc_resolve(scope, fallback->proc, args->next);
 	}
 
@@ -520,7 +520,7 @@ void destroy_scope(struct scope *scope)
 	destroy_visible(scope, scope->unions);
 	destroy_visible(scope, scope->structs);
 	destroy_visible(scope, scope->aliases);
-	destroy_visible(scope, scope->templates);
+	destroy_visible(scope, scope->traits);
 
 	struct scope *prev = scope->children, *cur;
 	if (prev)
@@ -580,7 +580,7 @@ CREATE_VISIBLE(create_alias, aliases, AST_ALIAS);
 CREATE_VISIBLE(create_struct, structs, AST_STRUCT);
 CREATE_VISIBLE(create_union, unions, AST_UNION);
 CREATE_VISIBLE(create_builtin, builtins, AST_TYPE);
-CREATE_VISIBLE(create_template, templates, AST_TEMPLATE);
+CREATE_VISIBLE(create_trait, traits, AST_TRAIT);
 
 /* TODO: check for identical names in the scope? */
 #define REFERENCE_VISIBLE(name, list, ast_type)                               \
@@ -606,7 +606,7 @@ REFERENCE_VISIBLE(reference_alias, aliases, AST_ALIAS);
 REFERENCE_VISIBLE(reference_union, unions, AST_UNION);
 REFERENCE_VISIBLE(reference_struct, structs, AST_STRUCT);
 REFERENCE_VISIBLE(reference_builtin, builtins, AST_TYPE);
-REFERENCE_VISIBLE(reference_template, templates, AST_TEMPLATE);
+REFERENCE_VISIBLE(reference_trait, traits, AST_TRAIT);
 
 /* does NOT walk the scope tree upward if it doesn't find the var in the scope
  * */
@@ -633,7 +633,7 @@ FIND_VISIBLE(scope_find_alias, aliases, AST_ALIAS, _alias);
 FIND_VISIBLE(scope_find_builtin, builtins, AST_TYPE, _type);
 FIND_VISIBLE(scope_find_struct, structs, AST_STRUCT, _struct);
 FIND_VISIBLE(scope_find_union, unions, AST_UNION, _union);
-FIND_VISIBLE(scope_find_template, templates, AST_TEMPLATE, _template);
+FIND_VISIBLE(scope_find_trait, traits, AST_TRAIT, _trait);
 /* note that these return the first match for the ID, and as such might not be
  * what should be called. */
 FIND_VISIBLE(scope_find_var, vars, AST_VAR, _var);
@@ -660,7 +660,7 @@ struct ast_node *scope_find(struct scope *scope, struct ast_node *id)
 	if (found)
 		return found;
 
-	found = scope_find_template(scope, id);
+	found = scope_find_trait(scope, id);
 	if (found)
 		return found;
 
@@ -695,7 +695,7 @@ struct visible *create_type(struct scope *scope, struct ast_node *type)
 	switch (type->node_type) {
 	case AST_TYPE: return create_builtin(scope, type);
 	case AST_ALIAS: return create_alias(scope, type);
-	case AST_TEMPLATE: return create_template(scope, type);
+	case AST_TRAIT: return create_trait(scope, type);
 	case AST_ENUM: return create_enum(scope, type);
 	case AST_STRUCT: return create_struct(scope, type);
 	case AST_UNION: return create_union(scope, type);
@@ -710,7 +710,7 @@ int reference_type(int public, struct scope *scope, struct visible *visible)
 	switch (visible->node->node_type) {
 	case AST_TYPE: return reference_builtin(public, scope, visible);
 	case AST_ALIAS: return reference_alias(public, scope, visible);
-	case AST_TEMPLATE: return reference_template(public, scope, visible);
+	case AST_TRAIT: return reference_trait(public, scope, visible);
 	case AST_ENUM: return reference_enum(public, scope, visible);
 	case AST_STRUCT: return reference_struct(public, scope, visible);
 	case AST_UNION: return reference_union(public, scope, visible);
@@ -766,7 +766,7 @@ struct ast_node *scope_find_type(struct scope *scope, struct ast_node *id)
 	if (found)
 		return found;
 
-	found = scope_find_template(scope, id);
+	found = scope_find_trait(scope, id);
 	if (found)
 		return found;
 
@@ -775,30 +775,30 @@ struct ast_node *scope_find_type(struct scope *scope, struct ast_node *id)
 
 ADD_VISIBLE(scope_add_var, var, AST_VAR, _var);
 ADD_VISIBLE(scope_add_alias, alias, AST_ALIAS, _alias);
-ADD_VISIBLE(scope_add_template, template, AST_TEMPLATE, _template);
+ADD_VISIBLE(scope_add_trait, trait, AST_TRAIT, _trait);
 
-static int add_implementation(struct ast_node *template, struct ast_node *type)
+static int add_implementation(struct ast_node *trait, struct ast_node *type)
 {
 	assert(
-		template->node_type == AST_TEMPLATE &&
+		trait->node_type == AST_TRAIT &&
 		type->node_type == AST_TYPE);
-	struct template_implemented *by = calloc(1, sizeof(*type));
+	struct trait_implemented *by = calloc(1, sizeof(*type));
 	if (!by) {
 		internal_error("failed allocating memory for implementation");
 		return 1;
 	}
 
 	by->type = type;
-	by->next = template->_template.impl_by;
-	template->_template.impl_by = by;
+	by->next = trait->_trait.impl_by;
+	trait->_trait.impl_by = by;
 	return 0;
 }
 
-static void remove_implementation(struct ast_node *template,
+static void remove_implementation(struct ast_node *trait,
                                   struct ast_node *type)
 {
-	assert(template->node_type == AST_TEMPLATE);
-	struct template_implemented *prev = template->_template.impl_by, *cur;
+	assert(trait->node_type == AST_TRAIT);
+	struct trait_implemented *prev = trait->_trait.impl_by, *cur;
 	if (prev)
 		do {
 			cur = prev->next;
@@ -806,7 +806,7 @@ static void remove_implementation(struct ast_node *template,
 				break;
 
 			if (identical_ast_nodes(0, cur->type, type)) {
-				struct template_implemented *next = cur->next;
+				struct trait_implemented *next = cur->next;
 				prev->next = next;
 				free(cur);
 				return;
@@ -814,18 +814,18 @@ static void remove_implementation(struct ast_node *template,
 		} while ((prev = cur));
 }
 
-static int find_implementation(struct ast_node *template, struct ast_node *type)
+static int find_implementation(struct ast_node *trait, struct ast_node *type)
 {
 	if (!type)
 		return 0;
 
-	assert(template->node_type == AST_TEMPLATE);
-	if (type->_type.kind == AST_TYPE_TEMPLATE)
-		return find_implementation(template,
-		                           type->_type.template.actual);
+	assert(trait->node_type == AST_TRAIT);
+	if (type->_type.kind == AST_TYPE_TRAIT)
+		return find_implementation(trait,
+		                           type->_type.trait.actual);
 
 	if (type->_type.kind == AST_TYPE_ALIAS)
-		return find_implementation(template, type->_type.alias.actual);
+		return find_implementation(trait, type->_type.alias.actual);
 
 	/* I'm not 100% sold on having to handle these special cases multiple
 	 * times in different places, but I'm not sure what alternatives I have.
@@ -834,9 +834,9 @@ static int find_implementation(struct ast_node *template, struct ast_node *type)
 	 * and keep a reference to the original or something without too much
 	 * work? TODO */
 	if (type->_type.kind == AST_TYPE_TYPEOF)
-		return find_implementation(template, type->_type.typeo.actual);
+		return find_implementation(trait, type->_type.typeo.actual);
 
-	struct template_implemented *prev = template->_template.impl_by, *cur;
+	struct trait_implemented *prev = trait->_trait.impl_by, *cur;
 	if (prev)
 		do {
 			cur = prev->next;
@@ -898,8 +898,8 @@ static int implements_proc(enum match_flags flags, struct scope *scope,
 	struct ast_node *params = sign->_type.sign.params;
 	struct ast_node *ret = sign->_type.sign.ret;
 
-	init_template_types(params, param_type, arg_type);
-	init_template_type(ret, param_type, arg_type);
+	init_trait_types(params, param_type, arg_type);
+	init_trait_type(ret, param_type, arg_type);
 
 	struct ast_node *impl = match_proc(1, scope, id, params);
 	if (!impl)
@@ -907,10 +907,10 @@ static int implements_proc(enum match_flags flags, struct scope *scope,
 
 	struct ast_node *impl_ret = impl->_proc.sign->_type.sign.ret;
 	/* note important distinction between when to use ->type and when to not
-	 * in short: ->type can be a template or alias, not using it is the type
+	 * in short: ->type can be a trait or alias, not using it is the type
 	 * before being resolved.
 	 */
-	/* TODO: detect loops, such as when two template return params rely on
+	/* TODO: detect loops, such as when two trait return params rely on
 	 * eachother */
 	if (!implements(flags, scope, impl_ret, ret)) {
 		char *irt = type_str(impl_ret);
@@ -942,29 +942,29 @@ static int implements_var(enum match_flags flags, struct scope *scope,
 	return 0;
 }
 
-static int implements_template(enum match_flags flags, struct scope *scope,
+static int implements_trait(enum match_flags flags, struct scope *scope,
                                struct ast_node *arg_type,
                                struct ast_node *param_type)
 {
-	assert(param_type->_type.kind == AST_TYPE_TEMPLATE);
-	if (param_type->_type.template.actual)
+	assert(param_type->_type.kind == AST_TYPE_TRAIT);
+	if (param_type->_type.trait.actual)
 		return implements(flags, scope, arg_type,
-		                  param_type->_type.template.actual);
+		                  param_type->_type.trait.actual);
 
-	struct ast_node *template = param_type->_type.template.template;
-	/* if we already know we implement this template, nothing to do */
-	if (find_implementation(template, arg_type))
+	struct ast_node *trait = param_type->_type.trait.trait;
+	/* if we already know we implement this trait, nothing to do */
+	if (find_implementation(trait, arg_type))
 		return 1;
 
-	/* optimistically assume we implement type template */
-	/* TODO: this optimism might be questionable, as some template might rely
-	 * on another template being implemented by the same type.
+	/* optimistically assume we implement type trait */
+	/* TODO: this optimism might be questionable, as some trait might rely
+	 * on another trait being implemented by the same type.
 	 * The other type will return an error message, and the compilation will
 	 * fail, but the error messages generated might be misleading. Look into
 	 * it at some point. */
-	add_implementation(template, arg_type);
+	add_implementation(trait, arg_type);
 
-	struct ast_node *body = template->_template.body;
+	struct ast_node *body = trait->_trait.body;
 
 	/* if the body is empty, match */
 	struct ast_node *elem = body;
@@ -1002,7 +1002,7 @@ static int implements_template(enum match_flags flags, struct scope *scope,
 
 			else {
 				semantic_error(scope->fctx, elem,
-				               "illegal template element");
+				               "illegal trait element");
 				goto not_implemented;
 			}
 		} while ((elem = elem->next));
@@ -1010,7 +1010,7 @@ static int implements_template(enum match_flags flags, struct scope *scope,
 	return 1;
 
 not_implemented:
-	remove_implementation(template, arg_type);
+	remove_implementation(trait, arg_type);
 	return 0;
 }
 
@@ -1076,27 +1076,27 @@ int implements(enum match_flags flags, struct scope *scope,
 		return implements_typeof(flags, scope, arg_type, param_type);
 	}
 
-	/* having the arg be a template is a bit of a special case */
-	if (arg_type->_type.kind == AST_TYPE_TEMPLATE) {
-		if (arg_type->_type.template.actual == NULL)
+	/* having the arg be a trait is a bit of a special case */
+	if (arg_type->_type.kind == AST_TYPE_TRAIT) {
+		if (arg_type->_type.trait.actual == NULL)
 			return types_match(arg_type, param_type);
 
-		return implements(flags, scope, arg_type->_type.template.actual,
+		return implements(flags, scope, arg_type->_type.trait.actual,
 		                  param_type);
 	}
 
-	/* TODO: do aliases and templates have to be converted to types? Are
-	 * there any situations where a template will have to be followed by
+	/* TODO: do aliases and traits have to be converted to types? Are
+	 * there any situations where a trait will have to be followed by
 	 * some other type? */
-	/* if the parameter type is not a template, it's an actual type and therefore the
+	/* if the parameter type is not a trait, it's an actual type and therefore the
 	 * argument type must be identical to it */
-	if (param_type->_type.kind == AST_TYPE_TEMPLATE) {
-		if (param_type->_type.template.actual == NULL)
-			return implements_template(flags, scope, arg_type,
+	if (param_type->_type.kind == AST_TYPE_TRAIT) {
+		if (param_type->_type.trait.actual == NULL)
+			return implements_trait(flags, scope, arg_type,
 			                           param_type);
 
 		return implements(flags, scope, arg_type,
-		                  param_type->_type.template.actual);
+		                  param_type->_type.trait.actual);
 	}
 
 	if (param_type->_type.kind == AST_TYPE_POINTER) {
@@ -1136,7 +1136,7 @@ static int match_args(enum match_flags flags, struct scope *scope, int variadic,
 		if (!implements(flags, scope, args->type, params->type))
 			return 0;
 
-		init_template_type(params->type, params->type, args->type);
+		init_trait_type(params->type, params->type, args->type);
 
 		params = params->next;
 		args = args->next;
@@ -1347,7 +1347,7 @@ FIND_FILE_VISIBLE(file_scope_find_proc, proc);
 FIND_FILE_VISIBLE(file_scope_find_macro, macro);
 
 FIND_FILE_VISIBLE(file_scope_find_alias, alias);
-FIND_FILE_VISIBLE(file_scope_find_template, template);
+FIND_FILE_VISIBLE(file_scope_find_trait, trait);
 
 struct ast_node *file_scope_find(struct scope *scope, struct ast_node *id)
 {
@@ -1371,7 +1371,7 @@ struct ast_node *file_scope_find(struct scope *scope, struct ast_node *id)
 	if (found)
 		return found;
 
-	found = file_scope_find_template(scope, id);
+	found = file_scope_find_trait(scope, id);
 	if (found)
 		return found;
 
@@ -1386,14 +1386,14 @@ struct ast_node *scope_resolve_macro(struct scope *scope, struct ast_node *call)
 	return match_macro(0, scope, id, args);
 }
 
-static int template_contains_proc(enum match_flags flags, struct scope *scope,
-                                  struct ast_node *template,
+static int trait_contains_proc(enum match_flags flags, struct scope *scope,
+                                  struct ast_node *trait,
                                   struct ast_node *id, struct ast_node *args)
 {
-	assert(template->_type.kind == AST_TYPE_TEMPLATE);
-	template = template->_type.template.template;
+	assert(trait->_type.kind == AST_TYPE_TRAIT);
+	trait = trait->_type.trait.trait;
 
-	struct ast_node *elem = template->_template.body;
+	struct ast_node *elem = trait->_trait.body;
 	if (elem)
 		do {
 			if (elem->node_type != AST_PROC)
@@ -1426,15 +1426,15 @@ struct ast_node *scope_resolve_proc(struct scope *scope, struct ast_node *call)
 	/* TODO: this prints out an error for each scope we run through, figure
 	 * out where we should check for this stuff so only a single error is
 	 * printed */
-	/* loop over arguments, if any of them are templated check that the
-	 * found proc can be found in the template */
+	/* loop over arguments, if any of them are traitd check that the
+	 * found proc can be found in the trait */
 	struct ast_node *arg = args;
 	while (arg) {
-		struct ast_node *template = extract_template(arg->type);
-		if (!template)
+		struct ast_node *trait = extract_trait(arg->type);
+		if (!trait)
 			goto next;
 
-		if (!template_contains_proc(MATCH_CALL, scope, template, id,
+		if (!trait_contains_proc(MATCH_CALL, scope, trait, id,
 		                            args)) {
 			char *cstr = call_str(call);
 			char *tstr = type_str(arg);
@@ -1476,7 +1476,7 @@ struct ast_node *scope_resolve_actual(struct scope *scope,
 				continue;
 
 			assert(!ast_flags(actual, AST_FLAG_VARIADIC));
-			/* could also check that arguments aren't templates */
+			/* could also check that arguments aren't traits */
 			struct ast_node *args = call->_call.args;
 			struct ast_node *sign = actual->_proc.sign;
 			struct ast_node *params = sign->_type.sign.params;
@@ -1559,8 +1559,8 @@ struct ast_node *scope_resolve_type(struct scope *scope, struct ast_node *type)
 		id = type->_alias.id;
 		break;
 
-	case AST_TEMPLATE:
-		id = type->_template.id;
+	case AST_TRAIT:
+		id = type->_trait.id;
 		break;
 
 	case AST_STRUCT:

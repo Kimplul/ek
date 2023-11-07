@@ -120,6 +120,7 @@ enum ast_node_type {
 	AST_DEFER,
 	/** Macro definition. */
 	AST_MACRO,
+	AST_MACRO_EXPANSION,
 	/** Reference to previous expression, i.e. \c @ */
 	AST_LAST,
 	/** Procedure definition. */
@@ -130,8 +131,6 @@ enum ast_node_type {
 	AST_LABEL,
 	/** Variable declaration/definition. */
 	AST_VAR,
-	/** Lambda declaration/definition. */
-	AST_LAMBDA,
 	/** For loop. */
 	AST_FOR,
 	/** Embed file contents. */
@@ -150,7 +149,7 @@ enum ast_node_type {
 	/** Alias definition. */
 	AST_ALIAS,
 	/** More like trait. @todo really come up with consistent naming. */
-	AST_TEMPLATE,
+	AST_TRAIT,
 	/** Structure definition. */
 	AST_STRUCT,
 	/** If. */
@@ -208,7 +207,7 @@ enum ast_type_kind {
 	/** Typeof expression. */
 	AST_TYPE_TYPEOF,
 	/** Trait. */
-	AST_TYPE_TEMPLATE,
+	AST_TYPE_TRAIT,
 	/** Alias. */
 	AST_TYPE_ALIAS,
 	/** Member, that is type element of some structure. */
@@ -217,8 +216,6 @@ enum ast_type_kind {
 	AST_TYPE_POINTER,
 	/** Union. */
 	AST_TYPE_UNION,
-	/** Lambda. */
-	AST_TYPE_LAMBDA,
 	/** Procedure, mainly used in trait definition. */
 	AST_TYPE_PROC,
 	/** Structure. */
@@ -236,7 +233,7 @@ enum ast_typedef_kind {
 	/** Alias. */
 	AST_TYPEDEF_ALIAS,
 	/** Trait. */
-	AST_TYPEDEF_TEMPLATE,
+	AST_TYPEDEF_TRAIT,
 };
 
 /** Flags an AST node can have. */
@@ -335,11 +332,11 @@ struct ast_alias {
 };
 
 /** List of types that implements the template list belongs to. */
-struct template_implemented {
+struct trait_implemented {
 	/** A type that implements the template. */
 	struct ast_node *type;
 	/** Next type that implements the template. */
-	struct template_implemented *next;
+	struct trait_implemented *next;
 };
 
 /**
@@ -347,13 +344,13 @@ struct template_implemented {
  *
  * @todo should templates take decls or should it just be for structures?
  */
-struct ast_template {
+struct ast_trait {
 	/** Name of trait. */
 	struct ast_node *id;
 	/** Body of trait. */
 	struct ast_node *body;
 	/** List of types that implement this trait. */
-	struct template_implemented *impl_by;
+	struct trait_implemented *impl_by;
 };
 
 /** Cast. */
@@ -404,6 +401,11 @@ struct ast_macro {
 	struct ast_node *params;
 	/** Macro body. */
 	struct ast_node *body;
+};
+
+struct ast_macro_expansion {
+	struct ast_node *id;
+	struct ast_node *args;
 };
 
 /** Procedure definition. */
@@ -560,17 +562,10 @@ struct ast_type {
 		/** Trait. */
 		struct {
 			/** Trait definition. */
-			struct ast_node *template;
+			struct ast_node *trait;
 			/** Type trait 'resolves' to. */
 			struct ast_node *actual;
-		} template;
-		/** Lambda. @todo add captures? */
-		struct {
-			/** Parameter types. */
-			struct ast_node *params;
-			/** Return type. */
-			struct ast_node *ret;
-		} lambda;
+		} trait;
 		/** Generic struct before actualization. */
 		struct {
 			/** Name of struct. */
@@ -756,6 +751,7 @@ struct ast_node {
 		struct ast_cast _cast;
 		/** Macro definition. */
 		struct ast_macro _macro;
+		struct ast_macro_expansion _macro_expansion;
 		/** Procedure definition. */
 		struct ast_proc _proc;
 		/** Goto. */
@@ -793,7 +789,7 @@ struct ast_node {
 		/** Alias. */
 		struct ast_alias _alias;
 		/** Trait definition. */
-		struct ast_template _template;
+		struct ast_trait _trait;
 		/** Enum definition. */
 		struct ast_enum _enum;
 		/** Structure definition. */
@@ -1081,7 +1077,9 @@ struct ast_node *gen_alias(struct ast_node *id, struct ast_node *type);
  * @param body Body.
  * @return Corresponding AST node.
  */
-struct ast_node *gen_template(struct ast_node *id, struct ast_node *body);
+struct ast_node *gen_trait(struct ast_node *id, struct ast_node *body);
+
+struct ast_node *gen_macro_expansion(struct ast_node *id, struct ast_node *args);
 
 /**
  * Generate import;

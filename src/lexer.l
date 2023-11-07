@@ -77,8 +77,6 @@ STRING		\"(\\.|[^"\\])*\"
 ";"		{return SEMICOLON;}
 ":"		{return COLON;}
 "!"		{return BANG;}
-"##"		{return PASTE;}
-"@"		{return AT;}
 
 "+"		{return PLUS;}
 "-"		{return MINUS;}
@@ -86,7 +84,6 @@ STRING		\"(\\.|[^"\\])*\"
 "/"		{return DIV;}
 "%"		{return REM;}
 "^"		{return XOR;}
-"^^"		{return POW;}
 
 '[^'\\]'	{
 	/* regular character constant, 'a' */
@@ -124,9 +121,6 @@ STRING		\"(\\.|[^"\\])*\"
 "'"		{return SQUOTE;}
 
 "&"		{return AND;}
-"&&"		{return LAND;}
-"|"		{return OR;}
-"||"		{return LOR;}
 
 "~"		{return TILDE;}
 "="		{return TO;}
@@ -147,10 +141,6 @@ STRING		\"(\\.|[^"\\])*\"
 "-="		{return MINUSSELF;}
 "/="		{return DIVSELF;}
 "%="		{return REMSELF;}
-"^="		{return XORSELF;}
-"^^="		{return POWSELF;}
-"&="		{return ORSELF;}
-"|="		{return ORSELF;}
 "<<="		{return LSHIFTSELF;}
 ">>="		{return RSHIFTSELF;}
 "..."		{return ELLIPSIS;}

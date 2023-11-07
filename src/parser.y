@@ -49,18 +49,13 @@
 %token TYPEOF "typeof"
 /* typeof does sort of fit into sizeof, hmmm */
 %token SIZEOF "sizeof"
-%token PASTE "##"
 %token STAR "*"
 %token DIV "/"
 %token REM "%"
 %token MINUS "-"
 %token PLUS "+"
-%token POW "^^"
 %token XOR "^"
 %token AND "&"
-%token OR "|"
-%token LAND "&&"
-%token LOR "||"
 %token TILDE "~"
 %token LT "<"
 %token GT ">"
@@ -75,13 +70,8 @@
 %token STARSELF "*="
 %token DIVSELF "/="
 %token REMSELF "%="
-%token XORSELF "^="
-%token POWSELF "^^="
-%token ANDSELF "&="
-%token ORSELF "|="
 %token LSHIFTSELF "<<="
 %token RSHIFTSELF ">>="
-%token AT "@"
 %token COMMA ","
 %token PUB "pub"
 %token STRUCT "struct"
@@ -122,13 +112,9 @@
 %right "[" "]"
 /* precedence */
 %left ","
-%right "=" "+=" "-=" "*=" "/=" "%=" "<<=" ">>=" "&=" "^=" "|=" "^^="
-%left "^^"
-%left "||"
-%left "&&"
+%right "=" "+=" "-=" "*=" "/=" "%=" "<<=" ">>="
 %left "==" "!="
 %left "<" ">" "<=" ">="
-%left "|"
 %left "^"
 %left "&"
 %left "<<" ">>"
@@ -144,18 +130,19 @@
 %nterm <node> while do_while statement statements body references macro
 %nterm <node> exprs if for case cases switch const
 %nterm <node> func_sign type var_decl var
-%nterm <node> var_init proc template_elem template_elems types
-%nterm <node> alias template enum_val enums enum top unit id
-%nterm <node> embed param_decl union struct members struct_elem
+%nterm <node> var_init proc trait_elem trait_elems
+%nterm <node> alias trait enum_val enums enum top unit id
+%nterm <node> embed param_decl members struct_elem
 %nterm <node> top_if const_if const_for defer goto assign
 %nterm <node> construct construct_args construct_arg
-%nterm <node> generic generics statelet apply
+%nterm <node> statelet apply
 
-/* special handling for top level variables */
-%nterm <node> top_var_decl top_var_init top_var
+%nterm <node> tagged_struct anon_struct tagged_union anon_union
 
 /* constant operations */
 %nterm <node> const_expr const_unop const_binop
+
+%nterm <node> macro_expand
 
 /* array stuff */
 %nterm <node> arr arr_inits arr_init
@@ -270,12 +257,6 @@ binop
 	| expr "*" expr { $$ = gen_binop(AST_MUL, $1, $3);  }
 	| expr "/" expr { $$ = gen_binop(AST_DIV, $1, $3);  }
 	| expr "%" expr { $$ = gen_binop(AST_REM, $1, $3);  }
-	| expr "^" expr { $$ = gen_binop(AST_XOR, $1, $3);  }
-	| expr "^^" expr { $$ = gen_binop(AST_POW, $1, $3);  }
-	| expr "&" expr { $$ = gen_binop(AST_AND, $1, $3);  }
-	| expr "&&" expr { $$ = gen_binop(AST_LAND, $1, $3);  }
-	| expr "|" expr { $$ = gen_binop(AST_OR, $1, $3);  }
-	| expr "||" expr { $$ = gen_binop(AST_LOR, $1, $3);  }
 	| expr "<<" expr { $$ = gen_binop(AST_LSHIFT, $1, $3);  }
 	| expr ">>" expr { $$ = gen_binop(AST_RSHIFT, $1, $3);  }
 	| expr "+=" expr { $$ = gen_binop(AST_ASSIGN_ADD, $1, $3);  }
@@ -283,9 +264,6 @@ binop
 	| expr "*=" expr { $$ = gen_binop(AST_ASSIGN_MUL, $1, $3);  }
 	| expr "/=" expr { $$ = gen_binop(AST_ASSIGN_DIV, $1, $3);  }
 	| expr "%=" expr { $$ = gen_binop(AST_ASSIGN_REM, $1, $3);  }
-	| expr "&=" expr { $$ = gen_binop(AST_ASSIGN_AND, $1, $3);  }
-	| expr "|=" expr { $$ = gen_binop(AST_ASSIGN_OR, $1, $3);  }
-	| expr "^=" expr { $$ = gen_binop(AST_ASSIGN_XOR, $1, $3);  }
 	| expr "<<=" expr {
 		$$ = gen_binop(AST_ASSIGN_LSHIFT, $1, $3);
 	}
@@ -347,12 +325,6 @@ const_binop
 	| const_expr "*" const_expr { $$ = gen_binop(AST_MUL, $1, $3);  }
 	| const_expr "/" const_expr { $$ = gen_binop(AST_DIV, $1, $3);  }
 	| const_expr "%" const_expr { $$ = gen_binop(AST_REM, $1, $3);  }
-	| const_expr "^" const_expr { $$ = gen_binop(AST_XOR, $1, $3);  }
-	| const_expr "^^" const_expr { $$ = gen_binop(AST_POW, $1, $3);  }
-	| const_expr "&" const_expr { $$ = gen_binop(AST_AND, $1, $3);  }
-	| const_expr "&&" const_expr { $$ = gen_binop(AST_LAND, $1, $3);  }
-	| const_expr "|" const_expr { $$ = gen_binop(AST_OR, $1, $3);  }
-	| const_expr "||" const_expr { $$ = gen_binop(AST_LOR, $1, $3);  }
 	| const_expr "<<" const_expr { $$ = gen_binop(AST_LSHIFT, $1, $3);  }
 	| const_expr ">>" const_expr { $$ = gen_binop(AST_RSHIFT, $1, $3);  }
 	| const_expr "<" const_expr { $$ = gen_binop(AST_LT, $1, $3);  }
@@ -389,13 +361,12 @@ expr
 	| expr "(" args ")" { $$ = gen_call($1, $3); }
 	| expr "(" ")" { $$ = gen_call($1, NULL); }
 	| expr "[" expr "]" { $$ = gen_call($1, $3); /** @todo add arr access */}
-	| apply "(" args ")" { $$ = gen_call($1, $3); /* macro call */}
-	| apply "(" ")" { $$ = gen_call($1, NULL); /* macro call */}
 	| "(" var_init ")" { $$ = $2; }
 	| "sizeof" expr { $$ = gen_sizeof($2); }
 	| expr "as" type { $$ = gen_cast($1, $3);  }
 	| id "::" type { $$ = gen_fetch($1, $3); }
 	| "as" type { $$ = gen_as($2); }
+	| macro_expand
 	| construct
 	| assign
 	| embed
@@ -420,7 +391,7 @@ statelet
 	| "return" { $$ = gen_return(NULL); }
 	| "break" { $$ = gen_ctrl(AST_CTRL_BREAK, to_src_loc(&yylloc)); }
 	| "continue" { $$ = gen_ctrl(AST_CTRL_CONTINUE, to_src_loc(&yylloc)); }
-	| template
+	| trait
 	| import
 	| alias
 	| exprs
@@ -449,7 +420,8 @@ statement
 	| while
 	| do_while
 	| body
-	| struct
+	| tagged_struct
+	| tagged_union
 	| for
 	| defer
 	| if
@@ -580,9 +552,8 @@ type
 		$$ = gen_type(AST_TYPE_POINTER, NULL, NULL, NULL);
 		$$->_type.next = $2;
 	}
-	| apply "[" types "]" {
-		$$ = gen_type(AST_TYPE_GENERIC, $1, $3, NULL);
-	}
+	| anon_struct { $$ = $1; }
+	| anon_union { $$ = $1; }
 	| "*" type {
 		$$ = gen_type(AST_TYPE_POINTER, NULL, NULL, NULL);
 		$$->_type.next = $2;
@@ -627,63 +598,59 @@ proc
 	}
 
 struct_elem
-	: var_decl { $$ = $1; }
+	: var_decl
+	| macro_expand
+	;
 
 members
 	: struct_elem ";" members { $$ = $1; $1->next = $3; }
 	| struct_elem ";" { $$ = $1; }
 
-union
+tagged_union
 	: "union" id "{" members "}" {
 		$$ = gen_union($2, NULL, $4);
 	}
-	| "union" id "(" generics ")" "{" members "}" {
-		$$ = gen_union($2, $4, $7);
-	}
 
-generic
-	: type id { $$ = gen_alias($1, $2); }
+anon_union
+	: "union" "{" members "}" { $$ = gen_union(NULL, NULL, $3); }
+	| "union" macro_expand { $$ = gen_union(NULL, NULL, $2); }
 
-generics
-	: generic "," generics { $$ = $1; $$->next = $3; }
-	| generic { $$ = $1; }
+macro_expand
+	: apply "(" ")" { $$ = gen_macro_expansion($1, NULL); }
+	| apply "(" args ")" { $$ = gen_macro_expansion($1, $3); }
 
-struct
+tagged_struct
 	: "struct" id "{" members "}" {
 		$$ = gen_struct($2, NULL, $4);
 	}
-	| "struct" id "[" generics "]" "{" members "}" {
-		$$ = gen_struct($2, $4, $7);
-	}
 
-/* since traits aren't generic, they don't have to implement anything, meaning
- * we can keep a pretty clean separation between procs and supertraits */
-template_elem
-	: id ";" { $$ = $1; }
-	| id func_sign ";" { $$ = gen_proc($1, $2, NULL);  }
-	| var_decl ";" { $$ = $1; }
-	| union { $$ = $1; }
+anon_struct
+	: "struct" "{" members "}" { $$ = gen_struct(NULL, NULL, $3); }
+	| "struct" macro_expand { $$ = gen_struct(NULL, NULL, $2); }
 
-template_elems
-	: template_elem template_elems { $$ = $1; $1->next = $2; }
-	| template_elem { $$ = $1; }
+trait_elem
+	: id
+	| id func_sign { $$ = gen_proc($1, $2, NULL);  }
+	| var_decl
+	| macro_expand
 
-types
-	: type "," types { $$ = $1; $1->next = $3; }
-	| type { $$ = $1; }
+trait_elems
+	: trait_elem ";" trait_elems { $$ = $1; $1->next = $3; }
+	| trait_elem ";"
+	| trait_elem
 
 alias
 	: "typedef" id type { $$ = gen_alias($2, $3);  }
 
 /* we'll parse the arg list later in the AST and check that each node is of some
  * specific type */
-template
-	: "typedef" id "{" template_elems "}" {
-		$$ = gen_template($2, $4);
+trait
+	: "typedef" id "{" trait_elems "}" {
+		$$ = gen_trait($2, $4);
 	}
 	| "typedef" id "{" "}" {
 		/* should match anything, but doesn't implement anything */
-		$$ = gen_template($2, NULL);
+		$$ = gen_trait($2, NULL);
 	}
 
 enum_val
@@ -716,43 +683,26 @@ top_if
 		ast_set_flags($$, AST_FLAG_UNHYGIENIC);
 	}
 
-top_var_decl
-	: type id { $$ = gen_var($2, $1, NULL); }
-
-top_var_init
-	: top_var_decl "=" const_expr { $$ = $1; $$->_var.init = $3; }
-	| "const" id "=" const_expr { $$ = gen_var($2, NULL, $4); }
-	| "mut" id "=" const_expr { $$ = gen_var($2, NULL, $4); }
-
-top_var
-	: top_var_decl { $$ = $1; }
-	| top_var_init { $$ = $1; }
-
 /* slightly silly to allow stray semicolons at a top level, but seems to help
  * with recovering from certain syntax errors */
 top
 	: enum { $$ = $1; }
 	| proc { $$ = $1; }
-	| struct { $$ = $1; }
-	| union { $$ = $1; }
+	| tagged_struct { $$ = $1; }
+	| tagged_union { $$ = $1; }
 	| macro { $$ = $1; }
 	| top_if { $$ = $1; ast_set_flags($$, AST_FLAG_CONST); }
-	| top_var { $$ = $1; ast_set_flags($$, AST_FLAG_CONST); }
 	| import { $$ = $1; }
 	| alias { $$ = $1; }
-	| template { $$ = $1; }
+	| trait { $$ = $1; }
 	| "pub" enum { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
-	| "pub" struct { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
-	| "pub" union { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
+	| "pub" tagged_struct { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
+	| "pub" tagged_union { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" proc { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" macro { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" import { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" alias { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
-	| "pub" template { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
-	| "pub" top_var {
-		$$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC);
-		ast_set_flags($$, AST_FLAG_CONST);
-	}
+	| "pub" trait { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| ";" { $$ = gen_empty(); }
 	| error {
 	    $$ = gen_empty();

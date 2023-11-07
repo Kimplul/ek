@@ -19,7 +19,7 @@
 /**
  * Check if two types match.
  * A match is considered as identical types after alias, expression and
- * template expansion.
+ * trait expansion.
  *
  * @param a Type to compare against \p b.
  * @param b Type to compare against \p a.
@@ -51,35 +51,35 @@ void replace_param_types(struct ast_node *param,
                          struct ast_node *arg_type);
 
 /**
- * Replace templated type with actual type.
+ * Replace traitd type with actual type.
  *
  * @param type Templated type.
- * Keep in mind that a templated struct retains all template parameters, so
+ * Keep in mind that a traitd struct retains all trait parameters, so
  * pass the struct itself.
  * @param param_type Template parameter type to replace.
  * @param arg_type Type to replace \p param_type with.
  */
-void init_template_type(struct ast_node *type, struct ast_node *param_type,
+void init_trait_type(struct ast_node *type, struct ast_node *param_type,
                         struct ast_node *arg_type);
 
 /**
- * Replace templated parameter types.
+ * Replace traitd parameter types.
  *
- * @param param List of parameters to replace templated types for.
+ * @param param List of parameters to replace traitd types for.
  * @param param_type Types that match this are replaced with \p arg_type.
  * @param arg_type Type to replace \p param_type with.
  */
-void init_template_types(struct ast_node *param, struct ast_node *param_type,
+void init_trait_types(struct ast_node *param, struct ast_node *param_type,
                          struct ast_node *arg_type);
 
 /**
- * Extract template type, that is strip pointer/expression/alias stuff
- * and get the template itself from the type.
+ * Extract trait type, that is strip pointer/expression/alias stuff
+ * and get the trait itself from the type.
  *
- * @param type Type to extract template from.
- * @return Pointer to template node when found, \c NULL otherwise.
+ * @param type Type to extract trait from.
+ * @return Pointer to trait node when found, \c NULL otherwise.
  */
-struct ast_node *extract_template(struct ast_node *type);
+struct ast_node *extract_trait(struct ast_node *type);
 
 /**
  * Extract typeof expression.
@@ -119,7 +119,7 @@ int actualize_main(struct scope *scope);
 int actualize_temp_type(struct scope *scope, struct ast_node *type);
 
 /**
- * Expand templates, typeofs, aliases and try to get the most
+ * Expand traits, typeofs, aliases and try to get the most
  * basic representation.
  *
  * @param type Type to extract actual type from.

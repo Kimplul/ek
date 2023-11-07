@@ -62,6 +62,24 @@ static struct src_loc loc_span(struct ast_node *left, struct ast_node *right)
 	return loc;
 }
 
+struct ast_node *gen_macro_expansion(struct ast_node *id, struct ast_node *args)
+{
+	ALLOC_NODE(n, "macro_expansion");
+	n->node_type = AST_MACRO_EXPANSION;
+	n->_macro_expansion.id = id;
+	n->_macro_expansion.args = args;
+	n->loc = id->loc;
+	return n;
+}
+
+void destroy_macro_expansion(struct ast_node *macro_expansion)
+{
+	assert(macro_expansion->node_type == AST_MACRO_EXPANSION);
+	destroy_ast_node(macro_expansion->_macro_expansion.id);
+	destroy_ast_node(macro_expansion->_macro_expansion.args);
+	free(macro_expansion);
+}
+
 struct ast_node *gen_binop(enum ast_binops op,
                            struct ast_node *left, struct ast_node *right)
 {
@@ -448,9 +466,9 @@ struct ast_node *gen_type(enum ast_type_kind kind, struct ast_node *id,
 		n->loc = expr->loc;
 		break;
 
-	case AST_TYPE_TEMPLATE:
-		n->_type.template.template = expr;
-		n->_type.template.actual = ret;
+	case AST_TYPE_TRAIT:
+		n->_type.trait.trait = expr;
+		n->_type.trait.actual = ret;
 		n->loc = expr->loc;
 		break;
 
@@ -503,12 +521,6 @@ struct ast_node *gen_type(enum ast_type_kind kind, struct ast_node *id,
 		n->_type.sign.ret = ret;
 		n->loc = loc_span(expr, ret);
 		break;
-
-	case AST_TYPE_LAMBDA:
-		n->_type.lambda.params = expr;
-		n->_type.lambda.ret = ret;
-		n->loc = loc_span(expr, ret);
-		break;
 	}
 
 	return n;
@@ -531,7 +543,7 @@ void destroy_type(struct ast_node *type)
 	case AST_TYPE_ALIAS:
 		break;
 
-	case AST_TYPE_TEMPLATE:
+	case AST_TYPE_TRAIT:
 		break;
 
 	case AST_TYPE_ID:
@@ -552,11 +564,6 @@ void destroy_type(struct ast_node *type)
 	case AST_TYPE_PROC:
 		DESTROY_LIST(type->_type.proc.params);
 		destroy_ast_node(type->_type.proc.ret);
-		break;
-
-	case AST_TYPE_LAMBDA:
-		DESTROY_LIST(type->_type.lambda.params);
-		destroy_ast_node(type->_type.lambda.ret);
 		break;
 
 	case AST_TYPE_STRUCT:
@@ -673,27 +680,6 @@ void destroy_var(struct ast_node *var)
 	destroy_ast_node(var->_var.type);
 	destroy_ast_node(var->_var.init);
 	free(var);
-}
-
-struct ast_node *gen_lambda(struct ast_node *captures,
-                            struct ast_node *type, struct ast_node *body)
-{
-	ALLOC_NODE(n, "lambda");
-	n->node_type = AST_LAMBDA;
-	n->_lambda.captures = captures;
-	n->_lambda.sign = type;
-	n->_lambda.body = body;
-	n->loc = captures->loc;
-	return n;
-}
-
-void destroy_lambda(struct ast_node *lambda)
-{
-	assert(lambda->node_type == AST_LAMBDA);
-	destroy_ast_node(lambda->_lambda.sign);
-	DESTROY_LIST(lambda->_lambda.captures);
-	DESTROY_LIST(lambda->_lambda.body);
-	free(lambda);
 }
 
 struct ast_node *gen_proc(struct ast_node *id, struct ast_node *sign,
@@ -841,29 +827,29 @@ void destroy_alias(struct ast_node *alias)
 	free(alias);
 }
 
-struct ast_node *gen_template(struct ast_node *id, struct ast_node *body)
+struct ast_node *gen_trait(struct ast_node *id, struct ast_node *body)
 {
-	ALLOC_NODE(n, "template");
-	n->node_type = AST_TEMPLATE;
-	n->_template.id = id;
-	n->_template.body = body;
+	ALLOC_NODE(n, "trait");
+	n->node_type = AST_TRAIT;
+	n->_trait.id = id;
+	n->_trait.body = body;
 	n->loc = id->loc;
 	return n;
 }
 
-void destroy_template(struct ast_node *template)
+void destroy_trait(struct ast_node *trait)
 {
-	assert(template->node_type == AST_TEMPLATE);
-	destroy_ast_node(template->_template.id);
-	DESTROY_LIST(template->_template.body);
+	assert(trait->node_type == AST_TRAIT);
+	destroy_ast_node(trait->_trait.id);
+	DESTROY_LIST(trait->_trait.body);
 
-	struct template_implemented *prev = template->_template.impl_by, *cur;
+	struct trait_implemented *prev = trait->_trait.impl_by, *cur;
 	if (prev)
 		do {
 			cur = prev->next;
 			free(prev);
 		} while ((prev = cur));
-	free(template);
+	free(trait);
 }
 
 struct ast_node *gen_import(const char *file)
@@ -945,11 +931,11 @@ void destroy_ast_node(struct ast_node *node)
 	case AST_CALL: destroy_call(node); break;
 	case AST_CAST: destroy_cast(node); break;
 	case AST_MACRO: destroy_macro(node); break;
+	case AST_MACRO_EXPANSION: destroy_macro_expansion(node); break;
 	case AST_PROC: destroy_proc(node); break;
 	case AST_GOTO: destroy_goto(node); break;
 	case AST_LABEL: destroy_label(node); break;
 	case AST_VAR: destroy_var(node); break;
-	case AST_LAMBDA: destroy_lambda(node); break;
 	case AST_IF: destroy_if(node); break;
 	case AST_FOR: destroy_for(node); break;
 	case AST_WHILE: destroy_while(node); break;
@@ -967,7 +953,7 @@ void destroy_ast_node(struct ast_node *node)
 	case AST_CASE: destroy_case(node); break;
 	case AST_CONST: destroy_const(node); break;
 	case AST_ALIAS: destroy_alias(node); break;
-	case AST_TEMPLATE: destroy_template(node); break;
+	case AST_TRAIT: destroy_trait(node); break;
 	case AST_ID: destroy_id(node); break;
 	case AST_AS: destroy_as(node); break;
 	case AST_EMPTY: destroy_empty(node); break;
@@ -1247,6 +1233,17 @@ static void __dump_ast(int depth, struct ast_node *node)
 		dump(depth, "}\n");
 		break;
 
+	case AST_MACRO_EXPANSION:
+		dump(depth, "{MACRO_EXPANSION:");
+		dump_flags(node);
+		putchar('\n');
+
+		dump_ast(depth + 1, node->_macro_expansion.id);
+		dump_ast(depth + 1, node->_macro_expansion.args);
+
+		dump(depth, "}\n");
+		break;
+
 	case AST_PROC:
 		dump(depth, "{PROC:");
 		dump_flags(node);
@@ -1331,11 +1328,11 @@ static void __dump_ast(int depth, struct ast_node *node)
 			dump_ast(depth + 1, node->_type.alias.actual);
 			break;
 
-		case AST_TYPE_TEMPLATE:
-			printf(" TEMPLATE\n");
+		case AST_TYPE_TRAIT:
+			printf(" TRAIT\n");
 			dump_ast(depth + 1,
-			         node->_type.template.template->_template.id);
-			dump_ast(depth + 1, node->_type.template.actual);
+			         node->_type.trait.trait->_trait.id);
+			dump_ast(depth + 1, node->_type.trait.actual);
 			break;
 
 		case AST_TYPE_ID:
@@ -1362,12 +1359,6 @@ static void __dump_ast(int depth, struct ast_node *node)
 			printf(" PROC\n");
 			dump_ast(depth + 1, node->_type.proc.params);
 			dump_ast(depth + 1, node->_type.proc.ret);
-			break;
-
-		case AST_TYPE_LAMBDA:
-			printf(" LAMBDA\n");
-			dump_ast(depth + 1, node->_type.lambda.params);
-			dump_ast(depth + 1, node->_type.lambda.ret);
 			break;
 
 		case AST_TYPE_STRUCT:
@@ -1397,18 +1388,6 @@ static void __dump_ast(int depth, struct ast_node *node)
 		}
 
 		dump_ast(depth + 1, node->_type.next);
-
-		dump(depth, "}\n");
-		break;
-
-	case AST_LAMBDA:
-		dump(depth, "{LAMBDA:\n");
-		dump_flags(node);
-		putchar('\n');
-
-		dump_ast(depth + 1, node->_lambda.captures);
-		dump_ast(depth + 1, node->_lambda.sign);
-		dump_ast(depth + 1, node->_lambda.body);
 
 		dump(depth, "}\n");
 		break;
@@ -1564,13 +1543,13 @@ static void __dump_ast(int depth, struct ast_node *node)
 		dump(depth, "}\n");
 		break;
 
-	case AST_TEMPLATE:
-		dump(depth, "{TEMPLATE:");
+	case AST_TRAIT:
+		dump(depth, "{TRAIT:");
 		dump_flags(node);
 		putchar('\n');
 
-		dump_ast(depth + 1, node->_template.id);
-		dump_ast(depth + 1, node->_template.body);
+		dump_ast(depth + 1, node->_trait.id);
+		dump_ast(depth + 1, node->_trait.body);
 
 		dump(depth, "}\n");
 		break;
@@ -1654,6 +1633,10 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 		                        clone_ast_node(node->_macro.body));
 		break;
 
+	case AST_MACRO_EXPANSION: new = gen_macro_expansion(clone_ast_node(node->_macro_expansion.id),
+						  clone_ast_node(node->_macro_expansion.args));
+				  break;
+
 	case AST_CAST: new = gen_cast(clone_ast_node(node->_cast.expr),
 		                      clone_ast_node(node->_cast.type));
 		break;
@@ -1680,12 +1663,6 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 			new->type = type;
 		break;
 	}
-
-	case AST_LAMBDA: new = gen_lambda(clone_ast_node(
-						  node->_lambda.captures),
-		                          clone_ast_node(node->_lambda.sign),
-		                          clone_ast_node(node->_lambda.body));
-		break;
 
 	case AST_FOR: new = gen_for(clone_ast_node(node->_for.pre),
 		                    clone_ast_node(node->_for.cond),
@@ -1729,11 +1706,11 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 			               node->_type.alias.actual);
 			break;
 
-		case AST_TYPE_TEMPLATE:
-			new = gen_type(AST_TYPE_TEMPLATE, NULL,
-			               node->_type.template.template,
+		case AST_TYPE_TRAIT:
+			new = gen_type(AST_TYPE_TRAIT, NULL,
+			               node->_type.trait.trait,
 			               /* ditto, should actual be cloned? */
-			               node->_type.template.actual);
+			               node->_type.trait.actual);
 			break;
 		case AST_TYPE_ID:
 			new = gen_type(AST_TYPE_ID,
@@ -1782,13 +1759,6 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 			new = gen_type(AST_TYPE_PROC, NULL,
 			               clone_ast_node(node->_type.proc.params),
 			               clone_ast_node(node->_type.proc.ret));
-			break;
-
-		case AST_TYPE_LAMBDA:
-			new = gen_type(AST_TYPE_LAMBDA, NULL,
-			               clone_ast_node(
-					       node->_type.lambda.params),
-			               clone_ast_node(node->_type.lambda.ret));
 			break;
 
 		case AST_TYPE_SIGN:
@@ -1876,9 +1846,9 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 		                clone_ast_node(node->_alias.type));
 		break;
 
-	case AST_TEMPLATE:
-		new = gen_template(clone_ast_node(node->_template.id),
-		                   clone_ast_node(node->_template.body));
+	case AST_TRAIT:
+		new = gen_trait(clone_ast_node(node->_trait.id),
+		                   clone_ast_node(node->_trait.body));
 		break;
 
 	case AST_IF:
@@ -2078,21 +2048,6 @@ static int identical_var(int exact, struct ast_node *a, struct ast_node *b)
 	return 1;
 }
 
-static int identical_lambda(int exact, struct ast_node *a, struct ast_node *b)
-{
-	if (!identical_ast_nodes(exact, a->_lambda.captures,
-	                         b->_lambda.captures))
-		return 0;
-
-	if (!identical_ast_nodes(exact, a->_lambda.sign, b->_lambda.sign))
-		return 0;
-
-	if (!identical_ast_nodes(exact, a->_lambda.body, b->_lambda.body))
-		return 0;
-
-	return 1;
-}
-
 static int identical_for(int exact, struct ast_node *a, struct ast_node *b)
 {
 	if (!identical_ast_nodes(exact, a->_for.pre, b->_for.pre))
@@ -2145,15 +2100,15 @@ static int identical_type_alias(int exact, struct ast_node *a,
 	return 1;
 }
 
-static int identical_type_template(int exact, struct ast_node *a,
+static int identical_type_trait(int exact, struct ast_node *a,
                                    struct ast_node *b)
 {
-	if (!identical_ast_nodes(exact, a->_type.template.template,
-	                         b->_type.template.template))
+	if (!identical_ast_nodes(exact, a->_type.trait.trait,
+	                         b->_type.trait.trait))
 		return 0;
 
-	if (!identical_ast_nodes(exact, a->_type.template.actual,
-	                         b->_type.template.actual))
+	if (!identical_ast_nodes(exact, a->_type.trait.actual,
+	                         b->_type.trait.actual))
 		return 0;
 
 	return 1;
@@ -2184,20 +2139,6 @@ static int identical_type_proc(int exact, struct ast_node *a,
 		return 0;
 
 	if (!identical_ast_nodes(exact, a->_type.proc.ret, b->_type.proc.ret))
-		return 0;
-
-	return 1;
-}
-
-static int identical_type_lambda(int exact, struct ast_node *a,
-                                 struct ast_node *b)
-{
-	if (!identical_ast_nodes(exact, a->_type.lambda.params,
-	                         b->_type.lambda.params))
-		return 0;
-
-	if (!identical_ast_nodes(exact, a->_type.lambda.ret,
-	                         b->_type.lambda.ret))
 		return 0;
 
 	return 1;
@@ -2293,13 +2234,12 @@ static int identical_type(int exact, struct ast_node *a, struct ast_node *b)
 	case AST_TYPE_MEMBER: ret = identical_type_member(exact, a, b); break;
 	case AST_TYPE_ENUM: ret = identical_type_enum(exact, a, b); break;
 	case AST_TYPE_ALIAS: ret = identical_type_alias(exact, a, b); break;
-	case AST_TYPE_TEMPLATE: ret = identical_type_template(exact, a, b);
+	case AST_TYPE_TRAIT: ret = identical_type_trait(exact, a, b);
 		break;
 	case AST_TYPE_ID: ret = identical_type_id(exact, a, b); break;
 	case AST_TYPE_ARR: ret = identical_type_arr(exact, a, b); break;
 	case AST_TYPE_TYPEOF: ret = identical_type_typeof(exact, a, b); break;
 	case AST_TYPE_PROC: ret = identical_type_proc(exact, a, b); break;
-	case AST_TYPE_LAMBDA: ret = identical_type_lambda(exact, a, b); break;
 	case AST_TYPE_SIGN: ret = identical_type_sign(exact, a, b); break;
 	case AST_TYPE_STRUCT: ret = identical_type_struct(exact, a, b); break;
 	case AST_TYPE_UNION: ret = identical_type_union(exact, a, b); break;
@@ -2440,12 +2380,12 @@ static int identical_alias(int exact, struct ast_node *a, struct ast_node *b)
 	return 1;
 }
 
-static int identical_template(int exact, struct ast_node *a, struct ast_node *b)
+static int identical_trait(int exact, struct ast_node *a, struct ast_node *b)
 {
-	if (!identical_ast_nodes(exact, a->_template.id, b->_template.id))
+	if (!identical_ast_nodes(exact, a->_trait.id, b->_trait.id))
 		return 0;
 
-	if (!identical_ast_nodes(exact, a->_template.body, b->_template.body))
+	if (!identical_ast_nodes(exact, a->_trait.body, b->_trait.body))
 		return 0;
 
 	return 1;
@@ -2523,9 +2463,9 @@ int identical_ast_nodes(int exact, struct ast_node *a, struct ast_node *b)
 	case AST_CAST: ret = identical_cast(exact, a, b); break;
 	case AST_DEFER: ret = identical_defer(exact, a, b); break;
 	case AST_MACRO: ret = identical_macro(exact, a, b); break;
+	case AST_MACRO_EXPANSION: ret = identical_macro(exact, a, b); break;
 	case AST_PROC: ret = identical_proc(exact, a, b); break;
 	case AST_VAR: ret = identical_var(exact, a, b); break;
-	case AST_LAMBDA: ret = identical_lambda(exact, a, b); break;
 	case AST_FOR: ret = identical_for(exact, a, b); break;
 	case AST_WHILE: ret = identical_while(exact, a, b); break;
 	case AST_CTRL: ret = identical_ctrl(exact, a, b); break;
@@ -2542,7 +2482,7 @@ int identical_ast_nodes(int exact, struct ast_node *a, struct ast_node *b)
 	case AST_CONST: ret = identical_const(exact, a, b); break;
 	case AST_ID: ret = identical_id(exact, a, b); break;
 	case AST_ALIAS: ret = identical_alias(exact, a, b); break;
-	case AST_TEMPLATE: ret = identical_template(exact, a, b); break;
+	case AST_TRAIT: ret = identical_trait(exact, a, b); break;
 	case AST_IF: ret = identical_if(exact, a, b); break;
 	case AST_EMPTY: break;
 	case AST_LAST: break;
@@ -2637,16 +2577,6 @@ static int call_on_var(int (*call)(struct ast_node *,
 	return ret;
 }
 
-static int call_on_lambda(int (*call)(struct ast_node *,
-                                      void *), struct ast_node *node, void *data)
-{
-	int ret = 0;
-	ret |= call(node->_lambda.captures, data);
-	ret |= call(node->_lambda.sign, data);
-	ret |= call(node->_lambda.body, data);
-	return ret;
-}
-
 static int call_on_for(int (*call)(struct ast_node *,
                                    void *), struct ast_node *node, void *data)
 {
@@ -2682,12 +2612,12 @@ static int call_on_alias(int (*call)(struct ast_node *,
 	return ret;
 }
 
-static int call_on_template(int (*call)(struct ast_node *,
+static int call_on_trait(int (*call)(struct ast_node *,
                                         void *), struct ast_node *node, void *data)
 {
 	int ret = 0;
-	ret |= call(node->_template.id, data);
-	ret |= call(node->_template.body, data);
+	ret |= call(node->_trait.id, data);
+	ret |= call(node->_trait.body, data);
 	return ret;
 }
 
@@ -2757,12 +2687,12 @@ static int call_on_type_alias(int (*call)(struct ast_node *,
 	return ret;
 }
 
-static int call_on_type_template(int (*call)(struct ast_node *,
+static int call_on_type_trait(int (*call)(struct ast_node *,
                                              void *), struct ast_node *node, void *data)
 {
 	int ret = 0;
-	ret |= call(node->_type.template.template, data);
-	ret |= call(node->_type.template.actual, data);
+	ret |= call(node->_type.trait.trait, data);
+	ret |= call(node->_type.trait.actual, data);
 	return ret;
 }
 
@@ -2809,15 +2739,6 @@ static int call_on_type_proc(int (*call)(struct ast_node *,
 	ret |= call(node->_type.proc.id, data);
 	ret |= call(node->_type.proc.params, data);
 	ret |= call(node->_type.proc.ret, data);
-	return ret;
-}
-
-static int call_on_type_lambda(int (*call)(struct ast_node *,
-                                           void *), struct ast_node *node, void *data)
-{
-	int ret = 0;
-	ret |= call(node->_type.lambda.params, data);
-	ret |= call(node->_type.lambda.ret, data);
 	return ret;
 }
 
@@ -2868,7 +2789,7 @@ static int call_on_type(int (*call)(struct ast_node *,
 		break;
 	case AST_TYPE_ENUM: ret = call_on_type_enum(call, node, data); break;
 	case AST_TYPE_ALIAS: ret = call_on_type_alias(call, node, data); break;
-	case AST_TYPE_TEMPLATE: ret = call_on_type_template(call, node, data);
+	case AST_TYPE_TRAIT: ret = call_on_type_trait(call, node, data);
 		break;
 	case AST_TYPE_ID: ret = call_on_type_id(call, node, data); break;
 	case AST_TYPE_ARR: ret = call_on_type_arr(call, node, data); break;
@@ -2878,7 +2799,6 @@ static int call_on_type(int (*call)(struct ast_node *,
 	case AST_TYPE_STRUCT: ret = call_on_type_struct(call, node, data);
 		break;
 	case AST_TYPE_PROC: ret = call_on_type_proc(call, node, data); break;
-	case AST_TYPE_LAMBDA: ret = call_on_type_lambda(call, node, data);
 		break;
 	case AST_TYPE_SIGN: ret = call_on_type_sign(call, node, data); break;
 	case AST_TYPE_POINTER: break;
@@ -2958,6 +2878,14 @@ static int call_on_fetch(int (*call)(struct ast_node *,
 	return ret;
 }
 
+static int call_on_macro_expansion(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+{
+	int ret = 0;
+	ret |= call(node->_macro_expansion.id, data);
+	ret |= call(node->_macro_expansion.args, data);
+	return ret;
+}
+
 /* I guess this works, but it's not exactly optimal as the caller sort of has to
  * know when to continue to call on, and when it would cause an infinite loop.
  * I.e. a call on an ID that is forwarded results in an infinite loop.
@@ -2983,12 +2911,11 @@ int ast_call_on(int (*call)(struct ast_node *,
 	case AST_CAST: ret = call_on_cast(call, node, data); break;
 	case AST_DEFER: ret = call_on_defer(call, node, data); break;
 	case AST_VAR: ret = call_on_var(call, node, data); break;
-	case AST_LAMBDA: ret = call_on_lambda(call, node, data); break;
 	case AST_FOR: ret = call_on_for(call, node, data); break;
 	case AST_WHILE: ret = call_on_while(call, node, data); break;
 	case AST_RETURN: ret = call_on_return(call, node, data); break;
 	case AST_ALIAS: ret = call_on_alias(call, node, data); break;
-	case AST_TEMPLATE: ret = call_on_template(call, node, data); break;
+	case AST_TRAIT: ret = call_on_trait(call, node, data); break;
 	case AST_IF: ret = call_on_if(call, node, data); break;
 	case AST_ENUM: ret = call_on_enum(call, node, data); break;
 	case AST_STRUCT: ret = call_on_struct(call, node, data); break;
@@ -3002,6 +2929,7 @@ int ast_call_on(int (*call)(struct ast_node *,
 	case AST_UNOP: ret = call_on_unop(call, node, data); break;
 	case AST_CALL: ret = call_on_call(call, node, data); break;
 	case AST_MACRO: ret = call_on_macro(call, node, data); break;
+	case AST_MACRO_EXPANSION: ret = call_on_macro_expansion(call, node, data); break;
 	case AST_PROC: ret = call_on_proc(call, node, data); break;
 	case AST_BLOCK: ret = call_on_block(call, node, data); break;
 	case AST_LAST: break;

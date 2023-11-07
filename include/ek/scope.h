@@ -217,7 +217,7 @@ struct scope {
 	 * @todo choose common terminology, sometimes the same thing is referred
 	 * to as interfaces, sometimes templates, sometimes just type.
 	 */
-	struct visible *templates;
+	struct visible *traits;
 	/** } */
 
 	/** { Callables, incl. variables. */
