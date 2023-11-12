@@ -10,6 +10,8 @@
  * Abstract syntax tree handling.
  */
 
+#define AST_GET(x, y) x->x.y
+
 /** Binary operands, that is they take two arguments and produce a result. */
 enum ast_binops {
 	/** Add, \c + */
@@ -22,16 +24,8 @@ enum ast_binops {
 	AST_DIV,
 	/** Remainder, \c % */
 	AST_REM,
-	/** Bitwise exclusive or, \c ^ */
-	AST_XOR,
-	/** Raise to power \c ^^ (likely not necessary) */
-	AST_POW,
-	/** Bitwise and, \c & */
-	AST_AND,
 	/** Logical and, \c && */
 	AST_LAND,
-	/** Bitwise or, \c | */
-	AST_OR,
 	/** Logical or, \c ||*/
 	AST_LOR,
 	/** Left shift (logical), \c << @todo add arithmetic shifts? */
@@ -48,12 +42,6 @@ enum ast_binops {
 	AST_ASSIGN_DIV,
 	/** Assigning remainder, \c %= */
 	AST_ASSIGN_REM,
-	/** Assigning bitwise and, \c &= */
-	AST_ASSIGN_AND,
-	/** Assigning bitwise or, \c |= */
-	AST_ASSIGN_OR,
-	/** Assigning bitwise exclusive or, \c ^= */
-	AST_ASSIGN_XOR,
 	/** Assigning logical left shift, \c >>= */
 	AST_ASSIGN_LSHIFT,
 	/** Assigning logical right shift, \c <<= */
@@ -82,9 +70,9 @@ enum ast_unops {
 	AST_REF,
 	/** Dereferencing, \c ' */
 	AST_DEREF,
-	/** Bitwise negation, i.e. inverting bits, \c ~ */
-	AST_NOT
 };
+
+#define NULL_LOC() ((struct src_loc){0, 0, 0, 0})
 
 /** Represents a source location, spanning over some bit of code. */
 struct src_loc {
@@ -110,8 +98,9 @@ enum ast_node_type {
 	AST_INIT,
 	/** Assignment. */
 	AST_ASSIGN,
-	/** Call. We don't know to what yet: macro, array or procedure.*/
+	/** Call procedure. */
 	AST_CALL,
+	AST_ARR_ACCESS,
 	/** Sizeof. */
 	AST_SIZEOF,
 	/** Cast. */
@@ -119,10 +108,10 @@ enum ast_node_type {
 	/** Defer. */
 	AST_DEFER,
 	/** Macro definition. */
-	AST_MACRO,
-	AST_MACRO_EXPANSION,
-	/** Reference to previous expression, i.e. \c @ */
-	AST_LAST,
+	AST_MACRO_CONSTRUCT,
+	AST_MACRO_EXPAND,
+	AST_TYPE_CONSTRUCT,
+	AST_TYPE_EXPAND,
 	/** Procedure definition. */
 	AST_PROC,
 	/** Goto. */
@@ -162,8 +151,6 @@ enum ast_node_type {
 	AST_IMPORT,
 	/** Enum definition. */
 	AST_ENUM,
-	/** Union definition. */
-	AST_UNION,
 	/** Enum constant value. */
 	AST_VAL,
 	/** Switch. */
@@ -310,6 +297,11 @@ struct ast_label {
 	struct ast_node *defers;
 };
 
+struct ast_arr_access {
+	struct ast_node *base;
+	struct ast_node *idx;
+};
+
 /** Goto node. */
 struct ast_goto {
 	/** Name of label to jump to. */
@@ -394,7 +386,7 @@ struct ast_defer {
 };
 
 /** Macro definition. */
-struct ast_macro {
+struct ast_macro_construct {
 	/** Name of macro. */
 	struct ast_node *id;
 	/** Parameters macro takes. */
@@ -403,7 +395,18 @@ struct ast_macro {
 	struct ast_node *body;
 };
 
-struct ast_macro_expansion {
+struct ast_macro_expand {
+	struct ast_node *id;
+	struct ast_node *args;
+};
+
+struct ast_type_construct {
+	struct ast_node *id;
+	struct ast_node *params;
+	struct ast_node *body;
+};
+
+struct ast_type_expand {
 	struct ast_node *id;
 	struct ast_node *args;
 };
@@ -648,16 +651,6 @@ struct ast_struct {
 	struct ast_node *body;
 };
 
-/** Union definition. */
-struct ast_union {
-	/** Name of union. */
-	struct ast_node *id;
-	/** List of type parameters, if any. */
-	struct ast_node *generics;
-	/** Body. */
-	struct ast_node *body;
-};
-
 /** Enum member constant value. */
 struct ast_val {
 	/** Name of member. */
@@ -741,8 +734,9 @@ struct ast_node {
 
 	/** Data relevant to kind. */
 	union {
+		struct ast_arr_access arr_access;
 		/** Binary operation. */
-		struct ast_binop _binop;
+		struct ast_binop binop;
 		/** Unary operation. */
 		struct ast_unop _unop;
 		/** Call. */
@@ -750,8 +744,10 @@ struct ast_node {
 		/** Cast. */
 		struct ast_cast _cast;
 		/** Macro definition. */
-		struct ast_macro _macro;
-		struct ast_macro_expansion _macro_expansion;
+		struct ast_macro_construct _macro;
+		struct ast_macro_expand _macro_expand;
+		struct ast_type_construct type_construct;
+		struct ast_type_expand type_expand;
 		/** Procedure definition. */
 		struct ast_proc _proc;
 		/** Goto. */
@@ -794,8 +790,6 @@ struct ast_node {
 		struct ast_enum _enum;
 		/** Structure definition. */
 		struct ast_struct _struct;
-		/** Union definition. */
-		struct ast_union _union;
 		/** Enum value. */
 		struct ast_val _val;
 		/** Switch case. */
@@ -819,6 +813,8 @@ struct ast_node {
 	};
 };
 
+struct ast_node *gen_arr_access(struct ast_node *base, struct ast_node *idx, struct src_loc loc);
+
 /**
  * Generate binary operation node.
  *
@@ -828,7 +824,9 @@ struct ast_node {
  * @return Corresponding AST node.
  */
 struct ast_node *gen_binop(enum ast_binops op,
-                           struct ast_node *left, struct ast_node *right);
+                           struct ast_node *left,
+			   struct ast_node *right,
+			   struct src_loc loc);
 
 /**
  * Generate unary operation.
@@ -854,7 +852,7 @@ struct ast_node *gen_call(struct ast_node *id, struct ast_node *args);
  * @param id ID.
  * @return Corresponding AST node.
  */
-struct ast_node *gen_id(const char *id);
+struct ast_node *gen_id(const char *id, struct src_loc loc);
 
 /**
  * Generate constant integer.
@@ -947,8 +945,21 @@ struct ast_node *gen_ctrl(enum ast_ctrl_kind kind, struct src_loc loc);
  * @param body Macro body.
  * @return Corresponding AST node.
  */
-struct ast_node *gen_macro(struct ast_node *id, struct ast_node *params,
+struct ast_node *gen_macro_construct(struct ast_node *id, struct ast_node *params,
                            struct ast_node *body);
+
+struct ast_node *gen_macro_expand(struct ast_node *id, struct ast_node *args);
+
+struct ast_node *gen_type_construct(struct ast_node *id,
+		struct ast_node *params,
+		struct ast_node *body,
+		struct src_loc loc);
+
+/** @todo change args to type type when I figure out how it should be
+ * constructed */
+struct ast_node *gen_type_expand(struct ast_node *id,
+		struct ast_node *args,
+		struct src_loc loc);
 
 /**
  * Generate if.
@@ -1078,8 +1089,6 @@ struct ast_node *gen_alias(struct ast_node *id, struct ast_node *type);
  * @return Corresponding AST node.
  */
 struct ast_node *gen_trait(struct ast_node *id, struct ast_node *body);
-
-struct ast_node *gen_macro_expansion(struct ast_node *id, struct ast_node *args);
 
 /**
  * Generate import;

@@ -211,7 +211,7 @@ STRING		\"(\\.|[^"\\])*\"
 . {
 	struct src_issue issue;
 	issue.level = SRC_ERROR;
-	issue.loc = to_src_loc(yylloc);
+	issue.loc = src_loc(*yylloc);
 	issue.fctx.fbuf = parser->buf;
 	issue.fctx.fname = parser->fname;
 	src_issue(issue, "Unexpected token: %s", yytext);

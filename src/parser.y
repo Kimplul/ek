@@ -142,7 +142,9 @@
 /* constant operations */
 %nterm <node> const_expr const_unop const_binop
 
-%nterm <node> macro_expand
+%nterm <node> macro_expand type_expand
+
+%nterm <node> type_construct type_params type_param
 
 /* array stuff */
 %nterm <node> arr arr_inits arr_init
@@ -189,7 +191,7 @@ static int next_interesting_feature(YYSTYPE *yylval, YYLTYPE *yylloc,
  * @param yylloc Bison location info.
  * @return Internal location info.
  */
-static struct src_loc to_src_loc(YYLTYPE *yylloc);
+static struct src_loc src_loc(YYLTYPE yylloc);
 
 /**
  * Print parsing error.
@@ -227,15 +229,11 @@ static const char *clone_string(const char *s);
 %start input;
 %%
 id
-	: ID {
-		$$ = gen_id(strdup($1));
-		$$->loc = to_src_loc(&yylloc);
-	}
+	: ID {$$ = gen_id(strdup($1), src_loc(@$));}
 
 apply
 	: APPLY {
-		$$ = gen_id(strdup($1));
-		$$->loc = to_src_loc(&yylloc);
+		$$ = gen_id(strdup($1), src_loc(@$));
 	}
 
 var
@@ -252,37 +250,36 @@ assign
 	: expr "=" expr { $$ = gen_assign($1, $3); }
 
 binop
-	: expr "+" expr { $$ = gen_binop(AST_ADD, $1, $3);  }
-	| expr "-" expr { $$ = gen_binop(AST_SUB, $1, $3);  }
-	| expr "*" expr { $$ = gen_binop(AST_MUL, $1, $3);  }
-	| expr "/" expr { $$ = gen_binop(AST_DIV, $1, $3);  }
-	| expr "%" expr { $$ = gen_binop(AST_REM, $1, $3);  }
-	| expr "<<" expr { $$ = gen_binop(AST_LSHIFT, $1, $3);  }
-	| expr ">>" expr { $$ = gen_binop(AST_RSHIFT, $1, $3);  }
-	| expr "+=" expr { $$ = gen_binop(AST_ASSIGN_ADD, $1, $3);  }
-	| expr "-=" expr { $$ = gen_binop(AST_ASSIGN_SUB, $1, $3);  }
-	| expr "*=" expr { $$ = gen_binop(AST_ASSIGN_MUL, $1, $3);  }
-	| expr "/=" expr { $$ = gen_binop(AST_ASSIGN_DIV, $1, $3);  }
-	| expr "%=" expr { $$ = gen_binop(AST_ASSIGN_REM, $1, $3);  }
+	: expr "+" expr { $$ = gen_binop(AST_ADD, $1, $3, src_loc(@$));  }
+	| expr "-" expr { $$ = gen_binop(AST_SUB, $1, $3, src_loc(@$));  }
+	| expr "*" expr { $$ = gen_binop(AST_MUL, $1, $3, src_loc(@$));  }
+	| expr "/" expr { $$ = gen_binop(AST_DIV, $1, $3, src_loc(@$));  }
+	| expr "%" expr { $$ = gen_binop(AST_REM, $1, $3, src_loc(@$));  }
+	| expr "<<" expr { $$ = gen_binop(AST_LSHIFT, $1, $3, src_loc(@$));  }
+	| expr ">>" expr { $$ = gen_binop(AST_RSHIFT, $1, $3, src_loc(@$));  }
+	| expr "+=" expr { $$ = gen_binop(AST_ASSIGN_ADD, $1, $3, src_loc(@$));  }
+	| expr "-=" expr { $$ = gen_binop(AST_ASSIGN_SUB, $1, $3, src_loc(@$));  }
+	| expr "*=" expr { $$ = gen_binop(AST_ASSIGN_MUL, $1, $3, src_loc(@$));  }
+	| expr "/=" expr { $$ = gen_binop(AST_ASSIGN_DIV, $1, $3, src_loc(@$));  }
+	| expr "%=" expr { $$ = gen_binop(AST_ASSIGN_REM, $1, $3, src_loc(@$));  }
 	| expr "<<=" expr {
-		$$ = gen_binop(AST_ASSIGN_LSHIFT, $1, $3);
+		$$ = gen_binop(AST_ASSIGN_LSHIFT, $1, $3, src_loc(@$));
 	}
 	| expr ">>=" expr {
-		$$ = gen_binop(AST_ASSIGN_RSHIFT, $1, $3);
+		$$ = gen_binop(AST_ASSIGN_RSHIFT, $1, $3, src_loc(@$));
 	}
-	| expr "<" expr { $$ = gen_binop(AST_LT, $1, $3);  }
-	| expr ">" expr { $$ = gen_binop(AST_GT, $1, $3);  }
-	| expr "<=" expr { $$ = gen_binop(AST_LE, $1, $3);  }
-	| expr ">=" expr { $$ = gen_binop(AST_GE, $1, $3);  }
-	| expr "!=" expr { $$ = gen_binop(AST_NE, $1, $3);  }
-	| expr "==" expr { $$ = gen_binop(AST_EQ, $1, $3);  }
+	| expr "<" expr { $$ = gen_binop(AST_LT, $1, $3, src_loc(@$));  }
+	| expr ">" expr { $$ = gen_binop(AST_GT, $1, $3, src_loc(@$));  }
+	| expr "<=" expr { $$ = gen_binop(AST_LE, $1, $3, src_loc(@$));  }
+	| expr ">=" expr { $$ = gen_binop(AST_GE, $1, $3, src_loc(@$));  }
+	| expr "!=" expr { $$ = gen_binop(AST_NE, $1, $3, src_loc(@$));  }
+	| expr "==" expr { $$ = gen_binop(AST_EQ, $1, $3, src_loc(@$));  }
 
 unop
 	: "-" expr { $$ = gen_unop(AST_NEG, $2);  }
 	| "!" expr { $$ = gen_unop(AST_LNOT, $2);  }
 	| "&" expr { $$ = gen_unop(AST_REF, $2);  }
 	| "*" expr { $$ = gen_unop(AST_DEREF, $2);  }
-	| "~" expr { $$ = gen_unop(AST_NOT, $2);  }
 
 arr_init
 	: "=>" const_expr "..." const_expr "=" arg { $$ = gen_var($2, $4, $6); }
@@ -320,24 +317,49 @@ defer
 	: "defer" body { $$ = gen_defer($2);  }
 
 const_binop
-	: const_expr "+" const_expr { $$ = gen_binop(AST_ADD, $1, $3);  }
-	| const_expr "-" const_expr { $$ = gen_binop(AST_SUB, $1, $3);  }
-	| const_expr "*" const_expr { $$ = gen_binop(AST_MUL, $1, $3);  }
-	| const_expr "/" const_expr { $$ = gen_binop(AST_DIV, $1, $3);  }
-	| const_expr "%" const_expr { $$ = gen_binop(AST_REM, $1, $3);  }
-	| const_expr "<<" const_expr { $$ = gen_binop(AST_LSHIFT, $1, $3);  }
-	| const_expr ">>" const_expr { $$ = gen_binop(AST_RSHIFT, $1, $3);  }
-	| const_expr "<" const_expr { $$ = gen_binop(AST_LT, $1, $3);  }
-	| const_expr ">" const_expr { $$ = gen_binop(AST_GT, $1, $3);  }
-	| const_expr "<=" const_expr { $$ = gen_binop(AST_LE, $1, $3);  }
-	| const_expr ">=" const_expr { $$ = gen_binop(AST_GE, $1, $3);  }
-	| const_expr "!=" const_expr { $$ = gen_binop(AST_NE, $1, $3);  }
-	| const_expr "==" const_expr { $$ = gen_binop(AST_EQ, $1, $3);  }
+	: const_expr "+" const_expr {
+		$$ = gen_binop(AST_ADD, $1, $3, src_loc(@$));
+	}
+	| const_expr "-" const_expr {
+		$$ = gen_binop(AST_SUB, $1, $3, src_loc(@$));
+	}
+	| const_expr "*" const_expr {
+		$$ = gen_binop(AST_MUL, $1, $3, src_loc(@$));
+	}
+	| const_expr "/" const_expr {
+		$$ = gen_binop(AST_DIV, $1, $3, src_loc(@$));
+	}
+	| const_expr "%" const_expr {
+		$$ = gen_binop(AST_REM, $1, $3, src_loc(@$));
+	}
+	| const_expr "<<" const_expr {
+		$$ = gen_binop(AST_LSHIFT, $1, $3, src_loc(@$));
+	}
+	| const_expr ">>" const_expr {
+		$$ = gen_binop(AST_RSHIFT, $1, $3, src_loc(@$));
+	}
+	| const_expr "<" const_expr {
+		$$ = gen_binop(AST_LT, $1, $3, src_loc(@$));
+	}
+	| const_expr ">" const_expr {
+		$$ = gen_binop(AST_GT, $1, $3, src_loc(@$));
+	}
+	| const_expr "<=" const_expr {
+		$$ = gen_binop(AST_LE, $1, $3, src_loc(@$));
+	}
+	| const_expr ">=" const_expr {
+		$$ = gen_binop(AST_GE, $1, $3, src_loc(@$));
+	}
+	| const_expr "!=" const_expr {
+		$$ = gen_binop(AST_NE, $1, $3, src_loc(@$));
+	}
+	| const_expr "==" const_expr {
+		$$ = gen_binop(AST_EQ, $1, $3, src_loc(@$));
+	}
 
 const_unop
 	: "-" const_expr { $$ = gen_unop(AST_NEG, $2);  }
 	| "!" const_expr { $$ = gen_unop(AST_LNOT, $2);  }
-	| "~" const_expr { $$ = gen_unop(AST_NOT, $2);  }
 
 const_expr
 	: "(" const_expr ")" { $$ = $2; }
@@ -351,16 +373,16 @@ const_expr
 expr
 	: expr "." id { $$ = gen_dot($1, $3); }
 	| "..." id { $$ = $2; }
-	| INT { $$ = gen_int($1); $$->loc = to_src_loc(&yylloc); }
-	| FLOAT { $$ = gen_float($1); $$->loc = to_src_loc(&yylloc);  }
+	| INT { $$ = gen_int($1); $$->loc = src_loc(@$); }
+	| FLOAT { $$ = gen_float($1); $$->loc = src_loc(@$);  }
 	| STRING {
 		$$ = gen_string(clone_string($1));
-		$$->loc = to_src_loc(&yylloc);
+		$$->loc = src_loc(@$);
 	}
 	| "(" expr ")" { $$ = $2; }
 	| expr "(" args ")" { $$ = gen_call($1, $3); }
 	| expr "(" ")" { $$ = gen_call($1, NULL); }
-	| expr "[" expr "]" { $$ = gen_call($1, $3); /** @todo add arr access */}
+	| expr "[" expr "]" { $$ = gen_arr_access($1, $3, src_loc(@$)); /** @todo add arr access */}
 	| "(" var_init ")" { $$ = $2; }
 	| "sizeof" expr { $$ = gen_sizeof($2); }
 	| expr "as" type { $$ = gen_cast($1, $3);  }
@@ -389,8 +411,8 @@ goto
 statelet
 	: "return" args { $$ = gen_return($2);  }
 	| "return" { $$ = gen_return(NULL); }
-	| "break" { $$ = gen_ctrl(AST_CTRL_BREAK, to_src_loc(&yylloc)); }
-	| "continue" { $$ = gen_ctrl(AST_CTRL_CONTINUE, to_src_loc(&yylloc)); }
+	| "break" { $$ = gen_ctrl(AST_CTRL_BREAK, src_loc(yylloc)); }
+	| "continue" { $$ = gen_ctrl(AST_CTRL_CONTINUE, src_loc(yylloc)); }
 	| trait
 	| import
 	| alias
@@ -443,21 +465,20 @@ references
 	| "..." id { $$ = $2; ast_set_flags($$, AST_FLAG_VARIADIC); }
 	| id
 
-/* TODO: rethink how macros play into everyting */
 macro
 	: "define" id "(" references ")" body {
-		$$ = gen_macro($2, $4, $6);
+		$$ = gen_macro_construct($2, $4, $6);
 		ast_set_flags($6, AST_FLAG_UNHYGIENIC);
 	}
 	| "define" id "(" references "..." id ")" body {
 		/* TODO: the location data of the variadic ID is way off */
 		ast_append($4, $6);
-		$$ = gen_macro($2, $4, $8);
+		$$ = gen_macro_construct($2, $4, $8);
 		ast_set_flags($$, AST_FLAG_VARIADIC);
 		ast_set_flags($8, AST_FLAG_UNHYGIENIC);
 	}
 	| "define" id "(" ")" body {
-		$$ = gen_macro($2, NULL, $5);
+		$$ = gen_macro_construct($2, NULL, $5);
 		ast_set_flags($5, AST_FLAG_UNHYGIENIC);
 	}
 
@@ -552,8 +573,6 @@ type
 		$$ = gen_type(AST_TYPE_POINTER, NULL, NULL, NULL);
 		$$->_type.next = $2;
 	}
-	| anon_struct { $$ = $1; }
-	| anon_union { $$ = $1; }
 	| "*" type {
 		$$ = gen_type(AST_TYPE_POINTER, NULL, NULL, NULL);
 		$$->_type.next = $2;
@@ -574,6 +593,21 @@ type
 	| "mut" type {
 		$$ = $2; ast_set_flags($$, AST_FLAG_MUTABLE);
 	}
+	| anon_struct
+	/* syntactic sugar for struct {union {...} } */
+	| anon_union
+	/* syntactic sugar for anon_struct */
+	| type_expand
+
+types
+	: type "," types
+	| type
+
+/* vec![int] is effectively struct {vec![int]} */
+type_expand
+	: apply "[" types "]"
+	/* legal, but weird */
+	| apply "[" "]"
 
 var_decl
 	: type id { $$ = gen_var($2, $1, NULL);  }
@@ -599,25 +633,25 @@ proc
 
 struct_elem
 	: var_decl
-	| macro_expand
+	| type_expand
 	;
 
 members
 	: struct_elem ";" members { $$ = $1; $1->next = $3; }
-	| struct_elem ";" { $$ = $1; }
+	| struct_elem ";"
 
 tagged_union
 	: "union" id "{" members "}" {
-		$$ = gen_union($2, NULL, $4);
+		/* essentially struct {union{members}} */
+		$$ = gen_struct($2, NULL, $4);
 	}
 
 anon_union
-	: "union" "{" members "}" { $$ = gen_union(NULL, NULL, $3); }
-	| "union" macro_expand { $$ = gen_union(NULL, NULL, $2); }
+	: "union" "{" members "}" { $$ = gen_struct(NULL, NULL, $3); }
 
 macro_expand
-	: apply "(" ")" { $$ = gen_macro_expansion($1, NULL); }
-	| apply "(" args ")" { $$ = gen_macro_expansion($1, $3); }
+	: apply "(" ")" { $$ = gen_macro_expand($1, NULL); }
+	| apply "(" args ")" { $$ = gen_macro_expand($1, $3); }
 
 tagged_struct
 	: "struct" id "{" members "}" {
@@ -626,13 +660,12 @@ tagged_struct
 
 anon_struct
 	: "struct" "{" members "}" { $$ = gen_struct(NULL, NULL, $3); }
-	| "struct" macro_expand { $$ = gen_struct(NULL, NULL, $2); }
 
 trait_elem
-	: id
-	| id func_sign { $$ = gen_proc($1, $2, NULL);  }
-	| var_decl
-	| macro_expand
+	: id /* trait */
+	| id func_sign { $$ = gen_proc($1, $2, NULL);  } /* proc */
+	| var_decl /* member */
+	| type_expand /* type construction */
 
 trait_elems
 	: trait_elem ";" trait_elems { $$ = $1; $1->next = $3; }
@@ -651,6 +684,21 @@ trait
 	| "typedef" id "{" "}" {
 		/* should match anything, but doesn't implement anything */
 		$$ = gen_trait($2, NULL);
+	}
+
+type_param
+	: id id
+
+type_params
+	: type_param "," type_params { $$ = $1; $1->next = $3; }
+	| type_param
+
+type_construct
+	: "typedef" id "[" type_params "]" "{" members "}" {
+		$$ = gen_type_construct($2, $4, $7, src_loc(@$));
+	}
+	| "typedef" id "[" "]" "{" members "}" {
+		$$ = gen_type_construct($2, NULL, $6, src_loc(@$));
 	}
 
 enum_val
@@ -686,10 +734,11 @@ top_if
 /* slightly silly to allow stray semicolons at a top level, but seems to help
  * with recovering from certain syntax errors */
 top
-	: enum { $$ = $1; }
-	| proc { $$ = $1; }
-	| tagged_struct { $$ = $1; }
-	| tagged_union { $$ = $1; }
+	: enum
+	| proc
+	| tagged_struct
+	| tagged_union
+	| type_construct
 	| macro { $$ = $1; }
 	| top_if { $$ = $1; ast_set_flags($$, AST_FLAG_CONST); }
 	| import { $$ = $1; }
@@ -698,6 +747,7 @@ top
 	| "pub" enum { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" tagged_struct { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" tagged_union { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
+	| "pub" type_construct { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" proc { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" macro { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" import { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
@@ -759,13 +809,13 @@ static int next_interesting_feature(YYSTYPE *yylval, YYLTYPE *yylloc,
 }
 
 
-static struct src_loc to_src_loc(YYLTYPE *yylloc)
+static struct src_loc src_loc(YYLTYPE yylloc)
 {
 	struct src_loc loc;
-	loc.first_line = yylloc->first_line;
-	loc.last_line = yylloc->last_line;
-	loc.first_col = yylloc->first_column;
-	loc.last_col = yylloc->last_column;
+	loc.first_line = yylloc.first_line;
+	loc.last_line = yylloc.last_line;
+	loc.first_col = yylloc.first_column;
+	loc.last_col = yylloc.last_column;
 	return loc;
 }
 
@@ -776,7 +826,7 @@ static void yyerror(YYLTYPE *yylloc, void *lexer,
 
 	struct src_issue issue;
 	issue.level = SRC_ERROR;
-	issue.loc = to_src_loc(yylloc);
+	issue.loc = src_loc(*yylloc);
 	issue.fctx.fbuf = parser->buf;
 	issue.fctx.fname = parser->fname;
 	src_issue(issue, msg);

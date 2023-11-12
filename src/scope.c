@@ -17,6 +17,13 @@
 #include <ek/scope.h>
 #include <ek/actualize.h>
 
+static struct ast_node *match_proc(struct scope *scope,
+                                   struct ast_node *id,
+				   struct ast_node *args);
+
+static struct ast_node *match_macro(struct scope *scope,
+                                    struct ast_node *id, struct ast_node *args);
+
 static int generics_trait_type(struct ast_node *generics)
 {
 	if (!generics)
@@ -35,10 +42,6 @@ static int generic_type(struct ast_node *type)
 
 	if (type->_type.kind == AST_TYPE_STRUCT)
 		return generics_trait_type(type->_type.struc.impls);
-
-	if (type->_type.kind == AST_TYPE_UNION) {
-		return generics_trait_type(type->_type.unio.impls);
-	}
 
 	if (type->_type.kind == AST_TYPE_TRAIT)
 		return type->_type.trait.actual == NULL;
@@ -90,24 +93,18 @@ int fully_qualified(struct ast_node *type)
 		return 0;
 	}
 
-	if (type->_type.kind == AST_TYPE_UNION) {
-		if (!ast_flags(type, AST_FLAG_GENERIC))
-			return 1;
-
-		if (type->_type.unio.impls)
-			return fully_qualified(type->_type.unio.impls);
-
-		return 0;
-	}
-
 	return fully_qualified(type->_type.next);
 }
 
-static struct param_node *find_primitive(struct proc_node *node,
+static struct param_node *find_matching_param(struct resolve_node *node,
                                          struct ast_node *type)
 {
-	struct param_node *param = node->primitives;
+	struct param_node *param = node->params;
 	while (param) {
+		/* untyped matches everything, yay */
+		if (!param->type)
+			return param;
+
 		if (types_match(type, param->type))
 			return param;
 
@@ -117,104 +114,7 @@ static struct param_node *find_primitive(struct proc_node *node,
 	return NULL;
 }
 
-static int compare_primitives(struct ast_node *a, struct ast_node *b);
-
-/* match also checks qualification status of the types, since we can
- * differentiate between fully qualified types and not fully qualified types
- * by placing qualified types towards the front of the primitive list.
- * This is analoguous to the fallback thing in traits, but we want to be able to
- * support multiple not fully qualified primitives, for example
- *
- * add(some_generic_struct)
- * add(some_other_generic_struct)
- *
- * since they are easily distinguishable from eachother, in contract to traits.
- *
- * Therefore, use this when checking if a primitive should be added to the list,
- * otherwise use find_primitive() to get which primitive matches.
- * (are these names inverted from their intention? I'm not sure)
- */
-static struct param_node *match_primitive(struct proc_node *node,
-                                          struct ast_node *type)
-{
-	struct param_node *param = node->primitives;
-	while (param) {
-		/* note very subtle change in that we pass param->type first
-		 * here, but second in find_primitive. This could easily be
-		 * confusing... */
-		if (types_match(param->type, type))
-			return param;
-
-		param = param->next;
-	}
-
-	return NULL;
-}
-
-static int match_generic(struct scope *scope, struct ast_node *a,
-                         struct ast_node *b)
-{
-	return implements(0, scope, a, b);
-}
-
-static int compare_impls(struct ast_node *a, struct ast_node *b)
-{
-	if (!a)
-		return 1;
-
-	if (!b)
-		return 0;
-
-	while (a && b) {
-		if (compare_primitives(a, b) == 0)
-			return 0;
-
-		a = a->next;
-		b = b->next;
-	}
-
-	return 1;
-}
-
-/* return 1 if a should come after b, 0 if a should come before b */
-static int compare_primitives(struct ast_node *a, struct ast_node *b)
-{
-	assert(a);
-	if (!b)
-		return 0;
-
-	/* fully qualified types go first */
-	if (fully_qualified(a))
-		return 0;
-
-	if (fully_qualified(b))
-		return 1;
-
-	/* TODO: figure out what kind of unqualified type we're dealing with,
-	 * i.e. some_generic(u32, some_other_generic) should come before
-	 * some_generic */
-
-	/* if we're dealing with different unqualified types, push stuff
-	 * backwards, so we don't end up with something like
-	 * 1. some_generic_type
-	 * 2. some_generic_union
-	 * 3. some_generic_type(u32)
-	 */
-
-	if (a->_type.kind != b->_type.kind)
-		return 1;
-
-	if (a->_type.kind == AST_TYPE_STRUCT)
-		return compare_impls(a->_type.struc.impls,
-		                     b->_type.struc.impls);
-
-	if (a->_type.kind == AST_TYPE_UNION)
-		return compare_impls(a->_type.unio.impls, b->_type.unio.impls);
-
-	return 1;
-}
-
-static struct proc_node *insert_primitive(struct proc_node *node,
+static struct resolve_node *insert_resolve(struct resolve_node *node,
                                           struct ast_node *type)
 {
 	struct param_node *new = calloc(1, sizeof(struct param_node));
@@ -223,181 +123,88 @@ static struct proc_node *insert_primitive(struct proc_node *node,
 	}
 	new->type = type;
 
-	struct proc_node *next = calloc(1, sizeof(struct proc_node));
+	struct resolve_node *next = calloc(1, sizeof(struct resolve_node));
 	if (!next) {
 		free(new);
 		return NULL;
 	}
-	new->proc = next;
+	new->resolved = next;
 
-	if (!node->primitives) {
-		node->primitives = new;
+	if (!node->params) {
+		node->params = new;
 		return next;
 	}
 
-	struct param_node *iter = node->primitives, *prev = NULL;
-	while (iter && compare_primitives(type, iter->type)) {
-		prev = iter;
-		iter = iter->next;
-	}
-
-	if (prev)
-		prev->next = new;
-
-	new->next = iter;
-
-	if (iter == node->primitives)
-		node->primitives = new;
+	new->next = node->params;
+	node->params = new;
 
 	return next;
 }
 
-static int add_next_resolve(struct scope *scope, struct ast_node *proc,
-                            struct proc_node *node, struct ast_node *params)
+static int add_next_resolve(struct scope *scope, struct ast_node *resolve,
+                            struct resolve_node *node, struct ast_node *params)
 {
 	assert(node);
 	if (params && actualize_temp_type(scope, params))
 		return -1;
 
-	/* TODO: variadics? */
+	/* TODO: variadics in macros? */
 	/* we've run out of params, check if this is a suitable node */
 	if (!params) {
 		/* node is already occupied, error on ambiguous definition */
-		if (node->proc) {
-			semantic_error(scope->fctx, proc, "ambiguous callable");
-			semantic_error(scope->fctx, node->proc, "matches here");
+		if (node->resolved) {
+			semantic_error(scope->fctx, resolve, "ambiguous resolution");
+			semantic_error(scope->fctx, node->resolved, "matches here");
 			return -1;
 		}
 
-		node->proc = proc;
+		node->resolved = resolve;
 		return 0;
 	}
 
 	assert(params->node_type == AST_VAR);
-	if (primitive_type(params->type)) {
-		struct param_node *match = match_primitive(node, params->type);
-		if (match)
-			return add_next_resolve(scope, proc, match->proc,
-			                        params->next);
+	struct param_node *match = find_matching_param(node, params->type);
+	if (match)
+		return add_next_resolve(scope, resolve,
+				match->resolved,
+					params->next);
 
-		struct proc_node *next = insert_primitive(node, params->type);
-		if (!next)
-			return -1;
-
-		return add_next_resolve(scope, proc, next, params->next);
-	}
-
-	if (referential_type(params->type)) {
-		/* TODO: I don't think there's a good way to check if the
-		 * referential types are identical, but could be worth a shot */
-		if (!node->referential) {
-			node->referential =
-				calloc(1, sizeof(struct param_node));
-			node->referential->type = params->type;
-
-			struct proc_node *next =
-				calloc(1, sizeof(struct proc_node));
-			node->referential->proc = next;
-
-			return add_next_resolve(scope, proc, next,
-			                        params->next);
-		}
-
-		if (!types_match(node->referential->type, params->type)) {
-			semantic_error(scope->fctx, params->type,
-			               "ambiguous referential");
-			semantic_error(scope->fctx, node->referential->type,
-			               "matches here");
-			return -1;
-		}
-
-		/* common reference */
-		destroy_ast_tree(params->type);
-		params->_var.type = NULL;
-		params->type = node->referential->type;
-		return add_next_resolve(scope, proc, node->referential->proc,
-		                        params->next);
-	}
-
-	/* otherwise try to use type as fallback */
-	if (!node->fallback) {
-		node->fallback = calloc(1, sizeof(struct param_node));
-		node->fallback->type = params->type;
-
-		struct proc_node *next = calloc(1, sizeof(struct proc_node));
-		node->fallback->proc = next;
-		return add_next_resolve(scope, proc, next, params->next);
-	}
-
-	if (!match_generic(scope, node->fallback->type, params->type)) {
-		semantic_error(scope->fctx, params->type, "ambiguous generic");
-		semantic_info(scope->fctx, node->fallback->type,
-		              "matches here");
+	/** @todo referential stuff, should only one be allowed per slot or
+	 * something? */
+	struct resolve_node *next = insert_resolve(node, params->type);
+	if (!next)
 		return -1;
-	}
 
-	/* common reference */
-	destroy_ast_tree(params->type);
-	params->_var.type = NULL;
-	params->type = node->fallback->type;
-	return add_next_resolve(scope, proc, node->fallback->proc,
-	                        params->next);
+	return add_next_resolve(scope, resolve, next, params->next);
 }
 
-static int add_resolve(struct scope *scope, struct proc_node *root,
+static int add_resolve(struct scope *scope, struct resolve *resolve,
                        struct ast_node *proc)
 {
-	assert(root);
-
 	struct ast_node *sign = proc->_proc.sign;
 	struct ast_node *params = sign->_type.sign.params;
 
 	struct scope *resolv_scope = create_scope();
 	scope_add_scope(scope, resolv_scope);
-	return add_next_resolve(resolv_scope, proc, root, params);
+	return add_next_resolve(resolv_scope, proc, resolve->root, params);
 }
 
-static struct ast_node *proc_resolve(struct scope *scope,
-                                     struct proc_node *node,
+static struct ast_node *resolve(struct scope *scope,
+                                     struct resolve_node *node,
                                      struct ast_node *args)
 {
 	assert(node);
 	if (!args) {
-		if (node->proc)
-			return node->proc;
+		if (node->resolved)
+			return node->resolved;
 
 		return NULL;
 	}
 
 	/* first check if we match a primitive type */
-	struct param_node *found = find_primitive(node, args->type);
+	struct param_node *found = find_matching_param(node, args->type);
 	if (found)
-		return proc_resolve(scope, found->proc, args->next);
-
-	/* no primitives, check referentials */
-	struct param_node *ref = node->referential;
-	if (ref) {
-		/* this works on the assumption that references actually are
-		 * references to previous nodes, which we've hopefully
-		 * initialized with real types by now.
-		 * However, that doesn't happen, because the fallback isn't the
-		 * one that the type is assigned to. Therefore, fuck. */
-		if (types_match(args->type, ref->type))
-			return proc_resolve(scope, ref->proc, args->next);
-	}
-
-	/* referential didn't match, check fallback */
-	struct param_node *fallback = node->fallback;
-	if (!fallback)
-		return NULL;
-
-	if (implements(0, scope, args->type, fallback->type)) {
-		/* my idea is that we could lock each node individually and
-		 * allow multithreading scopes, but I realize that recursively
-		 * checking traits might cause a lock... */
-		init_trait_type(fallback->type, fallback->type, args->type);
-		return proc_resolve(scope, fallback->proc, args->next);
-	}
+		return resolve(scope, found->resolved, args->next);
 
 	return NULL;
 }
@@ -466,33 +273,34 @@ void destroy_actuals(struct actual *actuals)
 		} while ((prev = cur));
 }
 
-void destroy_proc_node(struct proc_node *);
+void destroy_resolve_node(struct resolve_node *);
 
 void destroy_param_nodes(struct param_node *param)
 {
 	if (!param)
 		return;
 
-	destroy_proc_node(param->proc);
+	destroy_resolve_node(param->resolved);
 	destroy_param_nodes(param->next);
 	free(param);
 }
 
-void destroy_proc_node(struct proc_node *proc)
+void destroy_resolve_node(struct resolve_node *resolve)
 {
-	destroy_param_nodes(proc->primitives);
-	destroy_param_nodes(proc->referential);
-	destroy_param_nodes(proc->fallback);
-	free(proc);
+	if (!resolve)
+		return;
+
+	destroy_param_nodes(resolve->params);
+	free(resolve);
 }
 
-void destroy_callable(struct callable *callable)
+void destroy_resolve(struct resolve *resolve)
 {
-	struct callable *prev = callable, *cur;
+	struct resolve *prev = resolve, *cur;
 	if (prev)
 		do {
 			cur = prev->next;
-			destroy_proc_node(prev->root);
+			destroy_resolve_node(prev->root);
 			destroy_ast_node(prev->id);
 			free(prev);
 		} while ((prev = cur));
@@ -510,14 +318,15 @@ void destroy_scope(struct scope *scope)
 	}
 
 	destroy_scratch(scope->scratch);
-	destroy_callable(scope->callable);
+	destroy_resolve(scope->proc_resolve);
+	destroy_resolve(scope->macro_resolve);
+	destroy_resolve(scope->type_construct_resolve);
 
 	destroy_visible(scope, scope->vars);
 	destroy_visible(scope, scope->procs);
 	destroy_visible(scope, scope->builtins);
 
 	destroy_visible(scope, scope->enums);
-	destroy_visible(scope, scope->unions);
 	destroy_visible(scope, scope->structs);
 	destroy_visible(scope, scope->aliases);
 	destroy_visible(scope, scope->traits);
@@ -572,13 +381,13 @@ static struct scratch *create_scratch(struct ast_node *scratch)
 	}
 
 CREATE_VISIBLE(create_var, vars, AST_VAR);
-CREATE_VISIBLE(create_macro, macros, AST_MACRO);
 CREATE_VISIBLE(create_proc, procs, AST_PROC);
+CREATE_VISIBLE(create_macro, macros, AST_MACRO_CONSTRUCT);
+CREATE_VISIBLE(create_type_construct, type_constructs, AST_TYPE_CONSTRUCT);
 
 CREATE_VISIBLE(create_enum, enums, AST_ENUM);
 CREATE_VISIBLE(create_alias, aliases, AST_ALIAS);
 CREATE_VISIBLE(create_struct, structs, AST_STRUCT);
-CREATE_VISIBLE(create_union, unions, AST_UNION);
 CREATE_VISIBLE(create_builtin, builtins, AST_TYPE);
 CREATE_VISIBLE(create_trait, traits, AST_TRAIT);
 
@@ -598,15 +407,15 @@ CREATE_VISIBLE(create_trait, traits, AST_TRAIT);
 	}
 
 REFERENCE_VISIBLE(reference_var, vars, AST_VAR);
-REFERENCE_VISIBLE(reference_macro, macros, AST_MACRO);
 REFERENCE_VISIBLE(reference_proc, procs, AST_PROC);
+REFERENCE_VISIBLE(reference_macro, macros, AST_MACRO_CONSTRUCT);
 
 REFERENCE_VISIBLE(reference_enum, enums, AST_ENUM);
+REFERENCE_VISIBLE(reference_trait, traits, AST_TRAIT);
 REFERENCE_VISIBLE(reference_alias, aliases, AST_ALIAS);
-REFERENCE_VISIBLE(reference_union, unions, AST_UNION);
 REFERENCE_VISIBLE(reference_struct, structs, AST_STRUCT);
 REFERENCE_VISIBLE(reference_builtin, builtins, AST_TYPE);
-REFERENCE_VISIBLE(reference_trait, traits, AST_TRAIT);
+REFERENCE_VISIBLE(reference_type_construct, type_constructs, AST_TYPE_CONSTRUCT);
 
 /* does NOT walk the scope tree upward if it doesn't find the var in the scope
  * */
@@ -632,13 +441,13 @@ FIND_VISIBLE(scope_find_enum, enums, AST_ENUM, _enum);
 FIND_VISIBLE(scope_find_alias, aliases, AST_ALIAS, _alias);
 FIND_VISIBLE(scope_find_builtin, builtins, AST_TYPE, _type);
 FIND_VISIBLE(scope_find_struct, structs, AST_STRUCT, _struct);
-FIND_VISIBLE(scope_find_union, unions, AST_UNION, _union);
 FIND_VISIBLE(scope_find_trait, traits, AST_TRAIT, _trait);
 /* note that these return the first match for the ID, and as such might not be
  * what should be called. */
 FIND_VISIBLE(scope_find_var, vars, AST_VAR, _var);
-FIND_VISIBLE(scope_find_macro, macros, AST_MACRO, _macro);
 FIND_VISIBLE(scope_find_proc, procs, AST_PROC, _proc);
+FIND_VISIBLE(scope_find_macro, macros, AST_MACRO_CONSTRUCT, _macro);
+FIND_VISIBLE(scope_find_type_construct, type_constructs, AST_TYPE_CONSTRUCT, type_construct);
 
 struct ast_node *scope_find(struct scope *scope, struct ast_node *id)
 {
@@ -673,7 +482,7 @@ struct ast_node *scope_find(struct scope *scope, struct ast_node *id)
 	int name(struct scope *scope, struct ast_node *node)                     \
 	{                                                                        \
 		assert(node->node_type == ast_type);                             \
-		struct ast_node *shadow = file_scope_find(scope,                 \
+		struct ast_node *shadow = file_scope_find_##obj_type(scope,                 \
 		                                          node->ast_name.id);    \
 		if (shadow) {                                                    \
 			semantic_error(scope->fctx, node,                        \
@@ -698,7 +507,6 @@ struct visible *create_type(struct scope *scope, struct ast_node *type)
 	case AST_TRAIT: return create_trait(scope, type);
 	case AST_ENUM: return create_enum(scope, type);
 	case AST_STRUCT: return create_struct(scope, type);
-	case AST_UNION: return create_union(scope, type);
 	default:
 		semantic_error(scope->fctx, type, "unknown type");
 		return NULL;
@@ -713,7 +521,6 @@ int reference_type(int public, struct scope *scope, struct visible *visible)
 	case AST_TRAIT: return reference_trait(public, scope, visible);
 	case AST_ENUM: return reference_enum(public, scope, visible);
 	case AST_STRUCT: return reference_struct(public, scope, visible);
-	case AST_UNION: return reference_union(public, scope, visible);
 	default:
 		semantic_error(scope->fctx, visible->node, "unknown type");
 		return 1;
@@ -755,10 +562,6 @@ struct ast_node *scope_find_type(struct scope *scope, struct ast_node *id)
 		return found;
 
 	found = scope_find_struct(scope, id);
-	if (found)
-		return found;
-
-	found = scope_find_union(scope, id);
 	if (found)
 		return found;
 
@@ -848,44 +651,6 @@ static int find_implementation(struct ast_node *trait, struct ast_node *type)
 	return 0;
 }
 
-static struct ast_node *match_macro(int global, struct scope *scope,
-                                    struct ast_node *id, struct ast_node *args)
-{
-	const size_t arg_count = ast_list_len(args);
-	struct visible *prev = scope->macros, *cur;
-	if (prev)
-		do {
-			cur = prev->next;
-			struct ast_node *macro = prev->node;
-			/* must have identical IDs */
-			if (!identical_ast_nodes(0, macro->_macro.id, id))
-				continue;
-
-			const size_t param_count = ast_list_len(
-				macro->_macro.params);
-
-			/* if macros have the same number of arguments, they
-			 * match */
-			if (param_count == arg_count)
-				return macro;
-
-			/* if we have a variadic macro, a longer list of args is
-			 * a match */
-			if (ast_flags(macro, AST_FLAG_VARIADIC)
-			    && param_count < arg_count)
-				return macro;
-
-		} while ((prev = cur));
-
-	if (global && !scope_flags(scope, SCOPE_FILE))
-		return match_macro(global, scope->parent, id, args);
-
-	return NULL;
-}
-
-static struct ast_node *match_proc(enum match_flags flags, struct scope *scope,
-                                   struct ast_node *id, struct ast_node *args);
-
 static int implements_proc(enum match_flags flags, struct scope *scope,
                            struct ast_node *arg_type,
                            struct ast_node *param_type, struct ast_node *proc)
@@ -901,7 +666,7 @@ static int implements_proc(enum match_flags flags, struct scope *scope,
 	init_trait_types(params, param_type, arg_type);
 	init_trait_type(ret, param_type, arg_type);
 
-	struct ast_node *impl = match_proc(1, scope, id, params);
+	struct ast_node *impl = match_proc(scope, id, params);
 	if (!impl)
 		goto out;
 
@@ -1182,34 +947,53 @@ static int match_params(enum match_flags flags, struct scope *scope,
 	return ret;
 }
 
-static struct ast_node *match_proc(enum match_flags flags, struct scope *scope,
-                                   struct ast_node *id, struct ast_node *args)
+static struct ast_node *match_resolve(struct scope *scope,
+		struct resolve *s,
+		struct ast_node *id,
+		struct ast_node *args)
 {
-	(void)(flags);
-	struct callable *cb = scope->callable;
-	while (cb) {
-		if (identical_ast_nodes(0, cb->id, id))
-			return proc_resolve(scope, cb->root, args);
+	while (s) {
+		/** @todo linear search, a hashmap would be faster */
+		if (identical_ast_nodes(0, s->id, id))
+			return resolve(scope, s->root, args);
 
-		cb = cb->next;
+		s = s->next;
 	}
+
 	return NULL;
+}
+
+static struct ast_node *match_macro(struct scope *scope,
+		struct ast_node *id,
+		struct ast_node *args)
+{
+	return match_resolve(scope, scope->macro_resolve, id, args);
+}
+
+static struct ast_node *match_proc(struct scope *scope,
+                                   struct ast_node *id,
+				   struct ast_node *args)
+{
+	return match_resolve(scope, scope->proc_resolve, id, args);
+}
+
+static struct ast_node *match_type_construct(struct scope *scope,
+		struct ast_node *id,
+		struct ast_node *args)
+{
+	return match_resolve(scope, scope->type_construct_resolve, id, args);
 }
 
 int scope_add_macro(struct scope *scope, struct ast_node *macro)
 {
-	assert(macro->node_type == AST_MACRO);
+	assert(macro->node_type == AST_MACRO_CONSTRUCT);
 
 	/* TODO: separate between arrays and macros? */
 	struct ast_node *id = macro->_macro.id;
 	struct ast_node *params = macro->_macro.params;
 
-	int macro_exists = match_macro(0, scope, id, params) != NULL;
-	// TODO: search for any proc with same number of parameters as macro */
-	// int proc_exists = match_proc(0, scope, id, params) != NULL;
-	int proc_exists = 0;
-
-	if (macro_exists || proc_exists) {
+	int macro_exists = (match_macro(scope, id, params) != NULL);
+	if (macro_exists) {
 		semantic_error(scope->fctx, macro, "macro redefined");
 		return -1;
 	}
@@ -1225,6 +1009,75 @@ int scope_add_macro(struct scope *scope, struct ast_node *macro)
 	return 0;
 }
 
+int add_proc_resolve(struct scope *scope, struct ast_node *proc)
+{
+	if (!scope->proc_resolve) {
+		scope->proc_resolve = calloc(1, sizeof(struct resolve));
+	}
+
+	struct resolve *resolve = scope->proc_resolve;
+	while (resolve) {
+		if (identical_ast_nodes(0, resolve->id, proc->_proc.id))
+			return add_resolve(scope, resolve, proc);
+
+		resolve = resolve->next;
+	}
+
+	resolve = calloc(1, sizeof(struct resolve));
+	resolve->root = calloc(1, sizeof(struct resolve_node));
+	resolve->id = clone_ast_node(proc->_proc.id);
+	resolve->next = scope->proc_resolve;
+	scope->proc_resolve = resolve;
+
+	return add_resolve(scope, resolve, proc);
+}
+
+int add_macro_resolve(struct scope *scope, struct ast_node *macro)
+{
+	if (!scope->macro_resolve) {
+		scope->macro_resolve = calloc(1, sizeof(struct resolve));
+	}
+
+	struct resolve *resolve = scope->macro_resolve;
+	while (resolve) {
+		if (identical_ast_nodes(0, resolve->id, macro->_macro.id))
+			return add_resolve(scope, resolve, macro);
+
+		resolve = resolve->next;
+	}
+
+	resolve = calloc(1, sizeof(struct resolve));
+	resolve->root = calloc(1, sizeof(struct resolve_node));
+	resolve->id = clone_ast_node(macro->_macro.id);
+	resolve->next = scope->macro_resolve;
+	scope->macro_resolve = resolve;
+
+	return add_resolve(scope, resolve, macro);
+}
+
+int add_type_construct_resolve(struct scope *scope, struct ast_node *type_construct)
+{
+	if (!scope->type_construct_resolve) {
+		scope->type_construct_resolve = calloc(1, sizeof(struct resolve));
+	}
+
+	struct resolve *resolve = scope->type_construct_resolve;
+	while (resolve) {
+		if (identical_ast_nodes(0, resolve->id, AST_GET(type_construct, id)))
+			return add_resolve(scope, resolve, type_construct);
+
+		resolve = resolve->next;
+	}
+
+	resolve = calloc(1, sizeof(struct resolve));
+	resolve->root = calloc(1, sizeof(struct resolve_node));
+	resolve->id = clone_ast_node(AST_GET(type_construct, id));
+	resolve->next = scope->type_construct_resolve;
+	scope->type_construct_resolve = resolve;
+
+	return add_resolve(scope, resolve, type_construct);
+}
+
 /* would be useful with scope_remove_proc which also removed all references? */
 int scope_add_proc(struct scope *scope, struct ast_node *proc)
 {
@@ -1234,7 +1087,7 @@ int scope_add_proc(struct scope *scope, struct ast_node *proc)
 	struct ast_node *sign = proc->_proc.sign;
 	struct ast_node *params = sign->_type.sign.params;
 
-	struct ast_node *macro_exists = match_macro(0, scope, id, params);
+	struct ast_node *macro_exists = match_proc(scope, id, params);
 
 	if (macro_exists) {
 		semantic_error(scope->fctx, proc, "proc redefined");
@@ -1246,6 +1099,8 @@ int scope_add_proc(struct scope *scope, struct ast_node *proc)
 	if (!new)
 		return -1;
 
+	add_proc_resolve(scope, proc);
+
 	int public = scope_flags(scope, SCOPE_PUBLIC);
 	if (scope_flags(scope, SCOPE_FILE) && ast_flags(proc, AST_FLAG_PUBLIC))
 		return reference_proc(public, scope->parent, new);
@@ -1253,65 +1108,28 @@ int scope_add_proc(struct scope *scope, struct ast_node *proc)
 	return 0;
 }
 
-int scope_add_existing_var(struct scope *scope, struct visible *visible)
+int scope_add_type_construct(struct scope *scope, struct ast_node *type_construct)
 {
-	struct ast_node *node = visible->node;
-	assert(node->node_type == AST_VAR);
-	struct ast_node *shadow = file_scope_find(scope, node->_var.id);
-	if (shadow) {
-		semantic_error(scope->fctx, node, "shadowing is not allowed\n");
-		semantic_info(scope->fctx, shadow,
-		              "previous declaration was here\n");
+	assert(type_construct->node_type == AST_TYPE_CONSTRUCT);
+
+	struct ast_node *id = AST_GET(type_construct, id);
+	struct ast_node *params = AST_GET(type_construct, params);
+
+	int type_construct_exists = (match_type_construct(scope, id, params) != NULL);
+	if (type_construct_exists) {
+		semantic_error(scope->fctx, type_construct, "type construct redefined");
 		return -1;
 	}
 
-	visible->next = scope->vars;
-	scope->vars = visible;
+	struct visible *new = create_type_construct(scope, type_construct);
+	if (!new)
+		return -1;
 
 	int public = scope_flags(scope, SCOPE_PUBLIC);
-	if (scope_flags(scope, SCOPE_FILE) && ast_flags(node, AST_FLAG_PUBLIC))
-		return reference_proc(public, scope->parent, visible);
+	if (scope_flags(scope, SCOPE_FILE) && ast_flags(type_construct, AST_FLAG_PUBLIC))
+		return reference_type_construct(public, scope->parent, new);
 
 	return 0;
-}
-
-int scope_add_existing_proc(struct scope *scope, struct visible *visible)
-{
-	struct ast_node *proc = visible->node;
-	assert(proc->node_type == AST_PROC);
-
-	struct ast_node *id = proc->_proc.id;
-	struct ast_node *sign = proc->_proc.sign;
-	struct ast_node *params = sign->_type.sign.params;
-
-	struct ast_node *macro_exists = match_macro(0, scope, id, params);
-	if (macro_exists) {
-		semantic_error(scope->fctx, proc, "proc redefined");
-		semantic_info(scope->fctx, macro_exists, "previously as macro");
-		return -1;
-	}
-
-	if (!scope->callable) {
-		scope->callable = calloc(1, sizeof(struct callable));
-		scope->callable->root = calloc(1, sizeof(struct proc_node));
-		scope->callable->id = clone_ast_node(id);
-		return add_resolve(scope, scope->callable->root, proc);
-	}
-
-	struct callable *cb = scope->callable;
-	while (cb) {
-		if (identical_ast_nodes(0, cb->id, id))
-			return add_resolve(scope, cb->root, proc);
-
-		cb = cb->next;
-	}
-
-	cb = calloc(1, sizeof(struct callable));
-	cb->root = calloc(1, sizeof(struct proc_node));
-	cb->id = clone_ast_node(id);
-	cb->next = scope->callable;
-	scope->callable = cb;
-	return add_resolve(scope, cb->root, proc);
 }
 
 #define FIND_FILE_VISIBLE(name, obj_type)                                     \
@@ -1378,12 +1196,12 @@ struct ast_node *file_scope_find(struct scope *scope, struct ast_node *id)
 	return NULL;
 }
 
-struct ast_node *scope_resolve_macro(struct scope *scope, struct ast_node *call)
+struct ast_node *scope_resolve_macro(struct scope *scope, struct ast_node *macro)
 {
-	assert(call->node_type == AST_CALL);
-	struct ast_node *id = call->_call.id;
-	struct ast_node *args = call->_call.args;
-	return match_macro(0, scope, id, args);
+	assert(macro->node_type == AST_MACRO_EXPAND);
+	struct ast_node *id = macro->_macro_expand.id;
+	struct ast_node *args = macro->_macro_expand.args;
+	return match_macro(scope, id, args);
 }
 
 static int trait_contains_proc(enum match_flags flags, struct scope *scope,
@@ -1423,39 +1241,7 @@ struct ast_node *scope_resolve_proc(struct scope *scope, struct ast_node *call)
 	struct ast_node *id = call->_call.id;
 	struct ast_node *args = call->_call.args;
 
-	/* TODO: this prints out an error for each scope we run through, figure
-	 * out where we should check for this stuff so only a single error is
-	 * printed */
-	/* loop over arguments, if any of them are traitd check that the
-	 * found proc can be found in the trait */
-	struct ast_node *arg = args;
-	while (arg) {
-		struct ast_node *trait = extract_trait(arg->type);
-		if (!trait)
-			goto next;
-
-		if (!trait_contains_proc(MATCH_CALL, scope, trait, id,
-		                            args)) {
-			char *cstr = call_str(call);
-			char *tstr = type_str(arg);
-			semantic_error(scope->fctx, arg,
-			               "%s not associated with %s",
-			               cstr,
-			               tstr);
-			free(cstr);
-			free(tstr);
-			return NULL;
-		}
-
-next:
-		arg = arg->next;
-	}
-
-	struct ast_node *proc = match_proc(MATCH_CALL, scope, id, args);
-	if (!proc)
-		return NULL;
-
-	return proc;
+	return match_proc(scope, id, args);
 }
 
 struct ast_node *scope_resolve_actual(struct scope *scope,
@@ -1488,40 +1274,11 @@ struct ast_node *scope_resolve_actual(struct scope *scope,
 	return NULL;
 }
 
-struct ast_node *scope_resolve_arr(struct scope *scope, struct ast_node *call)
-{
-	assert(call->node_type == AST_CALL);
-	/* could implement arrays in multiple dimensions, though that might make
-	 * other things complicated so disallow it for now */
-	if (ast_list_len(call->_call.args) != 1)
-		return NULL;
-
-	struct ast_node *arg = call->_call.args;
-	struct ast_node *var = scope_find_var(scope, call->_call.id);
-	if (!var)
-		return NULL;
-
-	/* TODO: actualize has types_match, should it be generalized into ast.c
-	 * or something? */
-	if (!identical_ast_nodes(0, var->type, arg->type))
-		return NULL;
-
-	return var;
-}
-
 struct ast_node *scope_resolve_call(struct scope *scope, struct ast_node *call)
 {
 	assert(call->node_type == AST_CALL);
-	/* TODO: should make sure we're getting an array at some point */
-	struct ast_node *found = scope_resolve_arr(scope, call);
-	if (found)
-		return found;
-
-	found = scope_resolve_macro(scope, call);
-	if (found)
-		return found;
-
-	found = scope_resolve_actual(scope, call);
+	/* unsure if actual should be here or somewhere else but eh */
+	struct ast_node *found = scope_resolve_actual(scope, call);
 	if (found)
 		return found;
 
@@ -1567,10 +1324,6 @@ struct ast_node *scope_resolve_type(struct scope *scope, struct ast_node *type)
 		id = type->_struct.id;
 		break;
 
-	case AST_UNION:
-		id = type->_union.id;
-		break;
-
 	case AST_ENUM:
 		id = type->_enum.id;
 		break;
@@ -1596,6 +1349,18 @@ struct ast_node *file_scope_resolve_type(struct scope *scope,
 	return NULL;
 }
 
+struct ast_node *file_scope_resolve_macro(struct scope *scope, struct ast_node *macro)
+{
+	struct ast_node *found = scope_resolve_macro(scope, macro);
+	if (found)
+		return found;
+
+	if (!scope_flags(scope, SCOPE_FILE))
+		return file_scope_resolve_type(scope->parent, macro);
+
+	return NULL;
+}
+
 /* this might be useful somewhere else as well */
 static const char *default_types[] = {"u8", "u16", "u32", "u64",
 	                              "i8" "i16", "i32", "i64",
@@ -1610,7 +1375,7 @@ int scope_add_defaults(struct scope *root)
 	     i < sizeof(default_types) / sizeof(default_types[0]);
 	     ++i) {
 		const char *type = default_types[i];
-		struct ast_node *n = gen_id(strdup(type));
+		struct ast_node *n = gen_id(strdup(type), NULL_LOC());
 		if (!n)
 			return -1;
 

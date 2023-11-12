@@ -34,69 +34,104 @@
 		} while ((prev = cur));          \
 	}
 
-static struct src_loc loc_span(struct ast_node *left, struct ast_node *right)
+struct ast_node *gen_arr_access(struct ast_node *base, struct ast_node *idx, struct src_loc loc)
 {
-	struct src_loc loc = {0};
-	if (!left && !right)
-		return loc;
-
-	if (!left && right)
-		return right->loc;
-
-	if (left && !right)
-		return left->loc;
-
-	/* this might eventually be a good thing to do,
-	 * but right now I'm still having issues with initializing all nodes
-	 * with some kind of even slightly accurate location
-	   assert(left->loc.first_line);
-	   assert(left->loc.first_col);
-	   assert(right->loc.last_line);
-	   assert(right->loc.last_col);
-	 */
-
-	loc.first_line = left->loc.first_line;
-	loc.first_col = left->loc.first_col;
-	loc.last_line = right->loc.last_line;
-	loc.last_col = right->loc.last_col;
-	return loc;
+	ALLOC_NODE(n, "arr_access");
+	n->node_type = AST_ARR_ACCESS;
+	n->arr_access.base = base;
+	n->arr_access.idx = idx;
+	n->loc = loc;
+	return n;
 }
 
-struct ast_node *gen_macro_expansion(struct ast_node *id, struct ast_node *args)
+void destroy_arr_access(struct ast_node *arr_access)
 {
-	ALLOC_NODE(n, "macro_expansion");
-	n->node_type = AST_MACRO_EXPANSION;
-	n->_macro_expansion.id = id;
-	n->_macro_expansion.args = args;
+	assert(arr_access->node_type == AST_ARR_ACCESS);
+	destroy_ast_node(AST_GET(arr_access, base));
+	destroy_ast_node(AST_GET(arr_access, idx));
+	free(arr_access);
+}
+
+struct ast_node *gen_macro_expand(struct ast_node *id, struct ast_node *args)
+{
+	ALLOC_NODE(n, "macro_expand");
+	n->node_type = AST_MACRO_EXPAND;
+	n->_macro_expand.id = id;
+	n->_macro_expand.args = args;
 	n->loc = id->loc;
 	return n;
 }
 
-void destroy_macro_expansion(struct ast_node *macro_expansion)
+void destroy_macro_expand(struct ast_node *n)
 {
-	assert(macro_expansion->node_type == AST_MACRO_EXPANSION);
-	destroy_ast_node(macro_expansion->_macro_expansion.id);
-	destroy_ast_node(macro_expansion->_macro_expansion.args);
-	free(macro_expansion);
+	assert(n->node_type == AST_MACRO_EXPAND);
+	destroy_ast_node(n->_macro_expand.id);
+	destroy_ast_node(n->_macro_expand.args);
+	free(n);
 }
 
+struct ast_node *gen_type_construct(struct ast_node *id,
+		struct ast_node *params,
+		struct ast_node *body,
+		struct src_loc loc)
+{
+	ALLOC_NODE(n, "type_construct");
+	n->node_type = AST_TYPE_CONSTRUCT;
+	n->type_construct.id = id;
+	n->type_construct.params = params;
+	n->type_construct.body = body;
+	n->loc = loc;
+	return n;
+}
+
+void destroy_type_construct(struct ast_node *type_construct)
+{
+	destroy_ast_node(AST_GET(type_construct, id));
+	destroy_ast_node(AST_GET(type_construct, params));
+	destroy_ast_node(AST_GET(type_construct, body));
+	free(type_construct);
+}
+
+struct ast_node *gen_type_expand(struct ast_node *id,
+		struct ast_node *args,
+		struct src_loc loc)
+{
+	ALLOC_NODE(n, "type_expand");
+	n->node_type = AST_TYPE_EXPAND;
+	n->type_expand.id = id;
+	n->type_expand.args = args;
+	n->loc = loc;
+	return n;
+}
+
+void destroy_type_expand(struct ast_node *n)
+{
+	assert(n->node_type == AST_TYPE_EXPAND);
+	destroy_ast_node(n->type_expand.args);
+	free((void *)n->type_expand.id);
+	free(n);
+}
+
+
 struct ast_node *gen_binop(enum ast_binops op,
-                           struct ast_node *left, struct ast_node *right)
+                           struct ast_node *left,
+			   struct ast_node *right,
+			   struct src_loc loc)
 {
 	ALLOC_NODE(n, "binop");
 	n->node_type = AST_BINOP;
-	n->_binop.op = op;
-	n->_binop.left = left;
-	n->_binop.right = right;
-	n->loc = loc_span(left, right);
+	n->binop.op = op;
+	n->binop.left = left;
+	n->binop.right = right;
+	n->loc = loc;
 	return n;
 }
 
 void destroy_binop(struct ast_node *binop)
 {
 	assert(binop->node_type == AST_BINOP);
-	destroy_ast_node(binop->_binop.left);
-	destroy_ast_node(binop->_binop.right);
+	destroy_ast_node(binop->binop.left);
+	destroy_ast_node(binop->binop.right);
 	free(binop);
 }
 
@@ -135,12 +170,12 @@ void destroy_call(struct ast_node *call)
 	free(call);
 }
 
-struct ast_node *gen_id(const char *id)
+struct ast_node *gen_id(const char *id, struct src_loc loc)
 {
 	ALLOC_NODE(n, "id");
 	n->node_type = AST_ID;
 	n->_id.id = id;
-	/* assume the parser populates location data */
+	n->loc = loc;
 	return n;
 }
 
@@ -157,7 +192,6 @@ struct ast_node *gen_assign(struct ast_node *to, struct ast_node *from)
 	n->node_type = AST_ASSIGN;
 	n->_assign.to = to;
 	n->_assign.from = from;
-	n->loc = loc_span(to, from);
 	return n;
 }
 
@@ -359,11 +393,12 @@ static void destroy_fetch(struct ast_node *fetch)
 	free(fetch);
 }
 
-struct ast_node *gen_macro(struct ast_node *id, struct ast_node *params,
+struct ast_node *gen_macro_construct(struct ast_node *id,
+		struct ast_node *params,
                            struct ast_node *body)
 {
-	ALLOC_NODE(n, "body");
-	n->node_type = AST_MACRO;
+	ALLOC_NODE(n, "macro_construct");
+	n->node_type = AST_MACRO_CONSTRUCT;
 	n->_macro.id = id;
 	n->_macro.params = params;
 	n->_macro.body = body;
@@ -371,9 +406,9 @@ struct ast_node *gen_macro(struct ast_node *id, struct ast_node *params,
 	return n;
 }
 
-void destroy_macro(struct ast_node *macro)
+void destroy_macro_construct(struct ast_node *macro)
 {
-	assert(macro->node_type == AST_MACRO);
+	assert(macro->node_type == AST_MACRO_CONSTRUCT);
 	destroy_ast_node(macro->_macro.id);
 	DESTROY_LIST(macro->_macro.params);
 	DESTROY_LIST(macro->_macro.body);
@@ -388,7 +423,6 @@ struct ast_node *gen_if(struct ast_node *cond, struct ast_node *body,
 	n->_if.cond = cond;
 	n->_if.body = body;
 	n->_if.els = els;
-	n->loc = loc_span(cond, els);
 	return n;
 }
 
@@ -494,16 +528,9 @@ struct ast_node *gen_type(enum ast_type_kind kind, struct ast_node *id,
 	case AST_TYPE_PROC:
 		n->_type.proc.params = expr;
 		n->_type.proc.ret = ret;
-		n->loc = loc_span(expr, ret);
 		break;
 
 	case AST_TYPE_UNION:
-		n->_type.unio.id = id;
-		n->_type.unio.impls = expr;
-		n->loc = id->loc;
-
-		break;
-
 	case AST_TYPE_STRUCT:
 		n->_type.struc.id = id;
 		n->_type.struc.impls = expr;
@@ -519,7 +546,6 @@ struct ast_node *gen_type(enum ast_type_kind kind, struct ast_node *id,
 	case AST_TYPE_SIGN:
 		n->_type.sign.params = expr;
 		n->_type.sign.ret = ret;
-		n->loc = loc_span(expr, ret);
 		break;
 	}
 
@@ -566,14 +592,10 @@ void destroy_type(struct ast_node *type)
 		destroy_ast_node(type->_type.proc.ret);
 		break;
 
+	case AST_TYPE_UNION:
 	case AST_TYPE_STRUCT:
 		destroy_ast_node(type->_type.struc.id);
 		DESTROY_LIST(type->_type.struc.impls);
-		break;
-
-	case AST_TYPE_UNION:
-		destroy_ast_node(type->_type.unio.id);
-		DESTROY_LIST(type->_type.unio.impls);
 		break;
 
 	case AST_TYPE_ENUM:
@@ -596,10 +618,6 @@ struct ast_node *gen_block(struct ast_node *body)
 	ALLOC_NODE(n, "block");
 	n->node_type = AST_BLOCK;
 	n->_block.body = body;
-
-	struct ast_node *first = body;
-	struct ast_node *last = ast_last_node(body);
-	n->loc = loc_span(first, last);
 	return n;
 }
 
@@ -727,30 +745,6 @@ void destroy_struct(struct ast_node *struc)
 	free(struc);
 }
 
-struct ast_node *gen_union(struct ast_node *id,
-                           struct ast_node *generics, struct ast_node *body)
-{
-	ALLOC_NODE(n, "union");
-	n->node_type = AST_UNION;
-	n->_union.id = id;
-	n->_union.generics = generics;
-	n->_union.body = body;
-	if (id)
-		n->loc = id->loc;
-	else
-		n->loc = body->loc;
-	return n;
-}
-
-void destroy_union(struct ast_node *unio)
-{
-	assert(unio->node_type == AST_UNION);
-	destroy_ast_node(unio->_union.id);
-	DESTROY_LIST(unio->_union.generics);
-	DESTROY_LIST(unio->_union.body);
-	free(unio);
-}
-
 struct ast_node *gen_enum(struct ast_node *id, struct ast_node *type,
                           struct ast_node *body)
 {
@@ -779,7 +773,6 @@ struct ast_node *gen_cast(struct ast_node *expr, struct ast_node *type)
 	n->node_type = AST_CAST;
 	n->_cast.expr = expr;
 	n->_cast.type = type;
-	n->loc = loc_span(expr, type);
 	return n;
 }
 
@@ -898,20 +891,6 @@ void destroy_empty(struct ast_node *empty)
 	free(empty);
 }
 
-struct ast_node *gen_last()
-{
-	ALLOC_NODE(n, "last");
-	n->node_type = AST_LAST;
-	/* TODO: location */
-	return n;
-}
-
-void destroy_last(struct ast_node *last)
-{
-	assert(last->node_type == AST_LAST);
-	free(last);
-}
-
 void destroy_ast_node(struct ast_node *node)
 {
 	if (!node)
@@ -920,8 +899,9 @@ void destroy_ast_node(struct ast_node *node)
 	assert(node->node_type);
 
 	switch (node->node_type) {
+	case AST_TYPE_EXPAND: destroy_type_expand(node); break;
+	case AST_TYPE_CONSTRUCT: destroy_type_construct(node); break;
 	case AST_FETCH: destroy_fetch(node); break;
-	case AST_UNION: destroy_union(node); break;
 	case AST_ASSIGN: destroy_assign(node); break;
 	case AST_INIT: destroy_init(node); break;
 	case AST_SIZEOF: destroy_sizeof(node); break;
@@ -930,8 +910,8 @@ void destroy_ast_node(struct ast_node *node)
 	case AST_UNOP: destroy_unop(node); break;
 	case AST_CALL: destroy_call(node); break;
 	case AST_CAST: destroy_cast(node); break;
-	case AST_MACRO: destroy_macro(node); break;
-	case AST_MACRO_EXPANSION: destroy_macro_expansion(node); break;
+	case AST_MACRO_CONSTRUCT: destroy_macro_construct(node); break;
+	case AST_MACRO_EXPAND: destroy_macro_expand(node); break;
 	case AST_PROC: destroy_proc(node); break;
 	case AST_GOTO: destroy_goto(node); break;
 	case AST_LABEL: destroy_label(node); break;
@@ -957,7 +937,7 @@ void destroy_ast_node(struct ast_node *node)
 	case AST_ID: destroy_id(node); break;
 	case AST_AS: destroy_as(node); break;
 	case AST_EMPTY: destroy_empty(node); break;
-	case AST_LAST: destroy_last(node); break;
+	case AST_ARR_ACCESS: destroy_arr_access(node); break;
 	}
 }
 
@@ -994,10 +974,6 @@ static const char *binop_symbol(int op)
 	case AST_MUL: return "*";
 	case AST_DIV: return "/";
 	case AST_REM: return "%";
-	case AST_XOR: return "^";
-	case AST_POW: return "^^";
-	case AST_AND: return "&";
-	case AST_OR: return "|";
 	case AST_LOR: return "||";
 	case AST_LAND: return "&&";
 	case AST_LSHIFT: return "<<";
@@ -1007,9 +983,6 @@ static const char *binop_symbol(int op)
 	case AST_ASSIGN_MUL: return "*=";
 	case AST_ASSIGN_DIV: return "/=";
 	case AST_ASSIGN_REM: return "%=";
-	case AST_ASSIGN_AND: return "&=";
-	case AST_ASSIGN_OR: return "|=";
-	case AST_ASSIGN_XOR: return "^=";
 	case AST_ASSIGN_LSHIFT: return "<<=";
 	case AST_ASSIGN_RSHIFT: return ">>=";
 	case AST_LT: return "<";
@@ -1029,8 +1002,7 @@ static const char *unop_symbol(int op)
 	case AST_NEG: return "-";
 	case AST_LNOT: return "!";
 	case AST_REF: return "&";
-	case AST_DEREF: return "'";
-	case AST_NOT: return "~";
+	case AST_DEREF: return "*";
 	}
 
 	return "UNKNOWN";
@@ -1089,18 +1061,6 @@ static void __dump_ast(int depth, struct ast_node *node)
 
 		dump_ast(depth + 1, node->_fetch.id);
 		dump_ast(depth + 1, node->_fetch.type);
-
-		dump(depth, "}\n");
-		break;
-
-	case AST_UNION:
-		dump(depth, "{UNION:");
-		dump_flags(node);
-		putchar('\n');
-
-		dump_ast(depth + 1, node->_union.id);
-		dump_ast(depth + 1, node->_union.generics);
-		dump_ast(depth + 1, node->_union.body);
 
 		dump(depth, "}\n");
 		break;
@@ -1171,10 +1131,10 @@ static void __dump_ast(int depth, struct ast_node *node)
 	case AST_BINOP:
 		dump(depth, "{BINOP:");
 		dump_flags(node);
-		printf(" %s\n", binop_symbol(node->_binop.op));
+		printf(" %s\n", binop_symbol(node->binop.op));
 
-		dump_ast(depth + 1, node->_binop.left);
-		dump_ast(depth + 1, node->_binop.right);
+		dump_ast(depth + 1, node->binop.left);
+		dump_ast(depth + 1, node->binop.right);
 
 		dump(depth, "}\n");
 		break;
@@ -1221,8 +1181,8 @@ static void __dump_ast(int depth, struct ast_node *node)
 		dump(depth, "}\n");
 		break;
 
-	case AST_MACRO:
-		dump(depth, "{MACRO:");
+	case AST_MACRO_CONSTRUCT:
+		dump(depth, "{MACRO_CONSTRUCT:");
 		dump_flags(node);
 		putchar('\n');
 
@@ -1233,13 +1193,13 @@ static void __dump_ast(int depth, struct ast_node *node)
 		dump(depth, "}\n");
 		break;
 
-	case AST_MACRO_EXPANSION:
-		dump(depth, "{MACRO_EXPANSION:");
+	case AST_MACRO_EXPAND:
+		dump(depth, "{MACRO_EXPAND:");
 		dump_flags(node);
 		putchar('\n');
 
-		dump_ast(depth + 1, node->_macro_expansion.id);
-		dump_ast(depth + 1, node->_macro_expansion.args);
+		dump_ast(depth + 1, node->_macro_expand.id);
+		dump_ast(depth + 1, node->_macro_expand.args);
 
 		dump(depth, "}\n");
 		break;
@@ -1361,6 +1321,8 @@ static void __dump_ast(int depth, struct ast_node *node)
 			dump_ast(depth + 1, node->_type.proc.ret);
 			break;
 
+			/* not really but y'know */
+		case AST_TYPE_UNION:
 		case AST_TYPE_STRUCT:
 			printf(" STRUCT\n");
 			/* oh yeah, struc is at least right now just an ID that
@@ -1375,12 +1337,6 @@ static void __dump_ast(int depth, struct ast_node *node)
 			dump_ast(depth + 1, node->_type.enu.type);
 			break;
 
-		case AST_TYPE_UNION:
-			printf(" UNION\n");
-			dump_ast(depth + 1, node->_type.unio.id);
-			dump_ast(depth + 1, node->_type.unio.impls);
-			break;
-
 		case AST_TYPE_SIGN: printf(" SIGN\n");
 			dump_ast(depth + 1, node->_type.sign.params);
 			dump_ast(depth + 1, node->_type.sign.ret);
@@ -1390,12 +1346,6 @@ static void __dump_ast(int depth, struct ast_node *node)
 		dump_ast(depth + 1, node->_type.next);
 
 		dump(depth, "}\n");
-		break;
-
-	case AST_LAST:
-		dump(depth, "{LAST:");
-		dump_flags(node);
-		printf("}\n");
 		break;
 
 	case AST_EMPTY:
@@ -1553,6 +1503,9 @@ static void __dump_ast(int depth, struct ast_node *node)
 
 		dump(depth, "}\n");
 		break;
+
+	default:
+		dump(depth, "{UNIMP}\n");
 	}
 }
 
@@ -1577,15 +1530,28 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 	assert(node->node_type);
 	struct ast_node *new = NULL;
 	switch (node->node_type) {
+	case AST_ARR_ACCESS:
+		new = gen_arr_access(clone_ast_node(node->arr_access.base),
+				clone_ast_node(node->arr_access.idx),
+				node->loc);
+		break;
+
+	case AST_TYPE_CONSTRUCT:
+		new = gen_type_construct(clone_ast_node(node->type_construct.id),
+				clone_ast_node(node->type_construct.params),
+				clone_ast_node(node->type_construct.body),
+				node->loc);
+		break;
+
+	case AST_TYPE_EXPAND:
+		new = gen_type_expand(clone_ast_node(node->type_expand.id),
+				clone_ast_node(node->type_expand.args),
+				node->loc);
+		break;
+
 	case AST_FETCH:
 		new = gen_fetch(clone_ast_node(node->_fetch.id),
 		                clone_ast_node(node->_fetch.type));
-		break;
-
-	case AST_UNION:
-		new = gen_union(clone_ast_node(node->_union.id),
-		                clone_ast_node(node->_union.generics),
-		                clone_ast_node(node->_union.body));
 		break;
 
 	case AST_ASSIGN:
@@ -1612,9 +1578,10 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 	case AST_LABEL: new = gen_label(clone_ast_node(node->_label.id));
 		break;
 
-	case AST_BINOP: new = gen_binop(node->_binop.op,
-		                        clone_ast_node(node->_binop.left),
-		                        clone_ast_node(node->_binop.right));
+	case AST_BINOP: new = gen_binop(node->binop.op,
+		                        clone_ast_node(node->binop.left),
+		                        clone_ast_node(node->binop.right),
+					node->loc);
 		break;
 
 	case AST_UNOP: new = gen_unop(node->_unop.op,
@@ -1628,13 +1595,14 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 	case AST_DEFER: new = gen_defer(clone_ast_node(node->_defer.expr));
 		break;
 
-	case AST_MACRO: new = gen_macro(clone_ast_node(node->_macro.id),
+	case AST_MACRO_CONSTRUCT: new = gen_macro_construct(
+						  clone_ast_node(node->_macro.id),
 		                        clone_ast_node(node->_macro.params),
 		                        clone_ast_node(node->_macro.body));
 		break;
 
-	case AST_MACRO_EXPANSION: new = gen_macro_expansion(clone_ast_node(node->_macro_expansion.id),
-						  clone_ast_node(node->_macro_expansion.args));
+	case AST_MACRO_EXPAND: new = gen_macro_expand(clone_ast_node(node->_macro_expand.id),
+						  clone_ast_node(node->_macro_expand.args));
 				  break;
 
 	case AST_CAST: new = gen_cast(clone_ast_node(node->_cast.expr),
@@ -1712,6 +1680,7 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 			               /* ditto, should actual be cloned? */
 			               node->_type.trait.actual);
 			break;
+
 		case AST_TYPE_ID:
 			new = gen_type(AST_TYPE_ID,
 			               clone_ast_node(node->_type.id),
@@ -1734,6 +1703,7 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 			new = gen_type(AST_TYPE_POINTER, NULL, NULL, NULL);
 			break;
 
+		case AST_TYPE_UNION:
 		case AST_TYPE_STRUCT:
 			new = gen_type(AST_TYPE_STRUCT,
 			               clone_ast_node(node->_type.struc.id),
@@ -1745,13 +1715,6 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 			new = gen_type(AST_TYPE_ENUM,
 			               clone_ast_node(node->_type.enu.id),
 			               clone_ast_node(node->_type.enu.type),
-			               NULL);
-			break;
-
-		case AST_TYPE_UNION:
-			new = gen_type(AST_TYPE_UNION,
-			               clone_ast_node(node->_type.unio.id),
-			               clone_ast_node(node->_type.unio.impls),
 			               NULL);
 			break;
 
@@ -1830,15 +1793,11 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 		break;
 
 	case AST_ID:
-		new = gen_id(strdup(node->_id.id));
+		new = gen_id(strdup(node->_id.id), node->loc);
 		break;
 
 	case AST_EMPTY:
 		new = gen_empty();
-		break;
-
-	case AST_LAST:
-		new = gen_last();
 		break;
 
 	case AST_ALIAS:
@@ -1893,20 +1852,6 @@ static int identical_scope(void *left, void *right)
 	return left == right;
 }
 
-static int identical_union(int exact, struct ast_node *a, struct ast_node *b)
-{
-	if (!identical_ast_nodes(exact, a->_union.id, b->_union.id))
-		return 0;
-
-	if (!identical_ast_nodes(exact, a->_union.generics, b->_union.generics))
-		return 0;
-
-	if (!identical_ast_nodes(exact, a->_union.body, b->_union.body))
-		return 0;
-
-	return 1;
-}
-
 static int identical_assign(int exact, struct ast_node *a, struct ast_node *b)
 {
 	if (!identical_ast_nodes(exact, a->_assign.to, a->_assign.to))
@@ -1956,13 +1901,13 @@ static int identical_label(int exact, struct ast_node *a, struct ast_node *b)
 
 static int identical_binop(int exact, struct ast_node *a, struct ast_node *b)
 {
-	if (a->_binop.op != b->_binop.op)
+	if (a->binop.op != b->binop.op)
 		return 0;
 
-	if (!identical_ast_nodes(exact, a->_binop.left, b->_binop.left))
+	if (!identical_ast_nodes(exact, a->binop.left, b->binop.left))
 		return 0;
 
-	if (!identical_ast_nodes(exact, a->_binop.right, b->_binop.right))
+	if (!identical_ast_nodes(exact, a->binop.right, b->binop.right))
 		return 0;
 
 	return 1;
@@ -2006,7 +1951,7 @@ static int identical_defer(int exact, struct ast_node *a, struct ast_node *b)
 	return identical_ast_nodes(exact, a->_defer.expr, b->_defer.expr);
 }
 
-static int identical_macro(int exact, struct ast_node *a, struct ast_node *b)
+static int identical_macro_construct(int exact, struct ast_node *a, struct ast_node *b)
 {
 	if (!identical_ast_nodes(exact, a->_macro.id, b->_macro.id))
 		return 0;
@@ -2015,6 +1960,17 @@ static int identical_macro(int exact, struct ast_node *a, struct ast_node *b)
 		return 0;
 
 	if (!identical_ast_nodes(exact, a->_macro.body, b->_macro.body))
+		return 0;
+
+	return 1;
+}
+
+static int identical_macro_expand(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->_macro_expand.id, b->_macro_expand.id))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->_macro_expand.args, b->_macro_expand.args))
 		return 0;
 
 	return 1;
@@ -2170,19 +2126,6 @@ static int identical_type_struct(int exact, struct ast_node *a,
 	return 1;
 }
 
-static int identical_type_union(int exact, struct ast_node *a,
-                                struct ast_node *b)
-{
-	if (!identical_ast_nodes(exact, a->_type.unio.id, b->_type.unio.id))
-		return 0;
-
-	if (!identical_ast_nodes(1, a->_type.unio.impls,
-	                         b->_type.unio.impls))
-		return 0;
-
-	return 1;
-}
-
 static int identical_type_enum(int exact, struct ast_node *a,
                                struct ast_node *b)
 {
@@ -2241,8 +2184,8 @@ static int identical_type(int exact, struct ast_node *a, struct ast_node *b)
 	case AST_TYPE_TYPEOF: ret = identical_type_typeof(exact, a, b); break;
 	case AST_TYPE_PROC: ret = identical_type_proc(exact, a, b); break;
 	case AST_TYPE_SIGN: ret = identical_type_sign(exact, a, b); break;
+	case AST_TYPE_UNION:
 	case AST_TYPE_STRUCT: ret = identical_type_struct(exact, a, b); break;
-	case AST_TYPE_UNION: ret = identical_type_union(exact, a, b); break;
 	case AST_TYPE_POINTER: break;
 	}
 
@@ -2416,6 +2359,42 @@ static int identical_fetch(int exact, struct ast_node *a, struct ast_node *b)
 	return 1;
 }
 
+static int identical_type_expand(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->type_expand.id, b->type_expand.id))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->type_expand.args, b->type_expand.args))
+		return 0;
+
+	return 1;
+}
+
+static int identical_type_construct(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->type_construct.id, b->type_construct.id))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->type_construct.params, b->type_construct.params))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->type_construct.body, b->type_construct.body))
+		return 0;
+
+	return 1;
+}
+
+static int identical_arr_access(int exact, struct ast_node *a, struct ast_node *b)
+{
+	if (!identical_ast_nodes(exact, a->arr_access.base, b->arr_access.base))
+		return 0;
+
+	if (!identical_ast_nodes(exact, a->arr_access.idx, b->arr_access.idx))
+		return 0;
+
+	return 1;
+}
+
 /* sort of unfortnate that we can't just do a direct memcmp... */
 int identical_ast_nodes(int exact, struct ast_node *a, struct ast_node *b)
 {
@@ -2448,8 +2427,10 @@ int identical_ast_nodes(int exact, struct ast_node *a, struct ast_node *b)
 
 	int ret = 0;
 	switch (a->node_type) {
+	case AST_ARR_ACCESS: ret = identical_arr_access(exact, a, b); break;
+	case AST_TYPE_CONSTRUCT: ret = identical_type_construct(exact, a, b); break;
+	case AST_TYPE_EXPAND: ret = identical_type_expand(exact, a, b); break;
 	case AST_FETCH: ret = identical_fetch(exact, a, b); break;
-	case AST_UNION: ret = identical_union(exact, a, b); break;
 	case AST_ASSIGN: ret = identical_assign(exact, a, b); break;
 	case AST_INIT: ret = identical_init(exact, a, b); break;
 	case AST_SIZEOF: ret = identical_sizeof(exact, a, b); break;
@@ -2462,8 +2443,8 @@ int identical_ast_nodes(int exact, struct ast_node *a, struct ast_node *b)
 	case AST_CALL: ret = identical_call(exact, a, b); break;
 	case AST_CAST: ret = identical_cast(exact, a, b); break;
 	case AST_DEFER: ret = identical_defer(exact, a, b); break;
-	case AST_MACRO: ret = identical_macro(exact, a, b); break;
-	case AST_MACRO_EXPANSION: ret = identical_macro(exact, a, b); break;
+	case AST_MACRO_CONSTRUCT: ret = identical_macro_construct(exact, a, b); break;
+	case AST_MACRO_EXPAND: ret = identical_macro_expand(exact, a, b); break;
 	case AST_PROC: ret = identical_proc(exact, a, b); break;
 	case AST_VAR: ret = identical_var(exact, a, b); break;
 	case AST_FOR: ret = identical_for(exact, a, b); break;
@@ -2485,7 +2466,6 @@ int identical_ast_nodes(int exact, struct ast_node *a, struct ast_node *b)
 	case AST_TRAIT: ret = identical_trait(exact, a, b); break;
 	case AST_IF: ret = identical_if(exact, a, b); break;
 	case AST_EMPTY: break;
-	case AST_LAST: break;
 	}
 
 	if (ret == 0)
@@ -2504,16 +2484,6 @@ int identical_ast_nodes(int exact, struct ast_node *a, struct ast_node *b)
 int ast_flags(struct ast_node *node, enum ast_flag flags)
 {
 	return node->flags & flags;
-}
-
-static int call_on_union(int (*call)(struct ast_node *,
-                                     void *), struct ast_node *node, void *data)
-{
-	int ret = 0;
-	ret |= call(node->_union.id, data);
-	ret |= call(node->_union.generics, data);
-	ret |= call(node->_union.body, data);
-	return ret;
 }
 
 static int call_on_assign(int (*call)(struct ast_node *,
@@ -2714,15 +2684,6 @@ static int call_on_type_typeof(int (*call)(struct ast_node *,
 	return call(node->_type.typeo.expr, data);
 }
 
-static int call_on_type_union(int (*call)(struct ast_node *,
-                                          void *), struct ast_node *node, void *data)
-{
-	int ret = 0;
-	ret |= call(node->_type.unio.id, data);
-	ret |= call(node->_type.unio.impls, data);
-	return ret;
-}
-
 static int call_on_type_struct(int (*call)(struct ast_node *,
                                            void *), struct ast_node *node, void *data)
 {
@@ -2795,7 +2756,7 @@ static int call_on_type(int (*call)(struct ast_node *,
 	case AST_TYPE_ARR: ret = call_on_type_arr(call, node, data); break;
 	case AST_TYPE_TYPEOF: ret = call_on_type_typeof(call, node, data);
 		break;
-	case AST_TYPE_UNION: ret = call_on_type_union(call, node, data); break;
+	case AST_TYPE_UNION:
 	case AST_TYPE_STRUCT: ret = call_on_type_struct(call, node, data);
 		break;
 	case AST_TYPE_PROC: ret = call_on_type_proc(call, node, data); break;
@@ -2823,8 +2784,8 @@ static int call_on_binop(int (*call)(struct ast_node *,
                                      void *), struct ast_node *node, void *data)
 {
 	int ret = 0;
-	ret |= call(node->_binop.left, data);
-	ret |= call(node->_binop.right, data);
+	ret |= call(node->binop.left, data);
+	ret |= call(node->binop.right, data);
 	return ret;
 }
 
@@ -2843,7 +2804,7 @@ static int call_on_call(int (*call)(struct ast_node *,
 	return ret;
 }
 
-static int call_on_macro(int (*call)(struct ast_node *,
+static int call_on_macro_construct(int (*call)(struct ast_node *,
                                      void *), struct ast_node *node, void *data)
 {
 	int ret = 0;
@@ -2878,11 +2839,28 @@ static int call_on_fetch(int (*call)(struct ast_node *,
 	return ret;
 }
 
-static int call_on_macro_expansion(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
+static int call_on_macro_expand(int (*call)(struct ast_node *, void *), struct ast_node *node, void *data)
 {
 	int ret = 0;
-	ret |= call(node->_macro_expansion.id, data);
-	ret |= call(node->_macro_expansion.args, data);
+	ret |= call(node->_macro_expand.id, data);
+	ret |= call(node->_macro_expand.args, data);
+	return ret;
+}
+
+static int call_on_type_construct(int (*call)(struct ast_node *, void *), struct ast_node *type_construct, void *data)
+{
+	int ret = 0;
+	ret |= call(AST_GET(type_construct, id), data);
+	ret |= call(AST_GET(type_construct, params), data);
+	ret |= call(AST_GET(type_construct, body), data);
+	return ret;
+}
+
+static int call_on_type_expand(int (*call)(struct ast_node *, void *), struct ast_node *type_expand, void *data)
+{
+	int ret = 0;
+	ret |= call(AST_GET(type_expand, id), data);
+	ret |= call(AST_GET(type_expand, args), data);
 	return ret;
 }
 
@@ -2901,8 +2879,10 @@ int ast_call_on(int (*call)(struct ast_node *,
 		return ret;
 
 	switch (node->node_type) {
+	case AST_ARR_ACCESS:
+	case AST_TYPE_CONSTRUCT: ret = call_on_type_construct(call, node, data); break;
+	case AST_TYPE_EXPAND: ret = call_on_type_expand(call, node, data); break;
 	case AST_FETCH: ret = call_on_fetch(call, node, data); break;
-	case AST_UNION: ret = call_on_union(call, node, data); break;
 	case AST_ASSIGN: ret = call_on_assign(call, node, data); break;
 	case AST_INIT: ret = call_on_init(call, node, data); break;
 	case AST_SIZEOF: ret = call_on_sizeof(call, node, data); break;
@@ -2928,11 +2908,10 @@ int ast_call_on(int (*call)(struct ast_node *,
 	case AST_BINOP: ret = call_on_binop(call, node, data); break;
 	case AST_UNOP: ret = call_on_unop(call, node, data); break;
 	case AST_CALL: ret = call_on_call(call, node, data); break;
-	case AST_MACRO: ret = call_on_macro(call, node, data); break;
-	case AST_MACRO_EXPANSION: ret = call_on_macro_expansion(call, node, data); break;
+	case AST_MACRO_CONSTRUCT: ret = call_on_macro_construct(call, node, data); break;
+	case AST_MACRO_EXPAND: ret = call_on_macro_expand(call, node, data); break;
 	case AST_PROC: ret = call_on_proc(call, node, data); break;
 	case AST_BLOCK: ret = call_on_block(call, node, data); break;
-	case AST_LAST: break;
 	case AST_EMBED: break;
 	case AST_CTRL: break;
 	case AST_IMPORT: break;

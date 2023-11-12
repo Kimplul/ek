@@ -75,13 +75,13 @@ struct actual {
  * matched against this resolution tree to know
  * which callable to choose.
  */
-struct callable {
-	/** Resolve tree of callable. */
-	struct proc_node *root;
-	/** AST node ID of callable. */
+struct resolve {
+	/** Resolve tree of resolve. */
+	struct resolve_node *root;
+	/** AST node ID of resolve. */
 	struct ast_node *id;
-	/** Next callable node. */
-	struct callable *next;
+	/** Next resolve node. */
+	struct resolve *next;
 };
 
 /** A parameter node in the procedure resolution tree. */
@@ -89,7 +89,7 @@ struct param_node {
 	/** Parameter type. */
 	struct ast_node *type;
 	/** Fully resolved procedure if there is no next node. */
-	struct proc_node *proc;
+	struct resolve_node *resolved;
 	/** Next parameter node in current parameter slot. */
 	struct param_node *next;
 };
@@ -134,27 +134,12 @@ struct param_node {
  * do_stuff(some_struct(u8)){} // ERR
  * @endverbatim
  */
-struct proc_node {
-	/** List of primitive types of the current parameter slot. */
-	struct param_node *primitives;
-	/**
-	 * Referential type for parameter slot.
-	 * Each parameter slot only allows a single referential type, because
-	 * it would be too difficult to check if a reference is identical
-	 * to another. Some special cases are somewhat trivially checked, but
-	 * I haven't been able to come up with a generic enough check.
-	 */
-	struct param_node *referential;
-
-	/**
-	 * Fallback generic type for parameter slot.
-	 * Each parameter slot only allows a single generic type, because
-	 * it would be too difficult to check if two types have overlap.
-	 */
-	struct param_node *fallback;
+struct resolve_node {
+	/** List of parameters of the current parameter slot. */
+	struct param_node *params;
 
 	/** Next procedure with parameter slot. */
-	struct ast_node *proc;
+	struct ast_node *resolved;
 };
 
 
@@ -197,8 +182,6 @@ struct scope {
 	/** { types */
 	/** Enums visible in scope. */
 	struct visible *enums;
-	/** Unions visible in scope. */
-	struct visible *unions;
 	/** Structs visible in scope. */
 	struct visible *structs;
 
@@ -213,14 +196,15 @@ struct scope {
 	struct visible *builtins;
 
 	/**
-	 * Templates visible in scope.
+	 * Traits visible in scope.
 	 * @todo choose common terminology, sometimes the same thing is referred
 	 * to as interfaces, sometimes templates, sometimes just type.
 	 */
 	struct visible *traits;
 	/** } */
 
-	/** { Callables, incl. variables. */
+	struct visible *type_constructs;
+
 	/**
 	 * Variables visible in scope.
 	 * @note Only some variables are callable, namely array variables.
@@ -231,19 +215,10 @@ struct scope {
 	struct visible *macros;
 	/** Procedures visible in scope. */
 	struct visible *procs;
-	/** } */
 
-	/** { callables */
-	/**
-	 * Anything callable.
-	 * @note currently each type of callable is first
-	 * collected into its corresponding visible list,
-	 * \p vars, \p macros or \p procs, but after the initial
-	 * program analysis they are merged together to create a callable
-	 * resolve tree.
-	 */
-	struct callable *callable;
-	/** } */
+	struct resolve *proc_resolve;
+	struct resolve *macro_resolve;
+	struct resolve *type_construct_resolve;
 };
 
 /** Flags for matching objects during search. */
@@ -428,7 +403,9 @@ int scope_add_alias(struct scope *scope, struct ast_node *alias);
  * @param type_template Template to add to scope.
  * @return \c 0 when succesful, non-zero otherwise.
  */
-int scope_add_template(struct scope *scope, struct ast_node *type_template);
+int scope_add_trait(struct scope *scope, struct ast_node *trait);
+
+int scope_add_type_construct(struct scope *scope, struct ast_node *type_construct);
 
 /**
  * Add an already allocated visible variable node to scope.
@@ -546,7 +523,7 @@ struct ast_node *scope_find_alias(struct scope *scope, struct ast_node *id);
  * @return Pointer to the AST node corresponding to \p id if found,
  * otherwise \c NULL.
  */
-struct ast_node *scope_find_template(struct scope *scope, struct ast_node *id);
+struct ast_node *scope_find_trait(struct scope *scope, struct ast_node *id);
 
 /**
  * Find anything with ID visible to \p scope.
@@ -617,7 +594,7 @@ struct ast_node *file_scope_find_alias(struct scope *scope,
  * @return Pointer to the AST node corresponding to \p id if found,
  * otherwise \c NULL.
  */
-struct ast_node *file_scope_find_template(struct scope *scope,
+struct ast_node *file_scope_find_trait(struct scope *scope,
                                           struct ast_node *id);
 
 /**

@@ -121,6 +121,7 @@ void semantic_error(struct file_ctx ctx, struct ast_node *node, const char *fmt,
  * @param fmt Format string. Follows standard printf() formatting.
  */
 void internal_error(const char *fmt, ...);
+void internal_warn(const char *fmt, ...);
 
 /** Issue categorization. */
 enum issue_level {

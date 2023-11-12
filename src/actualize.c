@@ -74,7 +74,7 @@ static struct ast_node *void_type()
 		return NULL;
 	}
 
-	struct ast_node *void_id = gen_id(void_str);
+	struct ast_node *void_id = gen_id(void_str, NULL_LOC());
 	if (!void_id) {
 		internal_error("couldn't allocate void id");
 		free(void_str);
@@ -100,7 +100,7 @@ static struct ast_node *i64_type()
 		return NULL;
 	}
 
-	struct ast_node *i64_id = gen_id(i64_str);
+	struct ast_node *i64_id = gen_id(i64_str, NULL_LOC());
 	if (!i64_id) {
 		internal_error("couldn't allocate i64 id");
 		free(i64_str);
@@ -344,11 +344,6 @@ static int analyze_file_visibility(struct scope *scope, struct ast_node *node)
 		break;
 	}
 
-	case AST_UNION: {
-		ret |= scope_add_type(scope, node);
-		break;
-	}
-
 	case AST_ENUM: {
 		ret |= scope_add_type(scope, node);
 		break;
@@ -360,11 +355,16 @@ static int analyze_file_visibility(struct scope *scope, struct ast_node *node)
 	}
 
 	case AST_TRAIT: {
-		ret |= scope_add_type(scope, node);
+		ret |= scope_add_trait(scope, node);
 		break;
 	}
 
-	case AST_MACRO: {
+	case AST_TYPE_CONSTRUCT: {
+		ret |= scope_add_type_construct(scope, node);
+		break;
+	}
+
+	case AST_MACRO_CONSTRUCT: {
 		ret |= scope_add_macro(scope, node);
 		break;
 	}
@@ -406,68 +406,10 @@ static int analyze(struct scope *scope, struct ast_node *tree)
 	return 0;
 }
 
-/* I would be more happy with a system where proc signatures are actualized
- * on demand, but the current scope implementation doesn't work that well for it.
- * Relatively straight forward to implement some kind of actualization
- * forwarding, the main issue is detecting duplicates. */
-static int analyze_procs(struct scope *scope)
-{
-	struct visible *procs = scope->procs;
-	/*
-	   struct act_state state = {0};
-	   act_set_flags(&state, ACT_ONLY_TYPES);
-	   if (procs)
-	        do {
-	                if (procs->owner != scope)
-	                        goto skip_actualize;
-
-	                struct ast_node *proc = procs->node;
-	                if (actualize(&state, scope, proc))
-	                        return -1;
-
-	   skip_actualize:
-	                procs = procs->next;
-	        } while (procs);
-	 */
-
-	/* reinsert procs with actualized signatures, should make sure we don't
-	 * have duplicates after all aliases etc. have been eliminated */
-	procs = scope->procs;
-	if (procs)
-		do {
-			struct visible *next = procs->next;
-			if (procs->owner != scope) {
-				/* this is a reference, ignore it */
-				free(procs);
-				goto skip_add;
-			}
-			if (scope_add_existing_proc(scope, procs)) {
-				return -1;
-			}
-
-skip_add:
-			procs = next;
-		} while (procs);
-
-	/* repeat for all child scopes */
-	struct scope *child = scope->children;
-	while (child) {
-		if (analyze_procs(child))
-			return -1;
-
-		child = child->next;
-	}
-
-	return 0;
-}
-
 int analyze_root(struct scope *scope, struct ast_node *tree)
 {
 	scope_add_defaults(scope);
 	if (analyze(scope, tree))
-		return -1;
-
-	if (analyze_procs(scope))
 		return -1;
 
 	return 0;
@@ -683,14 +625,14 @@ static int replace_id(struct ast_node *body, struct ast_node *id,
 	return ast_call_on(_replace_id, body, pair);
 }
 
-static int actualize_macro(struct act_state *state,
-                           struct scope *scope, struct ast_node *macro)
+static int actualize_macro_construct(struct act_state *state,
+                           struct scope *scope, struct ast_node *n)
 {
 	UNUSED(state);
 	/* macro bodies, arguments, etc aren't expanded upon until the macro is
 	 * called, so just try to add it to the local scope */
-	assert(macro && macro->node_type == AST_MACRO);
-	return scope_add_macro(scope, macro);
+	assert(n && n->node_type == AST_MACRO_CONSTRUCT);
+	return scope_add_macro(scope, n);
 }
 
 struct ast_node *extract_typeof(struct ast_node *type)
@@ -833,7 +775,7 @@ static int actualize_macro_call(struct act_state *state,
                                 struct scope *scope, struct ast_node *call,
                                 struct ast_node *macro)
 {
-	assert(call->node_type == AST_CALL && macro->node_type == AST_MACRO);
+	assert(call->node_type == AST_CALL && macro->node_type == AST_MACRO_EXPAND);
 	if (ast_flags(macro, AST_FLAG_VARIADIC)) {
 		semantic_error(scope->fctx, macro,
 		               "variadic macros not yet implemented");
@@ -929,7 +871,7 @@ get_callable:
 	if (callable->node_type == AST_PROC)
 		return actualize_proc_call(state, scope, call, callable);
 
-	if (callable->node_type == AST_MACRO)
+	if (callable->node_type == AST_MACRO_EXPAND)
 		return actualize_macro_call(state, scope, call, callable);
 
 	/* TODO: add lambdas and arrays */
@@ -1050,8 +992,8 @@ static int actualize_binop(struct act_state *state,
 {
 	assert(binop && binop->node_type == AST_BINOP);
 
-	struct ast_node *left = binop->_binop.left;
-	struct ast_node *right = binop->_binop.right;
+	struct ast_node *left = binop->binop.left;
+	struct ast_node *right = binop->binop.right;
 
 	int ret = 0;
 	ret |= actualize(state, scope, left);
@@ -1253,7 +1195,7 @@ static int actualize_type(struct act_state *state,
 		struct ast_node *id = type->_type.id;
 		if (!id)
 			/* no ID means void */
-			type->_type.id = gen_id(strdup("void"));
+			type->_type.id = gen_id(strdup("void"), NULL_LOC());
 
 		type->loc = id->loc;
 
@@ -1263,11 +1205,6 @@ static int actualize_type(struct act_state *state,
 			EXIT_ACT(-1);
 		}
 
-		/* this could be more clear, maybe add into the parser some kind
-		 * of meta class for traitd types? */
-		if (exists->node_type == AST_UNION)
-			type->_type.kind = AST_TYPE_UNION;
-
 		/* nothing to do, except maybe check that types are actually
 		 * identical? */
 		if (exists->node_type == AST_TYPE)
@@ -1276,8 +1213,7 @@ static int actualize_type(struct act_state *state,
 		assert(exists->node_type == AST_ALIAS
 		       || exists->node_type == AST_TRAIT
 		       || exists->node_type == AST_STRUCT
-		       || exists->node_type == AST_ENUM
-		       || exists->node_type == AST_UNION);
+		       || exists->node_type == AST_ENUM);
 		/* actualize whatever type we have on demand, either alias or
 		 * trait */
 		if (!ast_flags(exists, AST_FLAG_ACTUAL))
@@ -1310,11 +1246,6 @@ static int actualize_type(struct act_state *state,
 			type->_type.kind = AST_TYPE_ENUM;
 			type->_type.enu.id = clone_ast_node(exists->_enum.id);
 			type->_type.enu.type = exists->_enum.type;
-		}
-		else if (exists->node_type == AST_UNION) {
-			type->_type.kind = AST_TYPE_UNION;
-			type->_type.unio.id = clone_ast_node(exists->_union.id);
-			type->_type.unio.impls = NULL;
 		}
 
 		if (ast_flags(exists, AST_FLAG_GENERIC))
@@ -1364,57 +1295,8 @@ static int actualize_type(struct act_state *state,
 		break;
 	}
 
-	case AST_TYPE_UNION:
 	case AST_TYPE_STRUCT: {
 		assert(ast_flags(type, AST_FLAG_ACTUAL));
-		break;
-	}
-
-	case AST_TYPE_GENERIC: {
-		struct ast_node *id = type->_type.generic.id;
-		struct ast_node *exists = file_scope_resolve_type(scope, id);
-		if (!exists) {
-			semantic_error(scope->fctx, type, "no such type");
-			EXIT_ACT(-1);
-		}
-
-		if (exists->node_type != AST_UNION &&
-		    exists->node_type != AST_STRUCT) {
-			semantic_error(scope->fctx, type,
-			               "type not struct or union");
-			EXIT_ACT(-1);
-		}
-
-		if (!ast_flags(exists, AST_FLAG_ACTUAL))
-			if (actualize(state, exists->scope, exists))
-				EXIT_ACT(-1);
-
-		struct ast_node *types = type->_type.generic.args;
-		if (actualize(state, scope, types))
-			EXIT_ACT(-1);
-
-		while (types) {
-			if (!primitive_type(types)) {
-				semantic_error(scope->fctx, types,
-				               "only primitive types allowed in trait initialization");
-				EXIT_ACT(-1);
-			}
-
-			if (act_flags(state, ACT_REQUIRE_FULLY_QUALIFIED)) {
-				if (!fully_qualified(types)) {
-					semantic_error(scope->fctx, types,
-					               "context requires fully qualified types");
-					EXIT_ACT(-1);
-				}
-			}
-			types = types->next;
-		}
-
-		if (exists->node_type == AST_UNION)
-			type->_type.kind = AST_TYPE_UNION;
-		else
-			type->_type.kind = AST_TYPE_STRUCT;
-
 		break;
 	}
 
@@ -1434,7 +1316,7 @@ static int actualize_empty(struct act_state *state,
 	UNUSED(state);
 	/* TODO: converting to void is common enough that it might be worth
 	 * creating a function for */
-	struct ast_node *void_id = gen_id(strdup("void"));
+	struct ast_node *void_id = gen_id(strdup("void"), NULL_LOC());
 	if (!void_id) {
 		internal_error("couldn't allocate type id for empty statement\n");
 		return -1;
@@ -1578,16 +1460,6 @@ static struct ast_node *lookup_struct_member(struct ast_node *struc,
 	return lookup_member_idx(struc->_struct.body, find, idx);
 }
 
-static struct ast_node *lookup_union_member(struct ast_node *unio,
-                                            struct ast_node *find)
-{
-	if (find)
-		return lookup_member_name(unio->_union.body, find, NULL);
-
-	size_t idx = 0;
-	return lookup_member_idx(unio->_union.body, find, &idx);
-}
-
 static struct ast_node *lookup_enum_member(struct ast_node *enu,
                                            struct ast_node *find)
 {
@@ -1602,50 +1474,6 @@ static struct ast_node *lookup_enum_member(struct ast_node *enu,
 	}
 
 	return m;
-}
-
-static int init_union(struct act_state *state, struct scope *scope,
-                      struct ast_node *exists, struct ast_node *init)
-{
-	struct ast_node *arg = init->_init.body;
-	if (arg->next) {
-		semantic_error(scope->fctx, arg->next,
-		               "multiple arguments in union initialization not allowed");
-		return -1;
-	}
-
-	if (actualize(state, scope, arg))
-		return -1;
-
-	struct ast_node *member = NULL;
-	if (ast_flags(arg, AST_FLAG_MEMBER)) {
-		member = lookup_union_member(exists, arg->_var.id);
-	}
-	else {
-		/* pick first element in body */
-		member = exists->_union.body;
-	}
-
-	if (!member) {
-		char *sstr = type_str(exists->type);
-		semantic_error(scope->fctx, arg,
-		               "no such member in %s",
-		               sstr);
-		free(sstr);
-		return -1;
-	}
-
-	if (!implements(0, scope, arg->type, member->type)) {
-		char *mstr = type_str(member->type);
-		char *astr = type_str(arg->type);
-		semantic_error(scope->fctx, arg, "%s does not implement %s",
-		               astr, mstr);
-		free(mstr);
-		free(astr);
-		return -1;
-	}
-
-	return 0;
 }
 
 static int init_struct(struct act_state *state, struct scope *scope,
@@ -1757,19 +1585,6 @@ static int actualize_struct_init_cast(struct act_state *state,
 	return init_struct(state, scope, exists, init);
 }
 
-static int actualize_union_init_cast(struct act_state *state,
-                                     struct scope *scope,
-                                     struct ast_node *init,
-                                     struct ast_node *actual)
-{
-	struct ast_node *id = actual->_type.unio.id;
-	struct ast_node *exists = file_scope_resolve_type(scope, id);
-	assert(exists);
-	assert(ast_flags(exists, AST_FLAG_ACTUAL));
-
-	return init_union(state, scope, exists, init);
-}
-
 static int actualize_init_cast(struct act_state *state,
                                struct scope *scope, struct ast_node *init,
                                struct ast_node *type)
@@ -1777,11 +1592,9 @@ static int actualize_init_cast(struct act_state *state,
 	struct ast_node *actual = actual_type(type);
 	if (actual->_type.kind == AST_TYPE_STRUCT)
 		return actualize_struct_init_cast(state, scope, init, actual);
-	if (actual->_type.kind == AST_TYPE_UNION)
-		return actualize_union_init_cast(state, scope, init, actual);
 
 	semantic_error(scope->fctx, type,
-	               "type is not a struct or union");
+	               "type is not a struct");
 	return -1;
 
 }
@@ -1881,7 +1694,7 @@ static int actualize_const(struct act_state *state, struct scope *scope,
 	assert(cons->node_type == AST_CONST);
 	if (cons->_const.kind == AST_CONST_INTEGER) {
 		/* error checking would be doog */
-		cons->type = gen_type(AST_TYPE_ID, gen_id(strdup("i64")),
+		cons->type = gen_type(AST_TYPE_ID, gen_id(strdup("i64"), NULL_LOC()),
 		                      NULL, NULL);
 		scope_add_scratch(scope, cons->type);
 		return 0;
@@ -2204,36 +2017,6 @@ static int actualize_struct(struct act_state *state,
 	return 0;
 }
 
-static int actualize_union(struct act_state *state,
-                           struct scope *scope, struct ast_node *node)
-{
-	assert(node->node_type == AST_UNION);
-	ast_set_flags(node, AST_FLAG_INIT);
-	struct ast_node *generics = node->_union.generics;
-	struct scope *union_scope = create_scope();
-	if (!union_scope)
-		return -1;
-
-	scope_add_scope(node->scope, union_scope);
-	if (generics)
-		ast_set_flags(node, AST_FLAG_GENERIC);
-
-	if (actualize(state, union_scope, generics))
-		return -1;
-
-	struct ast_node *body = node->_union.body;
-	if (actualize(state, union_scope, body))
-		return -1;
-
-	/* cloning slightly odd, but I guess it's fine? */
-	struct ast_node *clone_id = clone_ast_node(node->_union.id);
-	node->type = gen_type(AST_TYPE_UNION, clone_id, NULL, NULL);
-	scope_add_scratch(scope, node->type);
-
-	ast_set_flags(node, AST_FLAG_ACTUAL);
-	return 0;
-}
-
 /* could maybe be renamed, but essentially dot in copper works as either
  * -> or . in C, so allow structures or traits and single level pointers to
  *  structures or traits. */
@@ -2429,7 +2212,7 @@ static int actualize(struct act_state *state, struct scope *scope,
 
 	case AST_TRAIT: ret |= actualize_trait(state, scope, node); break;
 	case AST_ALIAS: ret |= actualize_alias(state, scope, node); break;
-	case AST_MACRO: ret |= actualize_macro(state, scope, node); break;
+	case AST_MACRO_CONSTRUCT: ret |= actualize_macro_construct(state, scope, node); break;
 	case AST_CALL: ret |= actualize_call(state, scope, node); break;
 	case AST_BINOP: ret |= actualize_binop(state, scope, node); break;
 	case AST_BLOCK: ret |= actualize_block(state, scope, node); break;
@@ -2446,7 +2229,6 @@ static int actualize(struct act_state *state, struct scope *scope,
 	case AST_UNOP: ret |= actualize_unop(state, scope, node); break;
 	case AST_AS: ret |= actualize_as(state, scope, node); break;
 	case AST_STRUCT: ret |= actualize_struct(state, scope, node); break;
-	case AST_UNION: ret |= actualize_union(state, scope, node); break;
 	case AST_DOT: ret |= actualize_dot(state, scope, node); break;
 	case AST_INIT: ret |= actualize_init(state, scope, node); break;
 	case AST_ASSIGN: ret |= actualize_assign(state, scope, node); break;
