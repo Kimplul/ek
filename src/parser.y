@@ -570,22 +570,16 @@ type
 	| "^" func_sign {
 		/* still not entirely sold on this signature, but it's not terrible I
 		 * guess */
-		$$ = gen_type(AST_TYPE_POINTER, NULL, NULL, NULL);
-		$$->_type.next = $2;
+		$$ = gen_type(AST_TYPE_POINTER, $2, NULL, NULL);
 	}
 	| "*" type {
-		$$ = gen_type(AST_TYPE_POINTER, NULL, NULL, NULL);
-		$$->_type.next = $2;
+		$$ = gen_type(AST_TYPE_POINTER, $2, NULL, NULL);
 	}
 	| "[" const_expr "]" type {
-		$$ = gen_type(AST_TYPE_ARR, NULL, $2, NULL);
-		$$->_type.next = $4;
+		$$ = gen_type(AST_TYPE_ARR, $2, $4, NULL);
 	}
 	| "typeof" expr {
 		$$ = gen_type(AST_TYPE_TYPEOF, NULL, $2, NULL);
-	}
-	| id "::" type {
-		$$ = gen_type(AST_TYPE_MEMBER, $1, $3, NULL);
 	}
 	| "const" type {
 		$$ = $2;

@@ -33,28 +33,12 @@ enum scope_flags {
  * table later.
  */
 struct visible {
+	/** Name of the visible node. */
+	struct ast_node *id;
 	/** AST node that is visible. */
 	struct ast_node *node;
-	/** The owning scope of the object. */
-	struct scope *owner;
 	/** Next visible object in the scope we're in. */
 	struct visible *next;
-};
-
-/**
- * Scratch AST nodes. Implemented by a simple linked list.
- *
- * Meant to store temporary AST nodes that
- * won't be visible to other scopes, but should
- * be freed later.
- *
- * Mostly just cleans up resource management a bit.
- */
-struct scratch {
-	/** Temporary AST node. */
-	struct ast_node *node;
-	/** Next scratch node. */
-	struct scratch *next;
 };
 
 /** Actualized nodes visible to scope. */
@@ -142,6 +126,11 @@ struct resolve_node {
 	struct ast_node *resolved;
 };
 
+struct types {
+	struct ast_node *id;
+	struct ast_node *type;
+	struct ast_node *next;
+};
 
 /**
  * Scope.
@@ -176,31 +165,10 @@ struct scope {
 	 */
 	struct actual *actuals;
 
-	/** For temp stuff. */
-	struct scratch *scratch;
-
 	/** { types */
-	/** Enums visible in scope. */
-	struct visible *enums;
-	/** Structs visible in scope. */
-	struct visible *structs;
 
-	/**
-	 * Aliases visible in scope.
-	 * @todo Alias handling could maybe be improved, currently there's a
-	 * fair bit of extra alias handling. Maybe separate semantic AST from
-	 * type AST?
-	 */
-	struct visible *aliases;
-	/** Builtins visible in scope. u8, i32, etc. */
-	struct visible *builtins;
+	struct visible *types;
 
-	/**
-	 * Traits visible in scope.
-	 * @todo choose common terminology, sometimes the same thing is referred
-	 * to as interfaces, sometimes templates, sometimes just type.
-	 */
-	struct visible *traits;
 	/** } */
 
 	struct visible *type_constructs;
@@ -211,10 +179,6 @@ struct scope {
 	 * @todo Could maybe add separate array list instead of a variable list?
 	 */
 	struct visible *vars;
-	/** Macros visible in scope. */
-	struct visible *macros;
-	/** Procedures visible in scope. */
-	struct visible *procs;
 
 	struct resolve *proc_resolve;
 	struct resolve *macro_resolve;
@@ -363,7 +327,7 @@ int scope_add_var(struct scope *scope, struct ast_node *var);
  * @param type Type to add to scope.
  * @return \c 0 when succesful, non-zero otherwise.
  */
-int scope_add_type(struct scope *scope, struct ast_node *type);
+int scope_add_type(struct scope *scope, struct ast_node *id, struct ast_node *type);
 
 /**
  * Add procedure to scope.
@@ -384,16 +348,6 @@ int scope_add_proc(struct scope *scope, struct ast_node *proc);
  * @return \c 0 when succesful, non-zero otherwise.
  */
 int scope_add_macro(struct scope *scope, struct ast_node *macro);
-
-/**
- * Add alias to scope.
- * Propagates public aliases up the file scope chain as references.
- *
- * @param scope Scope to add alias to.
- * @param alias Alias to add to scope.
- * @return \c 0 when succesful, non-zero otherwise.
- */
-int scope_add_alias(struct scope *scope, struct ast_node *alias);
 
 /**
  * Add template to scope.
@@ -648,27 +602,6 @@ struct ast_node *scope_resolve_proc(struct scope *scope, struct ast_node *call);
  * otherwise \c NULL.
  */
 struct ast_node *scope_resolve_call(struct scope *scope, struct ast_node *call);
-
-/**
- * Try to resolve a type to a type in \p scope.
- *
- * @param scope Scope to look in.
- * @param type AST type node to try and match to an AST type node.
- * @return Pointer to the AST node corresponding to \p call if found,
- * otherwise \c NULL.
- */
-struct ast_node *scope_resolve_type(struct scope *scope, struct ast_node *type);
-
-/**
- * Try to resolve a type to a type visible to \p scope.
- *
- * @param scope Scope to look in.
- * @param type AST type node to try and match to an AST type node.
- * @return Pointer to the AST node corresponding to \p call if found,
- * otherwise \c NULL.
- */
-struct ast_node *file_scope_resolve_type(struct scope *scope,
-                                         struct ast_node *type);
 
 /**
  * Try to resolve a call to an AST node visible to \p scope.

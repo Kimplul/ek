@@ -10,7 +10,37 @@
  * Abstract syntax tree handling.
  */
 
-#define AST_GET(x, y) x->x.y
+#define AST_ID(x) x->_id
+#define AST_IMPORT(x) x->_import
+#define AST_ALIAS(x) x->_alias
+#define AST_TRAIT(x) x->_trait
+#define AST_PROC(x) x->_proc
+#define AST_VAR(x) x->_var
+#define AST_STRUCT(x) x->_struct
+#define AST_ENUM(x) x->_enum
+#define AST_CALL(x) x->_call
+#define AST_CONST(x) x->_const
+#define AST_BLOCK(x) x->_block
+#define AST_ARR_ACCESS(x) x->_arr_access
+#define AST_MACRO_CONSTRUCT(x) x->_macro_construct
+#define AST_MACRO_EXPAND(x) x->_macro_expand
+#define AST_TYPE_CONSTRUCT(x) x->_type_construct
+#define AST_TYPE_EXPAND(x) x->_type_expand
+
+#define AST_TYPE(x) x->_type
+#define AST_ID_TYPE(x) x->_type._id
+#define AST_TRAIT_TYPE(x) x->_type._trait
+/** @todo is sign and proc type the same ? */
+#define AST_TYPEOF_TYPE(x) x->_type._typeof
+#define AST_PROC_TYPE(x)  x->_type._proc
+#define AST_ARR_TYPE(x) x->_type._arr
+#define AST_SIGN_TYPE(x)  x->_type._sign
+#define AST_ENUM_TYPE(x)  x->_type._enum
+#define AST_UNION_TYPE(x) x->_type._union
+#define AST_STRUCT_TYPE(x) x->_type._struct
+/* might rename primitive to something else */
+#define AST_PRIMITIVE_TYPE(x) x->_type._primitive
+#define AST_PTR_TYPE(x) x->_type._ptr
 
 /** Binary operands, that is they take two arguments and produce a result. */
 enum ast_binops {
@@ -189,26 +219,17 @@ enum ast_const_kind {
 enum ast_type_kind {
 	/** ID, can refer to pretty much anything. */
 	AST_TYPE_ID,
+	AST_TYPE_PRIMITIVE,
 	/** Array. */
 	AST_TYPE_ARR,
 	/** Typeof expression. */
 	AST_TYPE_TYPEOF,
 	/** Trait. */
 	AST_TYPE_TRAIT,
-	/** Alias. */
-	AST_TYPE_ALIAS,
-	/** Member, that is type element of some structure. */
-	AST_TYPE_MEMBER,
 	/** Pointer to a type. */
 	AST_TYPE_POINTER,
-	/** Union. */
-	AST_TYPE_UNION,
-	/** Procedure, mainly used in trait definition. */
-	AST_TYPE_PROC,
 	/** Structure. */
 	AST_TYPE_STRUCT,
-	/** Type with type arguments. */
-	AST_TYPE_GENERIC,
 	/** Enum. */
 	AST_TYPE_ENUM,
 	/** Signature, i.e. procedure signature. */
@@ -523,22 +544,36 @@ struct ast_type {
 	 * AST_TYPE_POINTER and one AST_TYPE_ID.
 	 */
 	struct ast_node *next;
+	struct ast_node *as;
+	struct ast_node *aliased;
+
 	/** Data relevant to kind. */
 	union {
-		/** Name of a type. */
-		struct ast_node *id;
+		/** Name of a type, to be converted later. */
+		struct {
+			struct ast_node *id;
+		} _id;
+
+		struct {
+			struct ast_node *id;
+		} _primitive;
+
 		/** Array type. */
 		struct {
-			/** Size of array. @todo element size? */
 			struct ast_node *size;
-		} arr;
+			struct ast_node *base;
+		} _arr;
+
+		struct {
+			struct ast_node *base;
+		} _ptr;
+
 		/** Typeof. */
 		struct {
 			/** Expression to take type of. */
 			struct ast_node *expr;
-			/** Type expression resolves to. */
-			struct ast_node *actual;
-		} typeo;
+		} _typeof;
+
 		/** Procedure. */
 		struct {
 			/** Name. */
@@ -547,67 +582,40 @@ struct ast_type {
 			struct ast_node *params;
 			/** Return type. */
 			struct ast_node *ret;
-		} proc;
-		/** Alias. */
-		struct {
-			/** Alias definition. */
-			struct ast_node *alias;
-			/** Type alias resolves to. */
-			struct ast_node *actual;
-		} alias;
-		/** Enum member. */
-		struct {
-			/** Name of member. */
-			struct ast_node *id;
-			/** Expression to try to get member from. */
-			struct ast_node *expr;
-		} member;
+		} _proc;
+
 		/** Trait. */
 		struct {
 			/** Trait definition. */
-			struct ast_node *trait;
-			/** Type trait 'resolves' to. */
-			struct ast_node *actual;
-		} trait;
-		/** Generic struct before actualization. */
-		struct {
-			/** Name of struct. */
-			struct ast_node *id;
-			/** Type arguments. @todo should this be parameters? */
-			struct ast_node *args;
-		} generic;
+			struct ast_node *def;
+		} _trait;
+
 		/** Structure. */
 		struct {
-			/** Name of structure. */
-			struct ast_node *id;
-			/** Arguments for type parameters. */
-			struct ast_node *impls;
-		} struc;
+			/** Structure definition. */
+			struct ast_node *def;
+		} _struct;
+
 		/** Enumeration. */
 		struct {
-			/** Name of enum. */
-			struct ast_node *id;
-			/** Type enum is convertible to. */
-			struct ast_node *type;
-		} enu;
+			/** Enum definition. */
+			struct ast_node *def;
+		} _enum;
+
 		/** Union. */
 		struct {
 			/** Name of union. */
 			struct ast_node *id;
 			/** Arguments for type parameters. */
 			struct ast_node *impls;
-		} unio;
-		/**
-		 * Signature.
-		 * Can be either a procedure or a lambda, to be
-		 * determined later.
-		 */
+		} _union;
+
 		struct {
 			/** Parameter types. */
 			struct ast_node *params;
 			/** Return type. */
 			struct ast_node *ret;
-		} sign;
+		} _sign;
 	};
 };
 
@@ -734,7 +742,7 @@ struct ast_node {
 
 	/** Data relevant to kind. */
 	union {
-		struct ast_arr_access arr_access;
+		struct ast_arr_access _arr_access;
 		/** Binary operation. */
 		struct ast_binop binop;
 		/** Unary operation. */
@@ -744,10 +752,10 @@ struct ast_node {
 		/** Cast. */
 		struct ast_cast _cast;
 		/** Macro definition. */
-		struct ast_macro_construct _macro;
+		struct ast_macro_construct _macro_construct;
 		struct ast_macro_expand _macro_expand;
-		struct ast_type_construct type_construct;
-		struct ast_type_expand type_expand;
+		struct ast_type_construct _type_construct;
+		struct ast_type_expand _type_expand;
 		/** Procedure definition. */
 		struct ast_proc _proc;
 		/** Goto. */
@@ -1167,17 +1175,6 @@ struct ast_node *gen_struct(struct ast_node *id, struct ast_node *generics,
                             struct ast_node *body);
 
 /**
- * Generate union definition.
- *
- * @param id Name of union.
- * @param generics List of type parameters.
- * @param body Body of structure.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_union(struct ast_node *id, struct ast_node *generics,
-                           struct ast_node *body);
-
-/**
  * Generate enum member fetch.
  *
  * @param id Name of enum member to fetch.
@@ -1185,14 +1182,6 @@ struct ast_node *gen_union(struct ast_node *id, struct ast_node *generics,
  * @return Corresponding AST node.
  */
 struct ast_node *gen_fetch(struct ast_node *id, struct ast_node *type);
-
-/**
- * Generate last element.
- * @todo might have to come up with a better name for this
- *
- * @return Corresponding AST node.
- */
-struct ast_node *gen_last();
 
 /**
  * Generate empty AST node.
@@ -1287,7 +1276,7 @@ int ast_flags(struct ast_node *node, enum ast_flag flags);
  * @param data Extra data to pass to \p call.
  * @return Whatever \p call returns.
  */
-int ast_call_on(int (*call)(struct ast_node *node, void *data),
+int ast_call_on(int (*call)(struct ast_node *, void *),
                 struct ast_node *node, void *data);
 
 /**

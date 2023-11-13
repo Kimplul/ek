@@ -198,84 +198,41 @@ static void _type_str(FILE *fp, struct ast_node *type)
 		break;
 
 	case AST_TYPE_ID: {
-		struct ast_node *id = type->_type.id;
-		fprintf(fp, "%s", id->_id.id);
+		struct ast_node *id = AST_ID_TYPE(type).id;
+		fprintf(fp, "%s", AST_ID(id).id);
 		break;
 	}
 
 	case AST_TYPE_TRAIT: {
-		struct ast_node *trait = type->_type.trait.trait;
-		assert(trait);
-
-		struct ast_node *trait_id = trait->_trait.id;
-		struct ast_node *trait_act = type->_type.trait.actual;
-		if (trait_act) {
-			fprintf(fp, "%s as ", trait_id->_id.id);
-			_type_str(fp, trait_act);
+		struct ast_node *def = AST_TRAIT_TYPE(type).def;
+		if (AST_TRAIT(def).id) {
+			struct ast_node *name = AST_TRAIT(def).id;
+			fprintf(fp, "%s ", AST_ID(name).id);
 		}
-		else {
-			fprintf(fp, "%s", trait_id->_id.id);
-		}
-		break;
-	}
-
-	case AST_TYPE_ALIAS: {
-		struct ast_node *alias = type->_type.alias.alias;
-		assert(alias);
-
-		struct ast_node *alias_id = alias->_alias.id;
-		struct ast_node *alias_act = type->_type.alias.actual;
-		if (alias_act) {
-			/* deeply nested aliases look pretty funny here */
-			fprintf(fp, "%s aka ", alias_id->_id.id);
-			_type_str(fp, alias_act);
-		}
-		else {
-			fprintf(fp, "%s", alias_id->_id.id);
-		}
+		fprintf(fp, "(trait)");
 		break;
 	}
 
 	case AST_TYPE_STRUCT: {
-		struct ast_node *struc_id = type->_type.struc.id;
-		fprintf(fp, "%s", struc_id->_id.id);
-
-		struct ast_node *impls = type->_type.struc.impls;
-		if (impls) {
-			fprintf(fp, "(");
-			while (impls) {
-				_type_str(fp, impls);
-				impls = impls->next;
-				if (impls)
-					fprintf(fp, ", ");
-			}
-			fprintf(fp, ")");
+		struct ast_node *def = AST_STRUCT_TYPE(type).def;
+		if (AST_STRUCT(def).id) {
+			struct ast_node *name = AST_STRUCT(def).id;
+			fprintf(fp, "%s ", AST_ID(name).id);
 		}
-		break;
-	}
-
-	case AST_TYPE_UNION: {
-		struct ast_node *unio_id = type->_type.unio.id;
-		fprintf(fp, "%s", unio_id->_id.id);
-
-		struct ast_node *impls = type->_type.unio.impls;
-		if (impls) {
-			fprintf(fp, "(");
-			while (impls) {
-				_type_str(fp, impls);
-				impls = impls->next;
-				if (impls)
-					fprintf(fp, ", ");
-			}
-			fprintf(fp, ")");
-		}
+		fprintf(fp, "(struct)");
+		/** @todo print out anonymous structs with members? */
 		break;
 	}
 
 	case AST_TYPE_TYPEOF: {
-		_type_str(fp, type->_type.typeo.actual);
-		fprintf(fp, " (typeof)");
+		fprintf(fp, "(typeof)");
 		break;
+	}
+
+	case AST_TYPE_PRIMITIVE: {
+		struct ast_node *id = AST_PRIMITIVE_TYPE(type).id;
+		fprintf(fp, "%s", AST_ID(id).id);
+			break;
 	}
 
 	default:

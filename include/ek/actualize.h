@@ -51,28 +51,6 @@ void replace_param_types(struct ast_node *param,
                          struct ast_node *arg_type);
 
 /**
- * Replace traitd type with actual type.
- *
- * @param type Templated type.
- * Keep in mind that a traitd struct retains all trait parameters, so
- * pass the struct itself.
- * @param param_type Template parameter type to replace.
- * @param arg_type Type to replace \p param_type with.
- */
-void init_trait_type(struct ast_node *type, struct ast_node *param_type,
-                        struct ast_node *arg_type);
-
-/**
- * Replace traitd parameter types.
- *
- * @param param List of parameters to replace traitd types for.
- * @param param_type Types that match this are replaced with \p arg_type.
- * @param arg_type Type to replace \p param_type with.
- */
-void init_trait_types(struct ast_node *param, struct ast_node *param_type,
-                         struct ast_node *arg_type);
-
-/**
  * Extract trait type, that is strip pointer/expression/alias stuff
  * and get the trait itself from the type.
  *
@@ -117,14 +95,5 @@ int actualize_main(struct scope *scope);
  * @return \c 0 when succesful, non-zero otherwise.
  */
 int actualize_temp_type(struct scope *scope, struct ast_node *type);
-
-/**
- * Expand traits, typeofs, aliases and try to get the most
- * basic representation.
- *
- * @param type Type to extract actual type from.
- * @return AST node of actual type.
- */
-struct ast_node *actual_type(struct ast_node *type);
 
 #endif /* ANALYZE_H */
