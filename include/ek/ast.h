@@ -207,12 +207,10 @@ enum ast_ctrl_kind {
 
 /** Constant value kind. */
 enum ast_const_kind {
-	/** Integer, u64 */
+	/** Integer, i27 */
 	AST_CONST_INTEGER,
 	/** String. */
 	AST_CONST_STRING,
-	/** Float, f64. */
-	AST_CONST_FLOAT,
 };
 
 /** Type representation. */
@@ -527,6 +525,10 @@ struct ast_return {
 	struct ast_node *defers;
 };
 
+enum ast_primitive {
+	AST_VOID, AST_I9, AST_I27
+};
+
 /**
  * Type.
  * I'm not entirely happy with the current type system, for one
@@ -555,7 +557,7 @@ struct ast_type {
 		} _id;
 
 		struct {
-			struct ast_node *id;
+			enum ast_primitive type;
 		} _primitive;
 
 		/** Array type. */
@@ -956,7 +958,7 @@ struct ast_node *gen_ctrl(enum ast_ctrl_kind kind, struct src_loc loc);
 struct ast_node *gen_macro_construct(struct ast_node *id, struct ast_node *params,
                            struct ast_node *body);
 
-struct ast_node *gen_macro_expand(struct ast_node *id, struct ast_node *args);
+struct ast_node *gen_macro_expand(struct ast_node *id, struct ast_node *args, struct src_loc loc);
 
 struct ast_node *gen_type_construct(struct ast_node *id,
 		struct ast_node *params,
@@ -998,8 +1000,9 @@ struct ast_node *gen_switch(struct ast_node *cond, struct ast_node *cases);
  */
 struct ast_node *gen_case(struct ast_node *expr, struct ast_node *body);
 
+struct ast_node *gen_primitive(enum ast_primitive type, struct src_loc loc);
 /**
- * Generate Ek type.
+ * Generate Ek type (besides primitive).
  *
  * @param kind Type kind.
  * @param id Name of type.
@@ -1211,22 +1214,6 @@ int identical_ast_nodes(int exact, struct ast_node *left,
                         struct ast_node *right);
 
 /**
- * Destroy AST node.
- * Frees members of AST node as well, but not \c next nodes.
- *
- * @param node AST node to destroy.
- */
-void destroy_ast_node(struct ast_node *node);
-
-/**
- * Destroy AST tree.
- * Frees members and \c next nodes.
- *
- * @param root AST tree to destroy.
- */
-void destroy_ast_tree(struct ast_node *root);
-
-/**
  * Dump textual representation of AST to stdout.
  *
  * @param depth How many spaces to prepend.
@@ -1302,5 +1289,8 @@ struct ast_node *ast_last_node(struct ast_node *list);
  * @return Last node in block.
  */
 struct ast_node *ast_block_last(struct ast_node *block);
+
+void destroy_ast_nodes();
+const char *primitive_str(enum ast_primitive type);
 
 #endif /* AST_H */

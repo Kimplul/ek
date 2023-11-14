@@ -59,67 +59,23 @@ static int is_void(struct ast_node *type)
 	if (AST_TYPE(type).kind != AST_TYPE_PRIMITIVE)
 		return 0;
 
-	struct ast_node *id = AST_PRIMITIVE_TYPE(type).id;
-	if (strcmp(id->_id.id, "void") != 0)
-		return 0;
-
-	return 1;
+	return AST_PRIMITIVE_TYPE(type).type == AST_VOID;
 }
 
 static struct ast_node *void_type()
 {
-	char *void_str = strdup("void");
-	if (!void_str) {
-		internal_error("couldn't allocate void string");
-		return NULL;
-	}
-
-	struct ast_node *void_id = gen_id(void_str, NULL_LOC());
-	if (!void_id) {
-		internal_error("couldn't allocate void id");
-		free(void_str);
-		return NULL;
-	}
-
-	struct ast_node *void_type = gen_type(AST_TYPE_PRIMITIVE, void_id, NULL, NULL);
-	if (!void_type) {
-		internal_error("couldn't allocate void type");
-		destroy_ast_node(void_id);
-		return NULL;
-	}
-
-	ast_set_flags(void_type, AST_FLAG_ACTUAL);
-
-	void_type->type = void_type;
-	return void_type;
+	struct ast_node *v = gen_primitive(AST_VOID, NULL_LOC());
+	ast_set_flags(v, AST_FLAG_ACTUAL);
+	v->type = v;
+	return v;
 }
 
 static struct ast_node *i27_type()
 {
-	char *i27_str = strdup("i27");
-	if (!i27_str) {
-		internal_error("couldn't allocate i27 string");
-		return NULL;
-	}
-
-	struct ast_node *i27_id = gen_id(i27_str, NULL_LOC());
-	if (!i27_id) {
-		internal_error("couldn't allocate i27 id");
-		free(i27_str);
-		return NULL;
-	}
-
-	struct ast_node *i27_type = gen_type(AST_TYPE_PRIMITIVE, i27_id, NULL, NULL);
-	if (!i27_type) {
-		internal_error("couldn't allocate i27 type");
-		destroy_ast_node(i27_id);
-		return NULL;
-	}
-
-	ast_set_flags(i27_type, AST_FLAG_ACTUAL);
-
-	i27_type->type = i27_type;
-	return i27_type;
+	struct ast_node *a = gen_primitive(AST_I27, NULL_LOC());
+	ast_set_flags(a, AST_FLAG_ACTUAL);
+	a->type = a;
+	return a;
 }
 
 static int push_defer(struct act_state *state, struct ast_node *expr)
@@ -263,8 +219,6 @@ static int eval_const_if(struct scope *scope, struct ast_node *node)
 		return -1;
 	}
 
-	destroy_ast_tree(cond);
-
 	if (eval) {
 		/* condition evaluated true, so keep the if block */
 		struct ast_node *body = node->_if.body;
@@ -273,14 +227,10 @@ static int eval_const_if(struct scope *scope, struct ast_node *node)
 		/* an if must have a body, otherwise the parser messed up */
 		assert(body);
 
-		destroy_ast_tree(node->_if.els);
-
 		*node = *body;
 		free(body);
 		return 0;
 	}
-
-	destroy_ast_tree(node->_if.body);
 
 	struct ast_node *els = node->_if.els;
 	if (els) {
@@ -327,7 +277,6 @@ static int analyze_file_visibility(struct scope *scope, struct ast_node *node)
 		const char *file = AST_IMPORT(node).file;
 		ret |= process_file(&scope,
 				ast_flags(node, AST_FLAG_PUBLIC), file);
-		destroy_ast_tree(node);
 		break;
 	}
 
@@ -379,7 +328,6 @@ static int analyze_file_visibility(struct scope *scope, struct ast_node *node)
 	}
 
 	case AST_EMPTY: {
-		destroy_ast_tree(node);
 		break;
 	}
 
@@ -433,10 +381,10 @@ static int structs_match(struct ast_node *a, struct ast_node *b)
 
 static int primitives_match(struct ast_node *a, struct ast_node *b)
 {
-	struct ast_node *a_id = AST_PRIMITIVE_TYPE(a).id;
-	struct ast_node *b_id = AST_PRIMITIVE_TYPE(b).id;
+	enum ast_primitive at = AST_PRIMITIVE_TYPE(a).type;
+	enum ast_primitive bt = AST_PRIMITIVE_TYPE(b).type;
 
-	return strcmp(AST_ID(a_id).id, AST_ID(b_id).id) == 0;
+	return at == bt;
 }
 
 int types_match(struct ast_node *a, struct ast_node *b)
@@ -657,7 +605,6 @@ static int actualize_macro_call(struct act_state *state,
 		if (replace_id(body, param, arg)) {
 			semantic_error(scope->fctx, call,
 			               "failed replacing params with args");
-			destroy_ast_tree(body);
 			arg->next = next_arg;
 			return -1;
 		}
@@ -671,12 +618,9 @@ static int actualize_macro_call(struct act_state *state,
 	if (param || arg) {
 		/* TODO: internal error more like */
 		semantic_error(scope->fctx, call, "uneven number of arguments");
-		destroy_ast_tree(body);
 		return -1;
 	}
 
-	destroy_ast_tree(call->_call.id);
-	destroy_ast_tree(call->_call.args);
 	*call = *body;
 	free(body);
 	/* actualize the new content */
@@ -777,7 +721,6 @@ static int actualize_proc(struct act_state *state,
 	if (!act_flags(state, ACT_ONLY_TYPES)) {
 		ret = scope_add_actual(scope, actual);
 		if (ret) {
-			destroy_ast_tree(actual);
 			return ret;
 		}
 	}
@@ -823,8 +766,6 @@ static int actualize_proc(struct act_state *state,
 	warn_unused_labels(&new_state, scope);
 	if (undefined_gotos(&new_state, scope))
 		ret = -1;
-
-	destroy_act_state(&new_state);
 
 	/* TODO: should ret be checked between each stage? */
 	if (ret)
@@ -1067,7 +1008,6 @@ static int actualize_type(struct act_state *state,
 				EXIT_ACT(-1);
 
 		assert(AST_TYPE(type).next == NULL);
-		destroy_ast_node(AST_ID_TYPE(type).id);
 		if (exists->node_type == AST_ALIAS) {
 			AST_TYPE(type).aliased = exists;
 			AST_TYPE(type) = AST_TYPE(exists);
@@ -1176,43 +1116,12 @@ static int integral_type(struct ast_node *type)
 		return 0;
 
 	/* here would be awesome with an enum of our base types */
-	struct ast_node *primitive = AST_PRIMITIVE_TYPE(type).id;
-	const char *type_str = AST_ID(primitive).id;
-	if (strcmp(type_str, "u8"))
-		return 1;
-
-	if (strcmp(type_str, "u16"))
-		return 1;
-
-	if (strcmp(type_str, "u32"))
-		return 1;
-
-	if (strcmp(type_str, "u64"))
-		return 1;
-
-	if (strcmp(type_str, "i8"))
-		return 1;
-
-	if (strcmp(type_str, "i16"))
-		return 1;
-
-	if (strcmp(type_str, "i32"))
-		return 1;
-
-	if (strcmp(type_str, "i64"))
-		return 1;
-
-	if (strcmp(type_str, "usize"))
-		return 1;
-
-	if (strcmp(type_str, "isize"))
-		return 1;
-
-	if (strcmp(type_str, "f32"))
-		return 1;
-
-	if (strcmp(type_str, "f64"))
-		return 1;
+	enum ast_primitive p = AST_PRIMITIVE_TYPE(type).type;
+	switch (p) {
+	case AST_I9: return 1;
+	case AST_I27: return 1;
+	default: return 0;
+	}
 
 	return 0;
 }
@@ -1660,7 +1569,6 @@ static void actualize_goto_defer(struct ast_node *got, struct ast_node *label)
 		/* fuck, I actually need the one previous to this */
 		assert(prev_defer->next == goto_defers);
 		prev_defer->next = NULL;
-		destroy_ast_node(goto_defers);
 	}
 
 	/* nothing to do */
@@ -2069,26 +1977,6 @@ void replace_type(struct ast_node *type, struct ast_node *from,
 	if (types_match(type, from)) {
 		assert(type->_type.next == NULL);
 		struct ast_node *clone = clone_ast_node(to);
-		/* TODO: unsure if this is everything */
-		switch (type->_type.kind) {
-		case AST_TYPE_ID:
-			destroy_ast_node(AST_ID_TYPE(type).id);
-			break;
-
-		case AST_TYPE_STRUCT:
-			destroy_ast_node(AST_STRUCT_TYPE(type).def);
-			break;
-
-		case AST_TYPE_ENUM:
-			destroy_ast_node(AST_ENUM_TYPE(type).def);
-			break;
-
-		case AST_TYPE_TYPEOF:
-			destroy_ast_node(AST_TYPEOF_TYPE(type).expr);
-			break;
-
-		default:
-		}
 		*type = *clone;
 		free(clone);
 		return;

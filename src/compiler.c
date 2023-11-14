@@ -175,5 +175,6 @@ int compile(const char *file) {
 	ret = actualize_main(root);
 	/** @todo backend */
 	destroy_scope(root);
+	destroy_ast_nodes();
 	return ret;
 }

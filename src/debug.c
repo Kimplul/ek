@@ -230,8 +230,7 @@ static void _type_str(FILE *fp, struct ast_node *type)
 	}
 
 	case AST_TYPE_PRIMITIVE: {
-		struct ast_node *id = AST_PRIMITIVE_TYPE(type).id;
-		fprintf(fp, "%s", AST_ID(id).id);
+		fprintf(fp, "%s", primitive_str(AST_PRIMITIVE_TYPE(type).type));
 			break;
 	}
 

@@ -28,7 +28,6 @@
 %union {
 	struct ast_node *node;
 	long long integer;
-	double dbl;
 	char *str;
 };
 
@@ -148,9 +147,6 @@
 
 /* array stuff */
 %nterm <node> arr arr_inits arr_init
-
-%destructor {} FLOAT INT STRING ID APPLY
-%destructor { destroy_ast_tree($$); } <*>
 
 %{
 
@@ -364,7 +360,6 @@ const_unop
 const_expr
 	: "(" const_expr ")" { $$ = $2; }
 	| INT { $$ = gen_int($1); }
-	| FLOAT { $$ = gen_float($1); }
 	| const_binop
 	| const_unop
 	| id
@@ -373,11 +368,9 @@ const_expr
 expr
 	: expr "." id { $$ = gen_dot($1, $3); }
 	| "..." id { $$ = $2; }
-	| INT { $$ = gen_int($1); $$->loc = src_loc(@$); }
-	| FLOAT { $$ = gen_float($1); $$->loc = src_loc(@$);  }
+	| INT { $$ = gen_int($1); }
 	| STRING {
 		$$ = gen_string(clone_string($1));
-		$$->loc = src_loc(@$);
 	}
 	| "(" expr ")" { $$ = $2; }
 	| expr "(" args ")" { $$ = gen_call($1, $3); }
@@ -429,7 +422,6 @@ statelet
 	    /* If we're failing to parse a statement in a block, continue by trying to
 	     * parse the next statement in the block */
 	    if (next_interesting_feature(&yylval, &yylloc, scanner, parser)) {
-		destroy_ast_node($$);
 		YYABORT;
 	    }
 	    yyclearin;
@@ -644,8 +636,8 @@ anon_union
 	: "union" "{" members "}" { $$ = gen_struct(NULL, NULL, $3); }
 
 macro_expand
-	: apply "(" ")" { $$ = gen_macro_expand($1, NULL); }
-	| apply "(" args ")" { $$ = gen_macro_expand($1, $3); }
+	: apply "(" ")" { $$ = gen_macro_expand($1, NULL, src_loc(@$)); }
+	| apply "(" args ")" { $$ = gen_macro_expand($1, $3, src_loc(@$)); }
 
 tagged_struct
 	: "struct" id "{" members "}" {
@@ -681,7 +673,7 @@ trait
 	}
 
 type_param
-	: id id
+	: id id { $$ = gen_var($2, $1, NULL); }
 
 type_params
 	: type_param "," type_params { $$ = $1; $1->next = $3; }
@@ -754,8 +746,6 @@ top
 	    /* ignore any content inside a top level thing and just move onto
 	     * the next one */
 	    if (next_interesting_feature(&yylval, &yylloc, scanner, parser)) {
-		/* remove previously allocated node if we're out of input */
-		destroy_ast_node($$);
 		YYABORT;
 	    }
 	    yyclearin;

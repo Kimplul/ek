@@ -330,7 +330,7 @@ int scope_add_var(struct scope *scope, struct ast_node *var)
 		return -1;
 	}
 
-	struct visible *visible = create_var(scope, AST_VAR(var).id, var);
+	create_var(scope, AST_VAR(var).id, var);
 	if (scope_flags(scope, SCOPE_FILE) && ast_flags(var, AST_FLAG_PUBLIC))
 		return scope_add_var(scope->parent, var);
 
@@ -340,18 +340,13 @@ int scope_add_var(struct scope *scope, struct ast_node *var)
 int scope_add_type(struct scope *scope, struct ast_node *id, struct ast_node *type)
 {
 	struct ast_node *exists = file_scope_find_type(scope, id);
-	/* redefining a type to itself is allowed, and might be necessary for
-	 * some generics operations. I'll have to double check this later,
-	 * though */
 	if (exists) {
 		semantic_error(scope->fctx, type, "type redefined");
 		semantic_info(scope->fctx, exists, "previously here");
 		return -1;
 	}
 
-	/* during a redefine, if it's redefined to public should it be
-	 * propagated upward? Probably not, but dunno for sure yet */
-	struct visible *visible = create_type(scope, id, type);
+	create_type(scope, id, type);
 	if (scope_flags(scope, SCOPE_FILE) && ast_flags(type, AST_FLAG_PUBLIC))
 		return scope_add_type(scope->parent, id, type);
 
@@ -823,7 +818,8 @@ struct ast_node *file_scope_resolve_macro(struct scope *scope, struct ast_node *
 }
 
 /* this might be useful somewhere else as well */
-static const char *default_types[] = {"void", "i9", "i27"};
+static enum ast_primitive default_types[] = {AST_VOID, AST_I9, AST_I27};
+static const char *default_names[] = {"void", "i9", "i27"};
 
 /* TODO: add error checking */
 int scope_add_defaults(struct scope *root)
@@ -831,12 +827,8 @@ int scope_add_defaults(struct scope *root)
 	for (size_t i = 0;
 	     i < sizeof(default_types) / sizeof(default_types[0]);
 	     ++i) {
-		const char *type = default_types[i];
-		struct ast_node *n = gen_id(strdup(type), NULL_LOC());
-		if (!n)
-			return -1;
-
-		struct ast_node *a = gen_type(AST_TYPE_PRIMITIVE, n, NULL, NULL);
+		struct ast_node *n = gen_id(strdup(default_names[i]), NULL_LOC());
+		struct ast_node *a = gen_primitive(default_types[i], NULL_LOC());
 		if (!a)
 			return -1;
 

@@ -37,7 +37,6 @@ INT		{HEX}|{DEC}|{OCT}|{BIN}
 
 HEXF		[+-]?0[xX][0-9a-fA-F]+([pP][+-]?[0-9]+)
 DECF		[+-]?[0-9]+[.]([eE]?[+-]?[0-9]+)?[fF]?
-FLOAT		{HEXF}|{DECF}|inf|nan
 
 ID		[_a-zA-Z][_a-zA-Z0-9]*
 APPLY		{ID}[[:space:]]*!
@@ -184,11 +183,6 @@ STRING		\"(\\.|[^"\\])*\"
 {INT} {
 	yylval->integer = strtoll(yytext, 0, 0);
 	return INT;
-}
-
-{FLOAT}	{
-	yylval->dbl = strtod(yytext, 0);
-	return FLOAT;
 }
 
 {ID} {
