@@ -610,6 +610,7 @@ proc
 	: id func_sign body {
 		$$ = gen_proc($1, $2, $3);
 		ast_set_flags($$, $2->flags);
+		ast_set_flags($3, AST_FLAG_UNHYGIENIC);
 	}
 	| "extern" id func_sign {
 		/* todo check that we don't have a variadic function */

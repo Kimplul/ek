@@ -497,7 +497,6 @@ static void actualize_trait_types(struct ast_node *params,
 {
 	/** @todo replace trait types with arg types, should probably be merged
 	 * */
-	/* TODO: this might not hold in variadic functions... */
 	assert(!args && !params);
 }
 
