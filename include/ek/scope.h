@@ -614,6 +614,9 @@ struct ast_node *scope_resolve_call(struct scope *scope, struct ast_node *call);
 struct ast_node *file_scope_resolve_call(struct scope *scope,
                                          struct ast_node *call);
 
+struct ast_node *file_scope_resolve_macro(struct scope *scope,
+		struct ast_node *macro);
+
 /**
  * Check if \p arg_type implements \p param_type.
  *

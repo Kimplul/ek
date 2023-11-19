@@ -446,10 +446,11 @@ statement
 statements
 	: statement statements { $$ = $1; $1->next = $2; }
 	| statement
+	| statelet
+
 
 body
 	: "{" statements "}" { $$ = gen_block($2);  }
-	| "{" statelet "}" { $$ = gen_block($2);  }
 	| "{" "}" { $$ = gen_block(gen_empty()); }
 
 references
@@ -549,11 +550,11 @@ const
 
 func_sign
 	: "(" decls "=>" type ")" {
-		$$ = gen_type(AST_TYPE_SIGN, NULL, $2, $4);
+		$$ = gen_type(AST_TYPE_SIGN, $2, $4, NULL);
 	}
-	| "(" decls ")" { $$ = gen_type(AST_TYPE_SIGN, NULL, $2, NULL); }
-	| "(" decls "=>" ")" { $$ = gen_type(AST_TYPE_SIGN, NULL, $2, NULL); }
-	| "(" "=>" type ")" { $$ = gen_type(AST_TYPE_SIGN, NULL, NULL, $3); }
+	| "(" decls ")" { $$ = gen_type(AST_TYPE_SIGN, $2, NULL, NULL); }
+	| "(" decls "=>" ")" { $$ = gen_type(AST_TYPE_SIGN, $2, NULL, NULL); }
+	| "(" "=>" type ")" { $$ = gen_type(AST_TYPE_SIGN, NULL, $3, NULL); }
 	| "(" "=>" ")" { $$ = gen_type(AST_TYPE_SIGN, NULL, NULL, NULL); }
 	| "(" ")" { $$ = gen_type(AST_TYPE_SIGN, NULL, NULL, NULL); }
 
@@ -571,7 +572,7 @@ type
 		$$ = gen_type(AST_TYPE_ARR, $2, $4, NULL);
 	}
 	| "typeof" expr {
-		$$ = gen_type(AST_TYPE_TYPEOF, NULL, $2, NULL);
+		$$ = gen_type(AST_TYPE_TYPEOF, $2, NULL, NULL);
 	}
 	| "const" type {
 		$$ = $2;
@@ -608,13 +609,13 @@ var_init
 
 proc
 	: id func_sign body {
-		$$ = gen_proc($1, $2, $3);
+		$$ = gen_proc($1, $2, $3, src_loc(@$));
 		ast_set_flags($$, $2->flags);
 		ast_set_flags($3, AST_FLAG_UNHYGIENIC);
 	}
 	| "extern" id func_sign {
 		/* todo check that we don't have a variadic function */
-		$$ = gen_proc($2, $3, NULL);
+		$$ = gen_proc($2, $3, NULL, src_loc(@$));
 		ast_set_flags($$, AST_FLAG_EXTERN);
 	}
 
@@ -650,7 +651,7 @@ anon_struct
 
 trait_elem
 	: id /* trait */
-	| id func_sign { $$ = gen_proc($1, $2, NULL);  } /* proc */
+	| id func_sign { $$ = gen_proc($1, $2, NULL, src_loc(@$));  } /* proc */
 	| var_decl /* member */
 	| type_expand /* type construction */
 

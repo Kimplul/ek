@@ -4,6 +4,8 @@
 #ifndef AST_H
 #define AST_H
 
+#include <stddef.h>
+
 /**
  * @file ast.h
  *
@@ -11,15 +13,20 @@
  */
 
 #define AST_ID(x) x->_id
+#define AST_AS(x) x->_as
+#define AST_DOT(x) x->_dot
+#define AST_UNOP(x) x->_unop
 #define AST_IMPORT(x) x->_import
 #define AST_ALIAS(x) x->_alias
 #define AST_TRAIT(x) x->_trait
+#define AST_CAST(x) x->_cast
 #define AST_PROC(x) x->_proc
 #define AST_VAR(x) x->_var
 #define AST_STRUCT(x) x->_struct
 #define AST_ENUM(x) x->_enum
 #define AST_CALL(x) x->_call
 #define AST_CONST(x) x->_const
+#define AST_ASSIGN(x) x->_assign
 #define AST_BLOCK(x) x->_block
 #define AST_ARR_ACCESS(x) x->_arr_access
 #define AST_MACRO_CONSTRUCT(x) x->_macro_construct
@@ -694,8 +701,6 @@ struct ast_const {
 		long long integer;
 		/** String. */
 		const char *str;
-		/** Float. */
-		double dbl;
 	};
 };
 
@@ -741,6 +746,8 @@ struct ast_node {
 	struct scope *scope;
 	/** Ek type. */
 	struct ast_node *type;
+
+	size_t reg;
 
 	/** Data relevant to kind. */
 	union {
@@ -1052,7 +1059,7 @@ struct ast_node *gen_lambda(struct ast_node *captures,
  * @return Corresponding AST node.
  */
 struct ast_node *gen_proc(struct ast_node *id, struct ast_node *type,
-                          struct ast_node *body);
+                          struct ast_node *body, struct src_loc loc);
 
 /**
  * Generate dot operation.

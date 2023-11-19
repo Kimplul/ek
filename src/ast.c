@@ -453,14 +453,14 @@ struct ast_node *gen_var(struct ast_node *id, struct ast_node *type,
 }
 
 struct ast_node *gen_proc(struct ast_node *id, struct ast_node *sign,
-                          struct ast_node *body)
+                          struct ast_node *body, struct src_loc loc)
 {
 	ALLOC_NODE(n, "proc");
 	n->node_type = AST_PROC;
-	n->_proc.id = id;
-	n->_proc.sign = sign;
-	n->_proc.body = body;
-	n->loc = id->loc;
+	AST_PROC(n).id = id;
+	AST_PROC(n).sign = sign;
+	AST_PROC(n).body = body;
+	n->loc = loc;
 	return n;
 }
 
@@ -1215,7 +1215,8 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 
 	case AST_PROC: new = gen_proc(clone_ast_node(node->_proc.id),
 		                      clone_ast_node(node->_proc.sign),
-		                      clone_ast_node(node->_proc.body));
+		                      clone_ast_node(node->_proc.body),
+				      node->loc);
 		break;
 
 	case AST_VAR: {
@@ -1307,9 +1308,10 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 			break;
 
 		case AST_TYPE_SIGN:
-			new = gen_type(AST_TYPE_SIGN, NULL,
+			new = gen_type(AST_TYPE_SIGN,
 			               clone_ast_node(AST_SIGN_TYPE(node).params),
-			               clone_ast_node(AST_SIGN_TYPE(node).ret));
+			               clone_ast_node(AST_SIGN_TYPE(node).ret),
+				       NULL);
 			break;
 
 		}

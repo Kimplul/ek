@@ -192,9 +192,10 @@ static void _type_str(FILE *fp, struct ast_node *type)
 
 	assert(type->node_type == AST_TYPE);
 
-	switch (type->_type.kind) {
+	switch (AST_TYPE(type).kind) {
 	case AST_TYPE_POINTER:
-		fputc('\'', fp);
+		fputc('*', fp);
+		_type_str(fp, AST_PTR_TYPE(type).base);
 		break;
 
 	case AST_TYPE_ID: {
@@ -238,7 +239,7 @@ static void _type_str(FILE *fp, struct ast_node *type)
 		fprintf(fp, "NOT YET IMPLEMENTED");
 	}
 
-	_type_str(fp, type->_type.next);
+	_type_str(fp, AST_TYPE(type).next);
 }
 
 char *type_str(struct ast_node *node)

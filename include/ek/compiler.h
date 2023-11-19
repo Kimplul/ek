@@ -20,7 +20,7 @@
  * @param file Root file to compile.
  * @return \c 0 if compilation was succesful, otherwise some non-zero value.
  */
-int compile(const char *file);
+int compile(const char *input, const char *output);
 
 /**
  * Process a file, i.e. lex, parse and generate raw AST.

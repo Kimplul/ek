@@ -23,12 +23,12 @@
  */
 static const char *cmdline_usage =
 	"ek compiler usage:\n"
-	" ek [-I <dir>...] [-D <var>...] infile...\n"
-	"	-h       Show usage (this)\n"
-	"	-I <dir> Add directory to import path\n"
-	"	-D <var> Add predefined variable\n"
-	"	-o       Name of output\n"
-	"	infile   Top file(s) to compile\n"
+	" ek [-I <dir>...] [-o <outfile>] infile\n"
+	"	-h            Show usage (this)\n"
+	"	-I <dir>      Add directory to import path\n"
+	"	infile        Top file(s) to compile\n"
+	"	-o <outfile>  Name of output assembly file\n"
+	"	              (infile minus file extension if not given)\n"
 ;
 
 /** Print usage of compiler. */
@@ -50,24 +50,21 @@ static void usage()
 int main(int argc, char *argv[])
 {
 	int opt;
-	while ((opt = getopt(argc, argv, "hI:D:o:")) != -1) {
+	const char *output = "e.out";
+	while ((opt = getopt(argc, argv, "hI:o:")) != -1) {
 		switch (opt) {
 		case 'o':
-			error("not yet implemented");
+			output = optarg;
 			break;
 
 		case 'I':
 			add_import_path(optarg);
 			break;
 
-		case 'D':
-			/* TODO */
-			error("not yet implemented");
-			break;
-
 		case 'h':
 			usage();
 			exit(EXIT_SUCCESS);
+
 		default:
 			usage();
 			exit(EXIT_FAILURE);
@@ -75,16 +72,17 @@ int main(int argc, char *argv[])
 	}
 
 	if (optind >= argc) {
-		error("no input files");
+		error("no input file");
 		usage();
 		exit(EXIT_FAILURE);
 	}
 
-	for (int i = optind; i < argc; ++i) {
-		debug("starting compilation of '%s'", argv[i]);
-		if (compile(argv[i]))
-			return -1;
+	if (optind != argc - 1) {
+		error("too many arguments");
+		usage();
+		exit(EXIT_FAILURE);
 	}
 
-	return 0;
+	const char *input = argv[optind];
+	return compile(input, output);
 }

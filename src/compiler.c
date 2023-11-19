@@ -22,6 +22,7 @@
 #include <ek/debug.h>
 #include <ek/scope.h>
 #include <ek/path.h>
+#include <ek/ops.h>
 #include <ek/res.h>
 
 /**
@@ -163,18 +164,40 @@ out:
 	return res;
 }
 
-int compile(const char *file) {
+int compile(const char *input, const char *output) {
 	int ret = -1;
 	struct scope *root = NULL;
-	if (process_file(&root, 0, file)) {
+	if (process_file(&root, 0, input)) {
 		destroy_scope(root);
-		error("compilation of %s stopped due to errors", file);
+		error("compilation of %s stopped due to errors", input);
 		return ret;
 	}
 
 	ret = actualize_main(root);
-	/** @todo backend */
+	if (ret) {
+		destroy_scope(root);
+		destroy_ast_nodes();
+		error("compilation of %s stopped due to errors", input);
+		return ret;
+	}
+
+	struct ops *ops = create_ops();
+	ret = lower_ops(root, ops);
 	destroy_scope(root);
 	destroy_ast_nodes();
-	return ret;
+
+	if (ret) {
+		destroy_ops(ops);
+		error("compilation of %s stopped due to errors", input);
+		return ret;
+	}
+
+	ret = analyze_lifetime(ops);
+	if (ret) {
+		destroy_ops(ops);
+		error("compilation of %s stopped due to errors", input);
+		return ret;
+	}
+
+	return print_asm(ops, output);
 }

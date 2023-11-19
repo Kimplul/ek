@@ -40,14 +40,9 @@ static struct param_node *find_matching_param(struct resolve_node *node,
 
 static int traits_resolve(struct ast_node *arg_type, struct ast_node *param_type)
 {
-	/** @todo are more checks required? */
-	return AST_TYPE(arg_type).as == AST_TRAIT_TYPE(param_type).def;
-}
-
-static int typeofs_resolve(struct ast_node *arg_type, struct ast_node *param_type)
-{
-	internal_error("typeof resolve unimplemented");
-	return 0;
+	/** @todo are more checks required? arg_type should already be in
+	 * `as`-form*/
+	return AST_TRAIT_TYPE(arg_type).def == AST_TRAIT_TYPE(param_type).def;
 }
 
 static int types_resolve(struct ast_node *arg_type, struct ast_node *param_type)
@@ -56,11 +51,16 @@ static int types_resolve(struct ast_node *arg_type, struct ast_node *param_type)
 	if (!param_type)
 		return 1;
 
+	/* if arg is specifying to be matches as `as`, then do it */
+	if (AST_TYPE(arg_type).as)
+		return types_resolve(AST_TYPE(arg_type).as, param_type);
+
 	if (AST_TYPE(param_type).kind == AST_TYPE_TRAIT)
 		return traits_resolve(arg_type, param_type);
 
+	/* typeof is matched later */
 	if (AST_TYPE(param_type).kind == AST_TYPE_TYPEOF)
-		return typeofs_resolve(arg_type, param_type);
+		return 1;
 
 	return types_match(arg_type, param_type);
 }
@@ -110,8 +110,6 @@ static int add_next_resolve(struct scope *scope, struct ast_node *resolve,
                             struct resolve_node *node, struct ast_node *params)
 {
 	assert(node);
-	if (params && actualize_temp_type(scope, params))
-		return -1;
 
 	/* TODO: variadics in macros? */
 	/* we've run out of params, check if this is a suitable node */
@@ -855,7 +853,13 @@ void scope_add_scope(struct scope *parent, struct scope *child)
 
 static int add_actual(struct actual *actuals, struct ast_node *node)
 {
-	/* TODO: check that there isn't already an actual like ours */
+	if (!actuals->node) {
+		/* fill empty first element */
+		actuals->node = node;
+		return 0;
+	}
+
+	/* TODO: check that there isn't already an actual like ours? */
 	struct actual *actual = calloc(1, sizeof(struct actual));
 	if (!actual)
 		return -1;
@@ -876,13 +880,15 @@ static struct ast_node *find_actual(struct actual *actuals,
 {
 	assert(node->node_type == AST_ID);
 
-	if (actuals)
-		do {
-			struct ast_node *actual = actuals->node;
-			if (identical_ast_nodes(0, actual->_proc.id, node))
-				return actual;
+	if (!actuals)
+		return NULL;
 
-		} while ((actuals = actuals->next));
+	do {
+		struct ast_node *actual = actuals->node;
+		if (identical_ast_nodes(0, actual->_proc.id, node))
+			return actual;
+
+	} while ((actuals = actuals->next));
 
 	return NULL;
 }

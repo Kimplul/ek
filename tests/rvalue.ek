@@ -1,0 +1,5 @@
+main()
+{
+	/* should parse, but give an error about lvalue vs rvalue */
+	20 = 20;
+}
