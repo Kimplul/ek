@@ -50,7 +50,7 @@ static void usage()
 int main(int argc, char *argv[])
 {
 	int opt;
-	const char *output = "e.out";
+	const char *output = "e.t";
 	while ((opt = getopt(argc, argv, "hI:o:")) != -1) {
 		switch (opt) {
 		case 'o':

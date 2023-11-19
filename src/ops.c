@@ -10,20 +10,6 @@
  * move everything down into them. Typically the top output is used as input in
  * some other step. */
 
-enum loc_kind {
-	LOC_NONE, LOC_REG, LOC_MEM
-};
-
-struct loc {
-	enum loc_kind kind;
-	struct loc *next;
-	size_t start;
-	size_t end;
-	size_t reg;
-	long long off;
-	size_t width;
-};
-
 static void set_reg(struct loc *loc, size_t reg)
 {
 	loc->kind = LOC_REG;
@@ -56,38 +42,6 @@ static size_t trivial_type_width(struct ast_node *type)
 	}
 	return 3;
 }
-
-enum opcode {
-	/* small subset for now */
-	OP_LI,
-	OP_LA,
-	OP_ADD,
-	OP_ADDI,
-	OP_STT,
-	OP_LDT,
-	OP_STW,
-	OP_LDW,
-	OP_MV, /* meta op, will be realized as either load/store or register move */
-	OP_LABEL,
-	OP_COMMENT,
-};
-
-struct op {
-	enum opcode opcode;
-	struct loc inputs;
-	struct loc outputs;
-	size_t loc;
-	union {
-		long long constant;
-		const char *string;
-	};
-	struct op *next;
-};
-
-struct ops {
-	struct op *base;
-	struct op *head;
-};
 
 struct ops *create_ops()
 {
@@ -123,9 +77,9 @@ static size_t next_virtual_reg()
 	return reg++;
 }
 
-#define HEAD_OUTPUTS(ops) ops->head->outputs
-
 static int lower_op(struct ast_node *n, struct ops *ops);
+
+#define HEAD_OUTPUTS(ops) ops->head->outputs
 static struct op *op_head(struct ops *ops)
 {
 	return ops->head;
@@ -143,13 +97,28 @@ static struct op *append_op(struct ops *ops, enum opcode opcode)
 	return n;
 }
 
+/* this should really only be called after lifetime analysis, should I add in
+ * some checks against incorrect use...? */
+static struct op *insert_op_after(struct op *op, enum opcode opcode)
+{
+	struct op *n = calloc(1, sizeof(struct op));
+	n->opcode = opcode;
+	n->next = op->next;
+	op->next = n;
+	return n;
+}
+
 static int lower_proc(struct ast_node *n, struct ops *ops)
 {
 	struct op *op = append_op(ops, OP_LABEL);
 	/** @todo name mangling */
 	struct ast_node *id = AST_PROC(n).id;
 	op->string = strdup(AST_ID(id).id);
-	return lower_op(AST_PROC(n).body, ops);
+	int ret = lower_op(AST_PROC(n).body, ops);
+	if (ret)
+		return ret;
+
+	return 0;
 }
 
 static int lower_block(struct ast_node *n, struct ops *ops)
@@ -382,14 +351,72 @@ int lower_ops(struct scope *root, struct ops *ops)
 	return 0;
 }
 
-int analyze_lifetime(struct ops *ops)
+static enum opcode st_opc(struct loc *loc)
 {
+	switch (loc->width) {
+	case 1: return OP_STT;
+	case 3: return OP_STW;
+	}
+
+	abort();
+	return OP_STW;
+}
+
+static enum opcode ld_opc(struct loc *loc)
+{
+	switch (loc->width) {
+	case 1: return OP_LDT;
+	case 3: return OP_LDW;
+	}
+
+	abort();
+	return OP_LDW;
+}
+
+static int realize_moves(struct ops *ops)
+{
+	/* completely arbitrary and *will* have to be made better in the near
+	 * future */
+	static const size_t tmp_reg = 9;
+	struct op *op = ops->base;
+	for (; op; op = op->next) {
+		if (op->opcode != OP_MV) {
+			continue;
+		}
+
+		struct loc *i = &op->inputs;
+		struct loc *o = &op->outputs;
+		assert(i->next == NULL);
+		assert(i->next == NULL);
+
+		if (i->kind == LOC_REG && o->kind == LOC_REG) {
+			continue;
+		} else if (i->kind == LOC_REG && o->kind == LOC_MEM) {
+			op->opcode = st_opc(o);
+		} else if (i->kind == LOC_MEM && o->kind == LOC_REG) {
+			op->opcode = ld_opc(i);
+		} else if (i->kind == LOC_MEM && o->kind == LOC_MEM) {
+			op->opcode = ld_opc(i);
+			/* our input/output are references, so call this before
+			 * setting registers for our original operation. Also,
+			 * at this point the lifetime stuff is finished, so no
+			 * big deal that our node IDs change */
+			struct op *n = insert_op_after(op, st_opc(o));
+			set_mem(&n->outputs, o->reg, o->off, o->width);
+			set_reg(&n->inputs, tmp_reg);
+			set_reg(&op->outputs, tmp_reg);
+		}
+	}
+
 	return 0;
 }
 
-/* this is probably going to balloon up, should probably move this into another
- * file */
-int print_asm(struct ops *ops, const char *output)
+int alloc_regs(struct ops *ops)
 {
-	return 0;
+	/** @todo analyze lifetime, for now just convert moves to correct ldst
+	 * etc. */
+	int ret = realize_moves(ops);
+	printf("Lowered ops after lifetime analysis:\n");
+	print_ops(ops);
+	return ret;
 }

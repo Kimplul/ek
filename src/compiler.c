@@ -192,7 +192,7 @@ int compile(const char *input, const char *output) {
 		return ret;
 	}
 
-	ret = analyze_lifetime(ops);
+	ret = alloc_regs(ops);
 	if (ret) {
 		destroy_ops(ops);
 		error("compilation of %s stopped due to errors", input);
