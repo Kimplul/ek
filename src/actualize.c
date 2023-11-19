@@ -683,6 +683,11 @@ static int actualize_proc(struct act_state *state,
 			               "no return with non-void return type");
 			ret = -1;
 		}
+		/* add 'implicit' return */
+		struct ast_node *body = AST_PROC(actual).body;
+		struct ast_node *r = gen_return(NULL);
+		r->scope = body->scope;
+		ast_append(AST_BLOCK(body).body, r);
 	}
 	else if (ast_block_last(actual->_proc.body)->node_type != AST_RETURN) {
 		/* TODO: something more sophisticated than this */

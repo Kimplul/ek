@@ -22,6 +22,7 @@
 #define AST_CAST(x) x->_cast
 #define AST_PROC(x) x->_proc
 #define AST_VAR(x) x->_var
+#define AST_RETURN(x) x->_return
 #define AST_STRUCT(x) x->_struct
 #define AST_ENUM(x) x->_enum
 #define AST_CALL(x) x->_call

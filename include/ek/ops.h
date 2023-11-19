@@ -27,6 +27,7 @@ enum opcode {
 	OP_LDT,
 	OP_STW,
 	OP_LDW,
+	OP_RET,
 	OP_MV, /* kind of meta op, will be realized as either load/store or register move */
 	OP_LABEL,
 	OP_COMMENT,

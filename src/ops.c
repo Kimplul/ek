@@ -252,6 +252,21 @@ static int lower_id(struct ast_node *n, struct ops *ops)
 	return 0;
 }
 
+static int lower_ret(struct ast_node *n, struct ops *ops)
+{
+	if (AST_RETURN(n).expr) {
+		int ret = lower_op(AST_RETURN(n).expr, ops);
+		if (ret)
+			return ret;
+	}
+
+	struct op *op = append_op(ops, OP_RET);
+	if (AST_RETURN(n).expr)
+		set_reg(&op->inputs, HEAD_OUTPUTS(ops).reg);
+
+	return 0;
+}
+
 static int lower_op(struct ast_node *n, struct ops *ops)
 {
 	int ret = 0;
@@ -264,6 +279,7 @@ static int lower_op(struct ast_node *n, struct ops *ops)
 	case AST_ASSIGN: ret = lower_assign(n, ops); break;
 	case AST_UNOP: ret = lower_unop(n, ops); break;
 	case AST_ID: ret = lower_id(n, ops); break;
+	case AST_RETURN: ret = lower_ret(n, ops); break;
 	default:
 		       semantic_error(n->scope->fctx, n, "unimplemented lowering");
 		       return -1;
@@ -316,6 +332,7 @@ static void print_op(struct op *op)
 	case OP_LDT: printf("ldt"); break;
 	case OP_STW: printf("stw"); break;
 	case OP_LDW: printf("ldw"); break;
+	case OP_RET: printf("ret"); break;
 	case OP_MV: printf("mv"); break;
 	default: printf("unimp"); break;
 	}

@@ -57,6 +57,17 @@ static int print_stt(struct op *op, FILE *f)
 	return 0;
 }
 
+static int print_ret(struct op *op, FILE *f)
+{
+	/* technically speaking ret takes a number of inputs, but they should be
+	 * marshaled into registers with moves etc. so don't worry about them
+	 * here */
+	fprintf(f, "jalr x0, 0(x21)\n");
+	/* eventually add in proper ret alias to assembly language once I go
+	 * through calling conventions etc. */
+	return 0;
+}
+
 static int print_op(struct op *op, FILE *f)
 {
 	int ret = 0;
@@ -66,6 +77,7 @@ static int print_op(struct op *op, FILE *f)
 	case OP_LI: ret = print_li(op, f); break;
 	case OP_MV: ret = print_mv(op, f); break;
 	case OP_STT: ret = print_stt(op, f); break;
+	case OP_RET: ret = print_ret(op, f); break;
 	default: abort();
 	}
 
@@ -77,7 +89,11 @@ int print_asm(struct ops *ops, const char *output)
 	FILE *f = fopen(output, "w");
 
 	/* main should probably be mangled here as well */
-	fprintf(f, "jal x0, main\n");
+	fprintf(f, "jal x21, main\n");
+	/* tell simulator to turn off (very much temp) */
+	fprintf(f, "li x1, 3\n");
+	fprintf(f, "csrrw mpower, x0, x1\n");
+
 	int ret = 0;
 	struct op *op = ops->base;
 	while (op) {
@@ -86,10 +102,6 @@ int print_asm(struct ops *ops, const char *output)
 
 		op = op->next;
 	}
-
-	/* tell simulator to turn off (very much temp) */
-	fprintf(f, "li x1, 3\n");
-	fprintf(f, "csrrw mpower, x0, x1\n");
 
 	fclose(f);
 	return ret;
