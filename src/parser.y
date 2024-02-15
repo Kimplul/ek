@@ -44,9 +44,6 @@
 %token SEMICOLON ";"
 %token COLON ":"
 %token BANG "!"
-/* still not sure if this should be just typeof, would be slower to type I guess */
-%token TYPEOF "typeof"
-/* typeof does sort of fit into sizeof, hmmm */
 %token SIZEOF "sizeof"
 %token STAR "*"
 %token DIV "/"
@@ -119,7 +116,7 @@
 %left "<<" ">>"
 %left "+" "-"
 %left "*" "/" "%"
-%left "as" "sizeof" "typeof"
+%left "as" "sizeof"
 %right "'" "!" "~"
 %left "." "=>" "(" ")"
 %left "::"
@@ -129,12 +126,12 @@
 %nterm <node> while do_while statement statements body references macro
 %nterm <node> exprs if for case cases switch const
 %nterm <node> func_sign type var_decl var
-%nterm <node> var_init proc trait_elem trait_elems
+%nterm <node> var_init proc
 %nterm <node> alias trait enum_val enums enum top unit id
-%nterm <node> embed param_decl members struct_elem
+%nterm <node> embed param_decl members
 %nterm <node> top_if const_if const_for defer goto assign
 %nterm <node> construct construct_args construct_arg
-%nterm <node> statelet apply
+%nterm <node> statelet apply types
 
 %nterm <node> tagged_struct anon_struct tagged_union anon_union
 
@@ -143,10 +140,14 @@
 
 %nterm <node> macro_expand type_expand
 
-%nterm <node> type_construct type_params type_param
+%nterm <node> type_params type_param
 
 /* array stuff */
 %nterm <node> arr arr_inits arr_init
+
+/* optional stuff */
+%nterm <node> opt_args opt_exprs proc_decl member opt_members
+%nterm <node> opt_statements opt_types
 
 %{
 
@@ -278,8 +279,12 @@ unop
 	| "*" expr { $$ = gen_unop(AST_DEREF, $2);  }
 
 arr_init
-	: "=>" const_expr "..." const_expr "=" arg { $$ = gen_var($2, $4, $6); }
-	| "=>" const_expr "=" arg { $$ = gen_var($2, NULL, $4); }
+	: "=>" const_expr "..." const_expr "=" arg {
+		$$ = gen_var($2, $4, $6, src_loc(@$));
+	}
+	| "=>" const_expr "=" arg {
+		$$ = gen_var($2, NULL, $4, src_loc(@$));
+	}
 	| arg
 
 arr_inits
@@ -302,7 +307,7 @@ args
 	| arg
 
 param_decl
-	: type { $$ = gen_var(NULL, $1, NULL);  }
+	: type { $$ = gen_var(NULL, $1, NULL, src_loc(@$));  }
 	| var_decl
 
 decls
@@ -366,15 +371,15 @@ const_expr
 
 /* TODO: concatenate multiple strings together? Or is that the lexer's job? */
 expr
-	: expr "." id { $$ = gen_dot($1, $3); }
+	: expr "." id { $$ = gen_dot($1, $3, src_loc(@$)); }
 	| "..." id { $$ = $2; }
 	| INT { $$ = gen_int($1); }
 	| STRING {
 		$$ = gen_string(clone_string($1));
 	}
 	| "(" expr ")" { $$ = $2; }
-	| expr "(" args ")" { $$ = gen_call($1, $3); }
-	| expr "(" ")" { $$ = gen_call($1, NULL); }
+	| expr "(" args ")" { $$ = gen_call($1, $3, src_loc(@$)); }
+	| expr "(" ")" { $$ = gen_call($1, NULL, src_loc(@$)); }
 	| expr "[" expr "]" { $$ = gen_arr_access($1, $3, src_loc(@$)); /** @todo add arr access */}
 	| "(" var_init ")" { $$ = $2; }
 	| "sizeof" expr { $$ = gen_sizeof($2); }
@@ -404,16 +409,14 @@ goto
 statelet
 	: "return" args { $$ = gen_return($2);  }
 	| "return" { $$ = gen_return(NULL); }
-	| "break" { $$ = gen_ctrl(AST_CTRL_BREAK, src_loc(yylloc)); }
-	| "continue" { $$ = gen_ctrl(AST_CTRL_CONTINUE, src_loc(yylloc)); }
+	| "break" { $$ = gen_ctrl(AST_CTRL_BREAK, src_loc(@$)); }
+	| "continue" { $$ = gen_ctrl(AST_CTRL_CONTINUE, src_loc(@$)); }
 	| trait
 	| import
 	| alias
 	| exprs
-	| const
 	| goto
 	| var
-	| ";" { $$ = gen_empty();  }
 	| error {
 	    /* TODO: figure out how to destroy any and all possible ast nodes we
 	     * may have generated up until the error */
@@ -439,8 +442,10 @@ statement
 	| for
 	| defer
 	| if
+	| const
 	| enum
 	| macro
+	| ";" { $$ = gen_empty(); }
 	| id ":" { $$ = gen_label($1);  }
 
 statements
@@ -448,10 +453,12 @@ statements
 	| statement
 	| statelet
 
+opt_statements
+	: statements
+	| {$$ = NULL;}
 
 body
-	: "{" statements "}" { $$ = gen_block($2);  }
-	| "{" "}" { $$ = gen_block(gen_empty()); }
+	: "{" opt_statements "}" { $$ = gen_block($2);  }
 
 references
 	: id "," references { $$ = $1; $$->next = $3; }
@@ -481,7 +488,7 @@ exprs
 
 construct_arg
 	: "." id "=" expr {
-		$$ = gen_var($2, NULL, $4);
+		$$ = gen_var($2, NULL, $4, src_loc(@$));
 		ast_set_flags($$, AST_FLAG_MEMBER);
 	}
 
@@ -497,9 +504,17 @@ if
 	| "if" expr body "else" body { $$ = gen_if($2, $3, $5);  }
 	| "if" expr body "else" if { $$ = gen_if($2, $3, $5);  }
 
-/* todo how about leaving out some parts? */
+opt_args
+	: args
+	| {$$ = NULL;}
+
+opt_exprs
+	: exprs
+	| {$$ = NULL;}
+
 for
-	: "for" arg ";" expr ";" expr body { $$ = gen_for($2, $4, $6, $7); }
+	: "for" opt_args ";" opt_exprs ";" exprs body { $$ = gen_for($2, $4, $6, $7); }
+	| "for" opt_args ";" opt_exprs ";" body {}
 
 case
 	: "case" const_expr ":" statements {
@@ -509,6 +524,8 @@ case
 		$$ = gen_case($2, $4);
 	}
 	| "default" ":" statements {
+		/* default seems like it would be useful as something other than
+		 * a keyword... */
 		$$ = gen_case(NULL, $3);
 	}
 
@@ -550,29 +567,26 @@ const
 
 func_sign
 	: "(" decls "=>" type ")" {
-		$$ = gen_type(AST_TYPE_SIGN, $2, $4, NULL);
+		$$ = gen_type(AST_TYPE_SIGN, $2, $4, src_loc(@$));
 	}
-	| "(" decls ")" { $$ = gen_type(AST_TYPE_SIGN, $2, NULL, NULL); }
-	| "(" decls "=>" ")" { $$ = gen_type(AST_TYPE_SIGN, $2, NULL, NULL); }
-	| "(" "=>" type ")" { $$ = gen_type(AST_TYPE_SIGN, NULL, $3, NULL); }
-	| "(" "=>" ")" { $$ = gen_type(AST_TYPE_SIGN, NULL, NULL, NULL); }
-	| "(" ")" { $$ = gen_type(AST_TYPE_SIGN, NULL, NULL, NULL); }
+	| "(" decls ")" { $$ = gen_type(AST_TYPE_SIGN, $2, NULL, src_loc(@$)); }
+	| "(" decls "=>" ")" { $$ = gen_type(AST_TYPE_SIGN, $2, NULL, src_loc(@$)); }
+	| "(" "=>" type ")" { $$ = gen_type(AST_TYPE_SIGN, NULL, $3, src_loc(@$)); }
+	| "(" "=>" ")" { $$ = gen_type(AST_TYPE_SIGN, NULL, NULL, src_loc(@$)); }
+	| "(" ")" { $$ = gen_type(AST_TYPE_SIGN, NULL, NULL, src_loc(@$)); }
 
 type
-	: id { $$ = gen_type(AST_TYPE_ID, $1, NULL, NULL); }
+	: id { $$ = gen_type(AST_TYPE_ID, $1, NULL, src_loc(@$)); }
 	| "^" func_sign {
 		/* still not entirely sold on this signature, but it's not terrible I
 		 * guess */
-		$$ = gen_type(AST_TYPE_POINTER, $2, NULL, NULL);
+		$$ = gen_type(AST_TYPE_POINTER, $2, NULL, src_loc(@$));
 	}
 	| "*" type {
-		$$ = gen_type(AST_TYPE_POINTER, $2, NULL, NULL);
+		$$ = gen_type(AST_TYPE_POINTER, $2, NULL, src_loc(@$));
 	}
 	| "[" const_expr "]" type {
-		$$ = gen_type(AST_TYPE_ARR, $2, $4, NULL);
-	}
-	| "typeof" expr {
-		$$ = gen_type(AST_TYPE_TYPEOF, $2, NULL, NULL);
+		$$ = gen_type(AST_TYPE_ARR, $2, $4, src_loc(@$));
 	}
 	| "const" type {
 		$$ = $2;
@@ -581,32 +595,37 @@ type
 		$$ = $2; ast_set_flags($$, AST_FLAG_MUTABLE);
 	}
 	| anon_struct
-	/* syntactic sugar for struct {union {...} } */
 	| anon_union
-	/* syntactic sugar for anon_struct */
-	| type_expand
+	| apply "[" opt_types "]" {
+		$$ = gen_type(AST_TYPE_CONSTRUCT, $1, $3, src_loc(@$));
+	}
 
 types
-	: type "," types
+	: type "," types { $$ = $1; $$->next = $3; }
 	| type
 
-/* vec![int] is effectively struct {vec![int]} */
+opt_types
+	: types
+	| { $$ = NULL; }
+
 type_expand
-	: apply "[" types "]"
-	/* legal, but weird */
-	| apply "[" "]"
+	: apply "[" opt_types "]" { $$ = gen_type_expand($1, $3, src_loc(@$)); }
 
 var_decl
-	: type id { $$ = gen_var($2, $1, NULL);  }
+	: type id { $$ = gen_var($2, $1, NULL, src_loc(@$));  }
 
 var_init
 	: var_decl "=" arg { $$ = $1; $$->_var.init = $3; }
-	| "const" id "=" arg { $$ = gen_var($2, NULL, $4); }
+	| "const" id "=" arg { $$ = gen_var($2, NULL, $4, src_loc(@$)); }
 	| "mut" id "=" arg {
-		$$ = gen_var($2, NULL, $4);
+		$$ = gen_var($2, NULL, $4, src_loc(@$));
 		ast_set_flags($$, AST_FLAG_MUTABLE);
 	}
 
+proc_decl
+	: id func_sign {
+		$$ = gen_proc($1, $2, NULL, src_loc(@$));
+	}
 proc
 	: id func_sign body {
 		$$ = gen_proc($1, $2, $3, src_loc(@$));
@@ -619,74 +638,55 @@ proc
 		ast_set_flags($$, AST_FLAG_EXTERN);
 	}
 
-struct_elem
-	: var_decl
-	| type_expand
+member
+	: var_decl ";"
+	| type_expand ";"
+	| proc_decl ";"
+	| id ";"
+	| proc
 	;
 
 members
-	: struct_elem ";" members { $$ = $1; $1->next = $3; }
-	| struct_elem ";"
+	: member members { $$ = $1; $1->next = $2; }
+	| member
+
+opt_members
+	: members
+	| {$$ = NULL;}
 
 tagged_union
-	: "union" id "{" members "}" {
+	: "union" id "{" opt_members "}" {
 		/* essentially struct {union{members}} */
 		$$ = gen_struct($2, NULL, $4);
 	}
 
 anon_union
-	: "union" "{" members "}" { $$ = gen_struct(NULL, NULL, $3); }
+	: "union" "{" opt_members "}" { $$ = gen_struct(NULL, NULL, $3); }
 
 macro_expand
-	: apply "(" ")" { $$ = gen_macro_expand($1, NULL, src_loc(@$)); }
-	| apply "(" args ")" { $$ = gen_macro_expand($1, $3, src_loc(@$)); }
+	: apply "(" opt_args ")" { $$ = gen_macro_expand($1, $3, src_loc(@$)); }
 
 tagged_struct
-	: "struct" id "{" members "}" {
+	: "typedef" id "{" opt_members "}" {
 		$$ = gen_struct($2, NULL, $4);
 	}
 
 anon_struct
-	: "struct" "{" members "}" { $$ = gen_struct(NULL, NULL, $3); }
-
-trait_elem
-	: id /* trait */
-	| id func_sign { $$ = gen_proc($1, $2, NULL, src_loc(@$));  } /* proc */
-	| var_decl /* member */
-	| type_expand /* type construction */
-
-trait_elems
-	: trait_elem ";" trait_elems { $$ = $1; $1->next = $3; }
-	| trait_elem ";"
-	| trait_elem
+	: "typedef" "{" opt_members "}" { $$ = gen_struct(NULL, NULL, $3); }
 
 alias
 	: "typedef" id type { $$ = gen_alias($2, $3);  }
 
-/* we'll parse the arg list later in the AST and check that each node is of some
- * specific type */
-trait
-	: "typedef" id "{" trait_elems "}" {
-		$$ = gen_trait($2, $4);
-	}
-	| "typedef" id "{" "}" {
-		/* should match anything, but doesn't implement anything */
-		$$ = gen_trait($2, NULL);
-	}
-
 type_param
-	: id id { $$ = gen_var($2, $1, NULL); }
+	: id id { $$ = gen_var($2, $1, NULL, src_loc(@$)); }
 
 type_params
 	: type_param "," type_params { $$ = $1; $1->next = $3; }
 	| type_param
 
-type_construct
-	: "typedef" id "[" type_params "]" "{" members "}" {
-		$$ = gen_type_construct($2, $4, $7, src_loc(@$));
-	}
-	| "typedef" id "[" "]" "{" members "}" {
-		$$ = gen_type_construct($2, NULL, $6, src_loc(@$));
+trait
+	: "typedef" id "[" type_params "]" "{" opt_members "}" {
+		$$ = gen_trait($2, $4, $7, src_loc(@$));
 	}
 
 enum_val
@@ -726,7 +726,6 @@ top
 	| proc
 	| tagged_struct
 	| tagged_union
-	| type_construct
 	| macro { $$ = $1; }
 	| top_if { $$ = $1; ast_set_flags($$, AST_FLAG_CONST); }
 	| import { $$ = $1; }
@@ -735,7 +734,6 @@ top
 	| "pub" enum { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" tagged_struct { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" tagged_union { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
-	| "pub" type_construct { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" proc { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" macro { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" import { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }

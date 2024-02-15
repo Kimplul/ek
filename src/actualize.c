@@ -288,7 +288,7 @@ static int analyze_file_visibility(struct scope *scope, struct ast_node *node)
 	case AST_IMPORT: {
 		const char *file = AST_IMPORT(node).file;
 		ret |= process_file(&scope,
-				ast_flags(node, AST_FLAG_PUBLIC), file);
+		                    ast_flags(node, AST_FLAG_PUBLIC), file);
 		break;
 	}
 
@@ -326,11 +326,6 @@ static int analyze_file_visibility(struct scope *scope, struct ast_node *node)
 	case AST_TRAIT: {
 		struct ast_node *id = AST_TRAIT(node).id;
 		ret |= scope_add_type(scope, id, node);
-		break;
-	}
-
-	case AST_TYPE_CONSTRUCT: {
-		ret |= scope_add_type_construct(scope, node);
 		break;
 	}
 
@@ -377,7 +372,6 @@ static int analyze(struct scope *scope, struct ast_node *tree)
 
 int analyze_root(struct scope *scope, struct ast_node *tree)
 {
-	scope_add_defaults(scope);
 	if (analyze(scope, tree))
 		return -1;
 
@@ -410,10 +404,6 @@ int types_match(struct ast_node *a, struct ast_node *b)
 	assert(a->node_type == AST_TYPE);
 	assert(b->node_type == AST_TYPE);
 
-	/* typeofs match 'everything' */
-	if (AST_TYPE(a).kind == AST_TYPE_TYPEOF || AST_TYPE(b).kind == AST_TYPE_TYPEOF)
-		return 1;
-
 	/* if the type kind doesn't match, we're done. */
 	if (AST_TYPE(a).kind != AST_TYPE(b).kind)
 		return 0;
@@ -423,7 +413,7 @@ int types_match(struct ast_node *a, struct ast_node *b)
 
 	if (AST_TYPE(a).kind == AST_TYPE_POINTER)
 		return types_match(AST_PTR_TYPE(a).base,
-				AST_PTR_TYPE(b).base);
+		                   AST_PTR_TYPE(b).base);
 
 	if (AST_TYPE(a).kind == AST_TYPE_PRIMITIVE)
 		return primitives_match(a, b);
@@ -467,25 +457,13 @@ static int replace_id(struct ast_node *body, struct ast_node *id,
 }
 
 static int actualize_macro_construct(struct act_state *state,
-                           struct scope *scope, struct ast_node *n)
+                                     struct scope *scope, struct ast_node *n)
 {
 	UNUSED(state);
 	/* macro bodies, arguments, etc aren't expanded upon until the macro is
 	 * called, so just try to add it to the local scope */
 	assert(n && n->node_type == AST_MACRO_CONSTRUCT);
 	return scope_add_macro(scope, n);
-}
-
-struct ast_node *extract_typeof(struct ast_node *type)
-{
-	if (!type)
-		return 0;
-
-	assert(type->node_type == AST_TYPE);
-	if (type->_type.kind == AST_TYPE_TYPEOF)
-		return type;
-
-	return extract_typeof(type->_type.next);
 }
 
 struct ast_node *extract_trait(struct ast_node *type)
@@ -501,7 +479,7 @@ struct ast_node *extract_trait(struct ast_node *type)
 }
 
 static void actualize_trait_types(struct ast_node *params,
-                                     struct ast_node *args)
+                                  struct ast_node *args)
 {
 	/** @todo replace trait types with arg types, should probably be merged
 	 * */
@@ -534,11 +512,12 @@ static int actualize_proc_call(struct act_state *state,
 }
 
 static int actualize_macro_expand(struct act_state *state,
-                                struct scope *scope, struct ast_node *macro_expand)
+                                  struct scope *scope,
+                                  struct ast_node *macro_expand)
 {
 	assert(macro_expand->node_type == AST_MACRO_EXPAND);
 	struct ast_node *id = AST_MACRO_EXPAND(macro_expand).id;
-	struct ast_node *macro = file_scope_resolve_macro(scope, id);
+	struct ast_node *macro = file_scope_find_macro(scope, id);
 	if (!macro) {
 		semantic_error(scope->fctx, macro_expand, "no such macro");
 		return -1;
@@ -596,11 +575,16 @@ static int actualize_call(struct act_state *state,
 
 	/* check that arguments exist, make sure they have types etc. */
 	/* TODO: procedure callbacks? */
-	int ret = actualize(state, scope, call->_call.args);
+	int ret = actualize(state, scope, AST_CALL(call).args);
 	if (ret)
 		return ret;
 
-	struct ast_node *callable = file_scope_resolve_call(scope, call);
+	ret = actualize(state, scope, AST_CALL(call).expr);
+	if (ret)
+		return ret;
+
+	/** @todo check if call args and expr types match */
+	struct ast_node *callable = file_scope_find_proc(scope, call);
 	if (!callable) {
 		char *str = call_str(call);
 		semantic_error(scope->fctx, call, "no such callable: %s", str);
@@ -609,6 +593,8 @@ static int actualize_call(struct act_state *state,
 	}
 
 	assert(callable->node_type == AST_PROC);
+	/** @todo we should probably start with just iterating over all procs and check
+	 * if they're valid rather than generating them on 'demand' */
 	return actualize_proc_call(state, scope, call, callable);
 }
 
@@ -622,7 +608,7 @@ static void warn_unused_labels(struct act_state *state, struct scope *scope)
 		struct ast_node *label = labels->node;
 		if (!ast_flags(label, AST_FLAG_ACTUAL))
 			semantic_warn(scope->fctx, label,
-				      "unused label");
+			              "unused label");
 
 	} while ((labels = labels->next));
 }
@@ -638,7 +624,7 @@ static int undefined_gotos(struct act_state *state, struct scope *scope)
 		struct ast_node *got = gotos->node;
 		if (!ast_flags(got, AST_FLAG_ACTUAL)) {
 			semantic_warn(scope->fctx, got,
-				      "undefined label");
+			              "undefined label");
 			ret = -1;
 		}
 
@@ -808,27 +794,27 @@ static int actualize_id(struct act_state *state,
 	/** @todo at the moment we always assume an ID is a variable, but stuff
 	 * like function callbacks should be added in the future */
 	struct ast_node *decl = file_scope_find_var(scope, id);
-	if (!decl) {
-		semantic_error(scope->fctx, id, "no such object");
-		return -1;
+	if (decl) {
+		id->type = decl->type;
+		return 0;
 	}
 
-	if (!decl->type) {
-		semantic_error(scope->fctx, id,
-		               "no type associated with object");
-		return -1;
+	decl = file_scope_find_proc(scope, id);
+	if (decl) {
+		id->type = decl->type;
+		return 0;
 	}
 
-	id->type = decl->type;
-	return 0;
+	semantic_error(scope->fctx, id, "no such object");
+	return -1;
 }
 
 static int actualize_var(struct act_state *state,
                          struct scope *scope, struct ast_node *var)
 {
 	assert(var && var->node_type == AST_VAR);
-	struct ast_node *init = var->_var.init;
-	struct ast_node *type = var->_var.type;
+	struct ast_node *init = AST_VAR(var).init;
+	struct ast_node *type = AST_VAR(var).type;
 	/* one of these must be defined, otherwise the parser fucked up */
 	assert(type || init);
 
@@ -881,11 +867,11 @@ static int actualize_var(struct act_state *state,
 	enum act_flags old_flags = state->flags; \
 	struct ast_node *old_trait = state->cur_trait;
 
-#define EXIT_ACT(r)                                 \
-	do {                                        \
+#define EXIT_ACT(r)                           \
+	do {                                  \
 		state->cur_trait = old_trait; \
-		state->flags = old_flags;           \
-		return r;                           \
+		state->flags = old_flags;     \
+		return r;                     \
 	} while (0);
 
 static int actualize_type(struct act_state *state,
@@ -908,10 +894,12 @@ static int actualize_type(struct act_state *state,
 		 * they're missing, void */
 		if (!AST_ID_TYPE(type).id) {
 			/* no ID means void */
-			AST_ID_TYPE(type).id = gen_id(strdup("void"), NULL_LOC());
+			AST_ID_TYPE(type).id =
+				gen_id(strdup("void"), NULL_LOC());
 		}
 
-		struct ast_node *exists = file_scope_find_type(scope, AST_ID_TYPE(type).id);
+		struct ast_node *exists = file_scope_find_type(scope, AST_ID_TYPE(
+								       type).id);
 		if (!exists) {
 			semantic_error(scope->fctx, type, "no such type");
 			EXIT_ACT(-1);
@@ -945,26 +933,16 @@ static int actualize_type(struct act_state *state,
 		break;
 	}
 
+	case AST_TYPE_CONSTRUCT:
+		semantic_info(scope->fctx, type,
+		              "constructs unimplemented, continuing with compilation to see what breaks");
+		break;
+
 	case AST_TYPE_ARR:
 		/* TODO: expression should be expandable to integer constant */
+		semantic_info(scope->fctx, type,
+		              "arrays unimplemented, continuing with compilation to see what breaks");
 		break;
-
-	case AST_TYPE_TYPEOF: {
-		struct ast_node *expr = AST_TYPEOF_TYPE(type).expr;
-		/* TODO: expressions in top-level type declarations should
-		 * probably be checked for, as we might not want to accidentally
-		 * actualize procedure calls? */
-		if (actualize(state, scope, expr))
-			EXIT_ACT(-1);
-
-		/* TODO: for now just trust that the expression is not looped or
-		 * anything dumb like that, but I would feel better if I figure
-		 * out some check */
-		assert(type->_type.next == NULL);
-		/** @todo add in some 'from' field for this situation? */
-		type->type = expr->type;
-		break;
-	}
 
 	case AST_TYPE_POINTER:
 		assert(AST_PTR_TYPE(type).base);
@@ -1019,7 +997,7 @@ static int actualize_empty(struct act_state *state,
 		return -1;
 	}
 
-	node->type = gen_type(AST_TYPE_ID, void_id, NULL, NULL);
+	node->type = gen_type(AST_TYPE_ID, void_id, NULL, NULL_LOC());
 	if (!node->type) {
 		internal_error("couldn't allocate type for empty statement\n");
 		return -1;
@@ -1186,11 +1164,11 @@ static int init_struct(struct act_state *state, struct scope *scope,
 			break;
 		}
 
-		if (!implements(0, scope, args->type, member->type)) {
+		if (!types_match(args->type, member->type)) {
 			char *astr = type_str(args->type);
 			char *mstr = type_str(member->type);
 			semantic_error(scope->fctx, args,
-			               "%s does not implement %s", astr, mstr);
+			               "%s does not match %s", astr, mstr);
 			free(astr);
 			free(mstr);
 			ret = -1;
@@ -1351,7 +1329,7 @@ static int actualize_alias(struct act_state *state, struct scope *scope,
 }
 
 static int actualize_trait(struct act_state *state, struct scope *scope,
-                              struct ast_node *trait)
+                           struct ast_node *trait)
 {
 	assert(trait->node_type == AST_TRAIT);
 	ast_set_flags(trait, AST_FLAG_ACTUAL);
@@ -1565,8 +1543,9 @@ static int actualize_unop(struct act_state *state,
 	}
 
 	case AST_REF: {
-		node->type = gen_type(AST_TYPE_POINTER, NULL, NULL, NULL);
-		node->type->_type.next = expr->type;
+		node->type = gen_type(AST_TYPE_POINTER, NULL, NULL,
+		                      NULL_LOC());
+		node->AST_TYPE(type).next = expr->type;
 		break;
 	}
 
@@ -1613,7 +1592,8 @@ static int actualize_struct(struct act_state *state,
 
 	/* cloning slightly odd, but I guess it's fine? */
 	struct ast_node *clone_id = clone_ast_node(node->_struct.id);
-	node->type = gen_type(AST_TYPE_STRUCT, clone_id, NULL, NULL);
+	node->type =
+		gen_type(AST_TYPE_STRUCT, clone_id, NULL, NULL_LOC());
 
 	ast_set_flags(node, AST_FLAG_ACTUAL);
 	return 0;
@@ -1632,6 +1612,9 @@ static int has_members(struct ast_node *type)
 		return 1;
 
 	if (AST_TYPE(type).kind == AST_TYPE_TRAIT)
+		return 1;
+
+	if (AST_TYPE(type).kind == AST_TYPE_CONSTRUCT)
 		return 1;
 
 	return 0;
@@ -1708,7 +1691,8 @@ static int actualize_assign(struct act_state *state, struct scope *scope,
 
 	/** @todo rvalue vs lvalue? */
 	if (!is_lvalue(to)) {
-		semantic_error(scope->fctx, node, "rvalue used where lvalue required");
+		semantic_error(scope->fctx, node,
+		               "rvalue used where lvalue required");
 		return -1;
 	}
 
@@ -1730,7 +1714,8 @@ static int actualize_fetch(struct act_state *state, struct scope *scope,
 	}
 
 	struct ast_node *id = fetch->_fetch.id;
-	struct ast_node *def = file_scope_find_type(scope, AST_ID_TYPE(type).id);
+	struct ast_node *def =
+		file_scope_find_type(scope, AST_ID_TYPE(type).id);
 	assert(def);
 
 	struct ast_node *member = lookup_enum_member(def, id);
@@ -1806,7 +1791,8 @@ static int actualize(struct act_state *state, struct scope *scope,
 	if (!node->scope)
 		node->scope = scope;
 
-	if (ast_flags(node, AST_FLAG_INIT) && !ast_flags(node, AST_FLAG_ACTUAL)) {
+	if (ast_flags(node,
+	              AST_FLAG_INIT) && !ast_flags(node, AST_FLAG_ACTUAL)) {
 		semantic_error(scope->fctx, node, "detected dependency loop");
 		return -1;
 	}
@@ -1823,8 +1809,10 @@ static int actualize(struct act_state *state, struct scope *scope,
 
 	case AST_TRAIT: ret |= actualize_trait(state, scope, node); break;
 	case AST_ALIAS: ret |= actualize_alias(state, scope, node); break;
-	case AST_MACRO_CONSTRUCT: ret |= actualize_macro_construct(state, scope, node); break;
-	case AST_MACRO_EXPAND: ret |= actualize_macro_expand(state, scope, node); break;
+	case AST_MACRO_CONSTRUCT: ret |= actualize_macro_construct(state, scope,
+		                                                   node); break;
+	case AST_MACRO_EXPAND: ret |=
+		actualize_macro_expand(state, scope, node); break;
 	case AST_CALL: ret |= actualize_call(state, scope, node); break;
 	case AST_BINOP: ret |= actualize_binop(state, scope, node); break;
 	case AST_BLOCK: ret |= actualize_block(state, scope, node); break;
@@ -1866,12 +1854,11 @@ static int actualize(struct act_state *state, struct scope *scope,
 int actualize_main(struct scope *root)
 {
 	struct ast_node *main_id = gen_id(strdup("main"), NULL_LOC());
-	struct ast_node *main_call = gen_call(main_id, NULL);
 
 	struct act_state state = {0};
 
 	/* skip checking signature for now */
-	struct ast_node *main = file_scope_resolve_call(root, main_call);
+	struct ast_node *main = file_scope_find_proc(root, main_id);
 	if (!main) {
 		/* libraries are not really compilable... */
 		error("no main");

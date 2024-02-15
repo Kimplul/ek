@@ -103,7 +103,6 @@ static int process(struct scope **parent, int public, const char *file)
 
 	scope->fctx.fbuf = buf;
 	scope->fctx.fname = strdup(file);
-	scope->actuals = create_actuals();
 	scope_set_flags(scope, SCOPE_FILE);
 
 	if (*parent)
@@ -173,31 +172,21 @@ int compile(const char *input, const char *output) {
 		return ret;
 	}
 
-	ret = actualize_main(root);
-	if (ret) {
+	if ((ret = actualize_main(root))) {
 		destroy_scope(root);
 		destroy_ast_nodes();
 		error("compilation of %s stopped due to errors", input);
 		return ret;
 	}
 
-	struct ops *ops = create_ops();
-	ret = lower_ops(root, ops);
+	if ((ret = lower_ops(root, output))) {
+		destroy_scope(root);
+		destroy_ast_nodes();
+		error("compilation of %s stopped due to errors", input);
+		return ret;
+	}
+
 	destroy_scope(root);
 	destroy_ast_nodes();
-
-	if (ret) {
-		destroy_ops(ops);
-		error("compilation of %s stopped due to errors", input);
-		return ret;
-	}
-
-	ret = alloc_regs(ops);
-	if (ret) {
-		destroy_ops(ops);
-		error("compilation of %s stopped due to errors", input);
-		return ret;
-	}
-
-	return print_asm(ops, output);
+	return 0;
 }

@@ -32,18 +32,17 @@
 #define AST_ARR_ACCESS(x) x->_arr_access
 #define AST_MACRO_CONSTRUCT(x) x->_macro_construct
 #define AST_MACRO_EXPAND(x) x->_macro_expand
-#define AST_TYPE_CONSTRUCT(x) x->_type_construct
 #define AST_TYPE_EXPAND(x) x->_type_expand
 
 #define AST_TYPE(x) x->_type
 #define AST_ID_TYPE(x) x->_type._id
+#define AST_CONSTRUCT_TYPE(x) x->_type._construct
 #define AST_TRAIT_TYPE(x) x->_type._trait
 /** @todo is sign and proc type the same ? */
-#define AST_TYPEOF_TYPE(x) x->_type._typeof
-#define AST_PROC_TYPE(x)  x->_type._proc
+#define AST_PROC_TYPE(x) x->_type._proc
 #define AST_ARR_TYPE(x) x->_type._arr
-#define AST_SIGN_TYPE(x)  x->_type._sign
-#define AST_ENUM_TYPE(x)  x->_type._enum
+#define AST_SIGN_TYPE(x) x->_type._sign
+#define AST_ENUM_TYPE(x) x->_type._enum
 #define AST_UNION_TYPE(x) x->_type._union
 #define AST_STRUCT_TYPE(x) x->_type._struct
 /* might rename primitive to something else */
@@ -148,7 +147,6 @@ enum ast_node_type {
 	/** Macro definition. */
 	AST_MACRO_CONSTRUCT,
 	AST_MACRO_EXPAND,
-	AST_TYPE_CONSTRUCT,
 	AST_TYPE_EXPAND,
 	/** Procedure definition. */
 	AST_PROC,
@@ -228,8 +226,7 @@ enum ast_type_kind {
 	AST_TYPE_PRIMITIVE,
 	/** Array. */
 	AST_TYPE_ARR,
-	/** Typeof expression. */
-	AST_TYPE_TYPEOF,
+	AST_TYPE_CONSTRUCT,
 	/** Trait. */
 	AST_TYPE_TRAIT,
 	/** Pointer to a type. */
@@ -366,6 +363,8 @@ struct trait_implemented {
 struct ast_trait {
 	/** Name of trait. */
 	struct ast_node *id;
+	/** Parameters to construct concrete type from trait. */
+	struct ast_node *params;
 	/** Body of trait. */
 	struct ast_node *body;
 	/** List of types that implement this trait. */
@@ -401,7 +400,7 @@ struct ast_unop {
 /** A call. */
 struct ast_call {
 	/** Name to call, whatever it may be. */
-	struct ast_node *id;
+	struct ast_node *expr;
 	/** List of arguments to call. */
 	struct ast_node *args;
 };
@@ -425,12 +424,6 @@ struct ast_macro_construct {
 struct ast_macro_expand {
 	struct ast_node *id;
 	struct ast_node *args;
-};
-
-struct ast_type_construct {
-	struct ast_node *id;
-	struct ast_node *params;
-	struct ast_node *body;
 };
 
 struct ast_type_expand {
@@ -550,7 +543,7 @@ struct ast_type {
 	/** Type kind. */
 	enum ast_type_kind kind;
 	/**
-	 * Next type element in whole type. I.e. 'u32 is two elements, one
+	 * Next type element in whole type. I.e. *i9 is two elements, one
 	 * AST_TYPE_POINTER and one AST_TYPE_ID.
 	 */
 	struct ast_node *next;
@@ -565,6 +558,11 @@ struct ast_type {
 		} _id;
 
 		struct {
+			struct ast_node *id;
+			struct ast_node *args;
+		} _construct;
+
+		struct {
 			enum ast_primitive type;
 		} _primitive;
 
@@ -577,12 +575,6 @@ struct ast_type {
 		struct {
 			struct ast_node *base;
 		} _ptr;
-
-		/** Typeof. */
-		struct {
-			/** Expression to take type of. */
-			struct ast_node *expr;
-		} _typeof;
 
 		/** Procedure. */
 		struct {
@@ -764,7 +756,6 @@ struct ast_node {
 		/** Macro definition. */
 		struct ast_macro_construct _macro_construct;
 		struct ast_macro_expand _macro_expand;
-		struct ast_type_construct _type_construct;
 		struct ast_type_expand _type_expand;
 		/** Procedure definition. */
 		struct ast_proc _proc;
@@ -831,7 +822,8 @@ struct ast_node {
 	};
 };
 
-struct ast_node *gen_arr_access(struct ast_node *base, struct ast_node *idx, struct src_loc loc);
+struct ast_node *gen_arr_access(struct ast_node *base, struct ast_node *idx,
+                                struct src_loc loc);
 
 /**
  * Generate binary operation node.
@@ -843,8 +835,8 @@ struct ast_node *gen_arr_access(struct ast_node *base, struct ast_node *idx, str
  */
 struct ast_node *gen_binop(enum ast_binops op,
                            struct ast_node *left,
-			   struct ast_node *right,
-			   struct src_loc loc);
+                           struct ast_node *right,
+                           struct src_loc loc);
 
 /**
  * Generate unary operation.
@@ -862,7 +854,8 @@ struct ast_node *gen_unop(enum ast_unops op, struct ast_node *expr);
  * @param args Arguments to call.
  * @return Corresponding AST node.
  */
-struct ast_node *gen_call(struct ast_node *id, struct ast_node *args);
+struct ast_node *gen_call(struct ast_node *id, struct ast_node *args,
+                          struct src_loc loc);
 
 /**
  * Generate ID.
@@ -963,21 +956,18 @@ struct ast_node *gen_ctrl(enum ast_ctrl_kind kind, struct src_loc loc);
  * @param body Macro body.
  * @return Corresponding AST node.
  */
-struct ast_node *gen_macro_construct(struct ast_node *id, struct ast_node *params,
-                           struct ast_node *body);
+struct ast_node *gen_macro_construct(struct ast_node *id,
+                                     struct ast_node *params,
+                                     struct ast_node *body);
 
-struct ast_node *gen_macro_expand(struct ast_node *id, struct ast_node *args, struct src_loc loc);
-
-struct ast_node *gen_type_construct(struct ast_node *id,
-		struct ast_node *params,
-		struct ast_node *body,
-		struct src_loc loc);
+struct ast_node *gen_macro_expand(struct ast_node *id, struct ast_node *args,
+                                  struct src_loc loc);
 
 /** @todo change args to type type when I figure out how it should be
  * constructed */
 struct ast_node *gen_type_expand(struct ast_node *id,
-		struct ast_node *args,
-		struct src_loc loc);
+                                 struct ast_node *args,
+                                 struct src_loc loc);
 
 /**
  * Generate if.
@@ -1018,8 +1008,9 @@ struct ast_node *gen_primitive(enum ast_primitive type, struct src_loc loc);
  * @param rets Return type, when applicable.
  * @return Corresponding AST node.
  */
-struct ast_node *gen_type(enum ast_type_kind kind, struct ast_node *id,
-                          struct ast_node *decl, struct ast_node *rets);
+struct ast_node *gen_type(enum ast_type_kind kind, struct ast_node *t2,
+                          struct ast_node *t1,
+                          struct src_loc loc);
 
 /**
  * Generate block.
@@ -1038,7 +1029,7 @@ struct ast_node *gen_block(struct ast_node *body);
  * @return Corresponding AST node.
  */
 struct ast_node *gen_var(struct ast_node *id, struct ast_node *type,
-                         struct ast_node *init);
+                         struct ast_node *init, struct src_loc loc);
 
 /**
  * Generate lambda.
@@ -1069,7 +1060,7 @@ struct ast_node *gen_proc(struct ast_node *id, struct ast_node *type,
  * @param id Name to do dot with.
  * @return Corresponding AST node.
  */
-struct ast_node *gen_dot(struct ast_node *expr, struct ast_node *id);
+struct ast_node *gen_dot(struct ast_node *expr, struct ast_node *id, struct src_loc loc);
 
 /**
  * Generate enum definition.
@@ -1107,7 +1098,8 @@ struct ast_node *gen_alias(struct ast_node *id, struct ast_node *type);
  * @param body Body.
  * @return Corresponding AST node.
  */
-struct ast_node *gen_trait(struct ast_node *id, struct ast_node *body);
+struct ast_node *gen_trait(struct ast_node *id, struct ast_node *params,
+                           struct ast_node *body, struct src_loc loc);
 
 /**
  * Generate import;

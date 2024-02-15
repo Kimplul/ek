@@ -1,0 +1,243 @@
+/* comparison traits */
+pub typedef cmp {
+	eq(*cmp a, *cmp b => bool);
+	cmp(*cmp a, *cmp b => bool);
+
+	ne(*cmp a, *cmp b => bool) {return !a.eq(b)}
+
+	lt(*cmp a, *cmp b => bool) {return a.cmp(b) < 0}
+	bt(*cmp a, *cmp b => bool) {return a.cmp(b) > 0}
+	le(*cmp a, *cmp b => bool) {return !a.bt(b)}
+	ge(*cmp a, *cmp b => bool) {return !a.lt(b)}
+
+}
+
+/* hash traits */
+pub typedef hash {
+	hash(*hash h => i27);
+}
+
+/* builtin type 'implementations' */
+/* as a special case, builtin types are allowed to be typedef'd to implement
+ * interfaces */
+pub typedef i9 {
+	fmt;
+	fmt(*i9 i, string args => result![string]) {
+		return ok!("123".str());
+	}
+
+	cmp;
+	eq(*i9 i, *i9 o => bool) {
+		return *i == *o;
+	}
+
+	cmp(*i9 i, *i9 o => bool) {
+		return *i - *o;
+	}
+
+	hash;
+	hash(*i9 i => i27) {
+		return i;
+	}
+}
+
+/* special case of special case, 'str' means *i9 but pointers aren't allowed in
+ * the parser stage. Is this an ugly solution? Feels kind of ugly. */
+pub typedef str {
+	fmt;
+	fmt(*i9 s, string args => result![string]) {
+		/* here we should probably copy s in case it is statically
+		 * defined */
+		return {.len = 2, .buf = "cp"} as string;
+	}
+
+	cmp;
+	eq(*i9 s, *i9 o => bool) {
+		if s == o {return true;}
+		/* iterate over stuff I guess */
+	}
+
+	lt(*i9 s, *i9 o => bool) {
+		if s == o {return false;}
+		/* iterate over stuff */
+	}
+
+	hash;
+	hash(*i9 s => i27) {
+		/* iterate over all characters and hash them I guess */
+	}
+}
+
+/* 'continue typedef' to implement more traits and stuff, can be postponed a bit
+ * as I don't think it's an essential feature yet. Might be in the future,
+ * though, just requires some extra finangling to figure out how each thing
+ * should work.
+ * Particularly template continuations might be a bit interesting, should we
+ * force the user to replicate the type arguments or should it be done
+ * automatically?
+
+pub continue str {
+	/* implement some other traits */
+};
+*/
+
+/* any import */
+pub typedef any {}
+
+/* string import */
+pub typedef string {
+	usize len;
+	*i9 buf;
+}
+
+/* result import */
+pub typedef result[any T] {
+	*i9 err;
+	T val;
+
+	err(*result r => bool) {
+		return r.err != null;
+	}
+}
+
+pub define ok(v) {
+	{.err = null, .val = v} as result;
+}
+
+pub define err(e) {
+	{.err = e} as result;
+}
+
+/* fmt import */
+pub typedef fmt {
+	fmt(*fmt p, string args => result![string]);
+	str(*fmt p => string) {
+		/* is this a loop? allowed? */
+		/* alternative would be {.len = 0, .buf = ""} as string I guess*/
+		const r = p.fmt("".str());
+		if r.err() {
+			abort("error converting to string");
+		}
+
+		return r.v;
+	}
+}
+
+/* file import */
+pub typedef file {
+	/* file could also just be a memory region, kind of like memstream? */
+}
+
+/* here would be useful if macros could take type arguments as well, for example
+ * f must be a file and fmt must be a string, but I guess this is a quick I can
+ * live with... */
+pub define fprint(f, fmt, ...args) {
+	/* possible name clash, hmmm */
+	i27 __ek_reserved_pos = 0;
+	const for __ek_reserved_a : args {
+		__ek_reserved_pos += f.output_fmt_string(fmt, pos);
+		if __ek_reserved_pos < 0 {
+			abort("too many print arguments");
+		}
+
+		/* pos should be at a {}, with an unknown string of arguments
+		 * within */
+		 /* find matching '}' */
+		 i27 __ek_reserved_prev_pos = __ek_reserved_pos;
+		 do {
+			if fmt.at(__ek_reserved_pos) == '}' {break;}
+			__ek_reserved_pos += 1;
+		 } while 1;
+
+		 /* skip leading '{' */
+		 __ek_reserved_prev_pos += 1;
+
+		 /* copy arguments to a separate string (probably pretty slow, a
+		  * string_view or something could be beneficial here)*/
+		 const p = fmt.dup(__ek_reserved_prev_pos, __ek_reserved_pos);
+		 const string r = a.fmt(p);
+
+		 /* better abort messages could be useful, provide some
+		  * "stringify" operator? #a or something? I guess we have
+		  * src_loc that could lift the appropriate code, maybe? not
+		  * high priority for now anyway */
+		 if r.err() {abort("failed to format argument");}
+		 f.output_raw_string(r.v);
+
+		 /* skip over trailing '}' */
+		 __ek_reserved_pos += 1;
+	}
+
+	/* if output_fmt_string() still wants to continue, we have extra
+	 * brackets that can't be handled as we ran out of args */
+	if f.output_fmt_string(fmt, pos) > 0 {
+		abort("too few print arguments");
+	}
+}
+
+/* vec import */
+pub typedef vec[any T] {
+	// we want our vector to be formattable, used by print etc.
+	fmt;
+	fmt(*vec v, string args => result![string]) {
+		return ok!("test".str());
+	}
+
+	usize len;
+	*T buf;
+	^(usize) alloc;
+
+	init(*vec v, ^(usize) alloc) {
+		v.len = 0;
+		v.buf = null;
+		v.alloc = alloc;
+	}
+
+	init(*vec v) {
+		init(v, alloc);
+	}
+
+	length(*vec v => usize) { return v.len; }
+	index(*vec v, usize i => T)
+	{
+		assert(i < v.len, "index %zu out of bounds\n", i);
+		return &v.buf[i];
+	}
+
+	index(*vec v, isize i => T)
+	{
+		if i < 0 {
+			assert(-i < v.len, "reverse index %zi out of bounds\n", i);
+			return &v.buf[v.len + i];
+		}
+
+		/* v.whatever() is effectively syntactic sugar for
+		 * whatever::typeof(v)(&v), but since I don't allow typeof()
+		 * it's built-in. */
+		return v.index(i as usize);
+	}
+
+	prepend(*vec v, T e) { v.insert(e, 0); }
+	append(*vec v, T e) { v.insert(e, v.len); }
+
+	preplace(*vec v, T e) { v.place(e, 0); }
+	applace(*vec v, T e) { v.place(e, v.len); }
+
+	place(*vec v, T e) {}
+	insert(*vec v, T e) {}
+
+	deinit(*vec v)
+	{
+		for (usize i = 0); i < v.len; i += 1 {
+			deinit(v[i]);
+			v[i] = null;
+		}
+
+		dealloc(v.buf);
+	}
+}
+
+main() {
+	vec![i8] what;
+	what.length();
+}

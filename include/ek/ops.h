@@ -2,6 +2,7 @@
 #define EK_OPS_H
 
 #include <ek/ast.h>
+#include <stdio.h>
 
 enum loc_kind {
 	LOC_NONE, LOC_REG, LOC_MEM
@@ -10,8 +11,6 @@ enum loc_kind {
 struct loc {
 	enum loc_kind kind;
 	struct loc *next;
-	size_t start;
-	size_t end;
 	size_t reg;
 	long long off;
 	size_t width;
@@ -50,10 +49,7 @@ struct ops {
 	struct op *head;
 };
 
-struct ops *create_ops();
-void destroy_ops(struct ops *ops);
-int lower_ops(struct scope *root, struct ops *ops);
-int alloc_regs(struct ops *ops);
-int print_asm(struct ops *ops, const char *output);
+int lower_ops(struct scope *root, const char *fname);
+int print_asm(struct ops *ops, FILE *f);
 
 #endif /* EK_OPS_H */

@@ -225,14 +225,9 @@ static void _type_str(FILE *fp, struct ast_node *type)
 		break;
 	}
 
-	case AST_TYPE_TYPEOF: {
-		fprintf(fp, "(typeof)");
-		break;
-	}
-
 	case AST_TYPE_PRIMITIVE: {
 		fprintf(fp, "%s", primitive_str(AST_PRIMITIVE_TYPE(type).type));
-			break;
+		break;
 	}
 
 	default:
@@ -271,11 +266,13 @@ char *type_str(struct ast_node *node)
  */
 static void _call_str(FILE *f, struct ast_node *call)
 {
-	struct ast_node *id = call->_call.id;
-	const char *id_str = id->_id.id;
-	fprintf(f, "%s", id_str);
+	struct ast_node *expr = AST_CALL(call).expr;
+	if (expr->node_type == AST_ID) {
+		const char *id_str = AST_ID(expr).id;
+		fprintf(f, "%s", id_str);
+	}
 
-	struct ast_node *args = call->_call.args;
+	struct ast_node *args = AST_CALL(call).args;
 	fprintf(f, "(");
 
 	while (args) {

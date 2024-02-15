@@ -49,83 +49,6 @@ struct actual {
 	struct actual *next;
 };
 
-/**
- * Callable nodes visible to scope.
- *
- * Each callable consists of an ID and
- * a resolution tree built from parameters the
- * callable can take.
- * Parameters passed to the callable are
- * matched against this resolution tree to know
- * which callable to choose.
- */
-struct resolve {
-	/** Resolve tree of resolve. */
-	struct resolve_node *root;
-	/** AST node ID of resolve. */
-	struct ast_node *id;
-	/** Next resolve node. */
-	struct resolve *next;
-};
-
-/** A parameter node in the procedure resolution tree. */
-struct param_node {
-	/** Parameter type. */
-	struct ast_node *type;
-	/** Fully resolved procedure if there is no next node. */
-	struct resolve_node *resolved;
-	/** Next parameter node in current parameter slot. */
-	struct param_node *next;
-};
-
-/**
- * A procedure node in the resolution tree.
- *
- * A resolution tree is how Ek chooses which overloaded callable
- * to choose from. For example,
- *
- * @verbatim
- * do_stuff(u8, f32){}
- * do_stuff(u8, f64){}
- * do_stuff(u16, f32){}
- * @endverbatim
- *
- * generates a resolution tree of the form
- * @verbatim
- * callable:
- * do_stuff -> u8  -> f32
- *                 -> f64
- *             u16 -> f32
- * @endverbatim
- *
- * When a callable is called with some arguments, the argument's types
- * are actualized and using the resolve tree, the correct do_stuff is chosen.
- *
- * Additionally, interfaces are allowed, but only as a 'fallback'. That is, if
- * no trivial parameter type matches the argument type, the fallback is checked,
- * and if the argument type doesn't implement the fallback, the resolution
- * is considered to have failed.
- *
- * Self-refential parameter types are similarly checked after primitive types.
- *
- * @note Generic structures without type arguments are considered primitive,
- * as are fully qualified generic structures, anything between is disallowed.
- * Eg.
- * @verbatim
- * struct some_struct (a A, b B) {...}
- * do_stuff(some_struct){...} // OK
- * do_stuff(some_struct(u8, u16)){} // OK
- * do_stuff(some_struct(u8)){} // ERR
- * @endverbatim
- */
-struct resolve_node {
-	/** List of parameters of the current parameter slot. */
-	struct param_node *params;
-
-	/** Next procedure with parameter slot. */
-	struct ast_node *resolved;
-};
-
 struct types {
 	struct ast_node *id;
 	struct ast_node *type;
@@ -165,35 +88,12 @@ struct scope {
 	 */
 	struct actual *actuals;
 
-	/** { types */
-
+	struct visible *vars;
+	struct visible *procs;
+	struct visible *macros;
 	struct visible *types;
 
-	/** } */
-
 	struct visible *type_constructs;
-
-	/**
-	 * Variables visible in scope.
-	 * @note Only some variables are callable, namely array variables.
-	 * @todo Could maybe add separate array list instead of a variable list?
-	 */
-	struct visible *vars;
-
-	struct resolve *proc_resolve;
-	struct resolve *macro_resolve;
-	struct resolve *type_construct_resolve;
-};
-
-/** Flags for matching objects during search. */
-enum match_flags {
-	/** Search globally, not just in current scope. */
-	MATCH_GLOBAL = (1 << 0),
-	/**
-	 * Match call arguments to parameters.
-	 * If this flag is not present, only the name is matched.
-	 */
-	MATCH_CALL = (1 << 1),
 };
 
 /**
@@ -234,17 +134,6 @@ void destroy_visible(struct scope *scope, struct visible *visible);
  * @param scope Scope to destroy.
  */
 void destroy_scope(struct scope *scope);
-
-/**
- * Create temporary scope.
- * Adds \p parent as the parent of the scope, but doesn't add the new scope
- * to the list of children \p parent has.
- * Caller is responsible for destroying the temporary scope.
- *
- * @param parent The temporary scope's parent.
- * @return New temporary scope.
- */
-struct scope *create_temp_scope(struct scope *parent);
 
 /**
  * Add default stuff to scope, mainly builtin types.
@@ -327,7 +216,8 @@ int scope_add_var(struct scope *scope, struct ast_node *var);
  * @param type Type to add to scope.
  * @return \c 0 when succesful, non-zero otherwise.
  */
-int scope_add_type(struct scope *scope, struct ast_node *id, struct ast_node *type);
+int scope_add_type(struct scope *scope, struct ast_node *id,
+                   struct ast_node *type);
 
 /**
  * Add procedure to scope.
@@ -359,53 +249,7 @@ int scope_add_macro(struct scope *scope, struct ast_node *macro);
  */
 int scope_add_trait(struct scope *scope, struct ast_node *trait);
 
-int scope_add_type_construct(struct scope *scope, struct ast_node *type_construct);
-
-/**
- * Add an already allocated visible variable node to scope.
- * After initial analysis, preallocated variable nodes are actualized
- * and added back into the scope to build up the resolution tree.
- *
- * @param scope Scope to add variable node to.
- * @param var Variable to to add to scope.
- * @return \c 0 when succesful, non-zero otherwise.
- */
-int scope_add_existing_var(struct scope *scope, struct visible *var);
-
-/**
- * Add an already allocated visible procedure node to scope.
- * After initial analysis, preallocated procedure nodes are (partially)
- * actualized and added back into the scope to build up the resolution tree.
- *
- * @param scope SCope to add procedure node to.
- * @param proc Procedure to add to scope.
- * @return \c 0 when succesful, non-zero otherwise.
- */
-int scope_add_existing_proc(struct scope *scope, struct visible *proc);
-
-/**
- * Find an actualized AST node with ID in \p scope.
- * Since actuals are file global, technically no need for a file_*
- * @note Doesn't do any resolution. See scope_resolve_actual().
- *
- * @param scope Scope to look in.
- * @param id ID of actual to find.
- * @return Pointer to the actualized AST node corresponding to \p id if found,
- * otherwise \c NULL.
- */
-struct ast_node *scope_find_actual(struct scope *scope, struct ast_node *id);
-
-/**
- * Find anything with ID in \p scope.
- * @note Only looks in the current scope, so doesn't see anything outside
- * of it. See file_scope_find().
- *
- * @param scope Scope to look in.
- * @param id ID of whatever to find.
- * @return Pointer to the AST node corresponding to \p id if found,
- * otherwise \c NULL.
- */
-struct ast_node *scope_find(struct scope *scope, struct ast_node *id);
+int scope_resolve(struct scope *scope);
 
 /**
  * Find a variable with ID in \p scope.
@@ -480,16 +324,6 @@ struct ast_node *scope_find_alias(struct scope *scope, struct ast_node *id);
 struct ast_node *scope_find_trait(struct scope *scope, struct ast_node *id);
 
 /**
- * Find anything with ID visible to \p scope.
- *
- * @param scope Scope to look in.
- * @param id ID of whatever to find.
- * @return Pointer to the AST node corresponding to \p id if found,
- * otherwise \c NULL.
- */
-struct ast_node *file_scope_find(struct scope *scope, struct ast_node *id);
-
-/**
  * Find a variable with ID visible to \p scope.
  *
  * @param scope Scope to look in.
@@ -549,110 +383,6 @@ struct ast_node *file_scope_find_alias(struct scope *scope,
  * otherwise \c NULL.
  */
 struct ast_node *file_scope_find_trait(struct scope *scope,
-                                          struct ast_node *id);
-
-/**
- * Try to resolve a call to an array in \p scope.
- *
- * @param scope Scope to look in.
- * @param call AST call node to try and match to an array.
- * @return Pointer to the AST node corresponding to \p call if found,
- * otherwise \c NULL.
- */
-struct ast_node *scope_resolve_arr(struct scope *scope, struct ast_node *call);
-
-/**
- * Try to resolve a call to a macro in \p scope.
- *
- * @param scope Scope to look in.
- * @param call AST call node to try and match to a macro.
- * @return Pointer to the AST node corresponding to \p call if found,
- * otherwise \c NULL.
- */
-struct ast_node *scope_resolve_macro(struct scope *scope,
-                                     struct ast_node *call);
-
-/**
- * Try to resolve a call to an actualized node in \p scope.
- *
- * @param scope Scope to look in.
- * @param call AST call node to try and match to an actualized node.
- * @return Pointer to the AST node corresponding to \p call if found,
- * otherwise \c NULL.
- */
-struct ast_node *scope_resolve_actual(struct scope *scope,
-                                      struct ast_node *call);
-
-/**
- * Try to resolve a call to a procedure in \p scope.
- *
- * @param scope Scope to look in.
- * @param call AST call node to try and match to a procedure.
- * @return Pointer to the AST node corresponding to \p call if found,
- * otherwise \c NULL.
- */
-struct ast_node *scope_resolve_proc(struct scope *scope, struct ast_node *call);
-
-/**
- * Try to resolve a call to an AST node in \p scope.
- *
- * @param scope Scope to look in.
- * @param call AST call node to try and match to an AST node.
- * @return Pointer to the AST node corresponding to \p call if found,
- * otherwise \c NULL.
- */
-struct ast_node *scope_resolve_call(struct scope *scope, struct ast_node *call);
-
-/**
- * Try to resolve a call to an AST node visible to \p scope.
- *
- * @param scope Scope to look in.
- * @param call AST call node to try and match to an AST node.
- * @return Pointer to the AST node corresponding to \p call if found,
- * otherwise \c NULL.
- */
-struct ast_node *file_scope_resolve_call(struct scope *scope,
-                                         struct ast_node *call);
-
-struct ast_node *file_scope_resolve_macro(struct scope *scope,
-		struct ast_node *macro);
-
-/**
- * Check if \p arg_type implements \p param_type.
- *
- * A type implement another type if
- * a) They resolve to the same primitive type after alias and expression substitutions
- * b) One type is a trait and the other type has all members and
- * procedures specified in the trait.
- *
- * \p arg_type should never be a trait, so I suppose it's undefined if a trait
- * implements another trait.
- *
- * @param flags Flags for resolution.
- * @param scope Scope to check types in.
- * @param arg_type Argument type.
- * @param param_type Parameter type.
- * @return \c 1 if \p arg_type implements \p param_type, \c 0 otherwise.
- */
-int implements(enum match_flags flags, struct scope *scope,
-               struct ast_node *arg_type,
-               struct ast_node *param_type);
-
-/**
- * Check if type is primitive.
- *
- * @param type Type to check.
- * @return \c 1 if \p type is primitive, \c 0 otherwise.
- */
-int primitive_type(struct ast_node *type);
-
-/**
- * Check if type is fully qualified.
- * A fully qualified type is a struct or union with all type parameters filled.
- *
- * @param type Type to check.
- * @return \c 1 if \p type is fully qualified, \c 0 otherwise.
- */
-int fully_qualified(struct ast_node *type);
+                                       struct ast_node *id);
 
 #endif /* SCOPE_H */

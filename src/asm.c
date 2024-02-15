@@ -5,8 +5,10 @@
 
 /* I guess using the zero register might be okay in some scenarios, but for now
  * I'll just keep it an illegal register */
-#define ASSERT_REG(x) {assert(x->kind == LOC_REG); assert(x->reg > 0 && x->reg < 81);}
-#define ASSERT_MEM(x) {assert(x->kind == LOC_MEM); assert(x->reg > 0 && x->reg < 81);}
+#define ASSERT_REG(x) {assert(x->kind == LOC_REG); assert( \
+			       x->reg > 0 && x->reg < 81);}
+#define ASSERT_MEM(x) {assert(x->kind == LOC_MEM); assert( \
+			       x->reg > 0 && x->reg < 81);}
 
 static int print_comment(struct op *op, FILE *f)
 {
@@ -59,6 +61,7 @@ static int print_stt(struct op *op, FILE *f)
 
 static int print_ret(struct op *op, FILE *f)
 {
+	(void)op;
 	/* technically speaking ret takes a number of inputs, but they should be
 	 * marshaled into registers with moves etc. so don't worry about them
 	 * here */
@@ -84,16 +87,8 @@ static int print_op(struct op *op, FILE *f)
 	return ret;
 }
 
-int print_asm(struct ops *ops, const char *output)
+int print_asm(struct ops *ops, FILE *f)
 {
-	FILE *f = fopen(output, "w");
-
-	/* main should probably be mangled here as well */
-	fprintf(f, "jal x21, main\n");
-	/* tell simulator to turn off (very much temp) */
-	fprintf(f, "li x1, 3\n");
-	fprintf(f, "csrrw mpower, x0, x1\n");
-
 	int ret = 0;
 	struct op *op = ops->base;
 	while (op) {
@@ -103,6 +98,5 @@ int print_asm(struct ops *ops, const char *output)
 		op = op->next;
 	}
 
-	fclose(f);
 	return ret;
 }

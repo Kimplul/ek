@@ -39,7 +39,7 @@ HEXF		[+-]?0[xX][0-9a-fA-F]+([pP][+-]?[0-9]+)
 DECF		[+-]?[0-9]+[.]([eE]?[+-]?[0-9]+)?[fF]?
 
 ID		[_a-zA-Z][_a-zA-Z0-9]*
-APPLY		{ID}[[:space:]]*!
+APPLY		{ID}!
 
 STRING		\"(\\.|[^"\\])*\"
 
@@ -151,7 +151,6 @@ STRING		\"(\\.|[^"\\])*\"
 "struct"	{return STRUCT;}
 "typedef"	{return TYPEDEF;}
 "import"	{return IMPORT;}
-"typeof"	{return TYPEOF;}
 "sizeof"	{return SIZEOF;}
 "embed"		{return EMBED;}
 "if"		{return IF;}

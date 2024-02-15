@@ -43,7 +43,7 @@ static size_t trivial_type_width(struct ast_node *type)
 	return 3;
 }
 
-struct ops *create_ops()
+static struct ops *create_ops()
 {
 	struct ops *ops = calloc(1, sizeof(struct ops));
 
@@ -56,15 +56,22 @@ struct ops *create_ops()
 	return ops;
 }
 
-void destroy_ops(struct ops *ops)
+static void destroy_ops(struct ops *ops)
 {
 	if (!ops)
 		return;
 
-	struct op *base = ops->base;
-	while (base) {
-		struct op *prev = base;
-		base = base->next;
+	struct op *op = ops->base;
+	while (op) {
+		struct op *prev = op;
+		op = op->next;
+
+		switch (prev->opcode) {
+		case OP_COMMENT: free((void *)prev->string); break;
+		case OP_LABEL: free((void *)prev->string); break;
+		default:
+		}
+
 		free(prev);
 	}
 
@@ -143,9 +150,9 @@ static int lower_var(struct ast_node *n, struct ops *ops)
 	 * immediately run out of registers? */
 	struct ast_node *type = d->type;
 	if (AST_TYPE(type).kind != AST_TYPE_PRIMITIVE
-			&& AST_TYPE(type).kind != AST_TYPE_POINTER) {
+	    && AST_TYPE(type).kind != AST_TYPE_POINTER) {
 		semantic_error(n->scope->fctx, n,
-				"only trivial type lowering implemented");
+		               "only trivial type lowering implemented");
 		return -1;
 	}
 
@@ -177,7 +184,8 @@ static int lower_cast(struct ast_node *n, struct ops *ops)
 static int lower_const(struct ast_node *n, struct ops *ops)
 {
 	if (AST_CONST(n).kind != AST_CONST_INTEGER) {
-		semantic_error(n->scope->fctx, n, "only integer constant lowering implemented");
+		semantic_error(n->scope->fctx, n,
+		               "only integer constant lowering implemented");
 		return -1;
 	}
 
@@ -209,7 +217,8 @@ static int lower_assign(struct ast_node *n, struct ops *ops)
 static int lower_unop(struct ast_node *n, struct ops *ops)
 {
 	if (AST_UNOP(n).op != AST_DEREF) {
-		semantic_error(n->scope->fctx, n, "unop lowering not implemented");
+		semantic_error(n->scope->fctx, n,
+		               "unop lowering not implemented");
 		return -1;
 	}
 
@@ -281,8 +290,8 @@ static int lower_op(struct ast_node *n, struct ops *ops)
 	case AST_ID: ret = lower_id(n, ops); break;
 	case AST_RETURN: ret = lower_ret(n, ops); break;
 	default:
-		       semantic_error(n->scope->fctx, n, "unimplemented lowering");
-		       return -1;
+		semantic_error(n->scope->fctx, n, "unimplemented lowering");
+		return -1;
 	}
 
 	if (ret)
@@ -353,21 +362,6 @@ static void print_ops(struct ops *ops)
 	}
 }
 
-int lower_ops(struct scope *root, struct ops *ops)
-{
-	for (struct actual *a = root->actuals; a; a = a->next) {
-		assert(a->node);
-		int ret = lower_op(a->node, ops);
-		if (ret)
-			return ret;
-	}
-
-	printf("Lowered ops before lifetime analysis:\n");
-	print_ops(ops);
-
-	return 0;
-}
-
 static enum opcode st_opc(struct loc *loc)
 {
 	switch (loc->width) {
@@ -395,8 +389,9 @@ static int realize_moves(struct ops *ops)
 	/* completely arbitrary and *will* have to be made better in the near
 	 * future */
 	static const size_t tmp_reg = 9;
+	struct op *prev = NULL;
 	struct op *op = ops->base;
-	for (; op; op = op->next) {
+	for (; op; prev = op, op = op->next) {
 		if (op->opcode != OP_MV) {
 			continue;
 		}
@@ -407,12 +402,18 @@ static int realize_moves(struct ops *ops)
 		assert(i->next == NULL);
 
 		if (i->kind == LOC_REG && o->kind == LOC_REG) {
-			continue;
-		} else if (i->kind == LOC_REG && o->kind == LOC_MEM) {
+			/* if move is between the same register, skip it */
+			if (i->reg == o->reg && prev)
+				prev->next = op->next;
+
+		}
+		else if (i->kind == LOC_REG && o->kind == LOC_MEM) {
 			op->opcode = st_opc(o);
-		} else if (i->kind == LOC_MEM && o->kind == LOC_REG) {
+		}
+		else if (i->kind == LOC_MEM && o->kind == LOC_REG) {
 			op->opcode = ld_opc(i);
-		} else if (i->kind == LOC_MEM && o->kind == LOC_MEM) {
+		}
+		else if (i->kind == LOC_MEM && o->kind == LOC_MEM) {
 			op->opcode = ld_opc(i);
 			/* our input/output are references, so call this before
 			 * setting registers for our original operation. Also,
@@ -428,12 +429,59 @@ static int realize_moves(struct ops *ops)
 	return 0;
 }
 
-int alloc_regs(struct ops *ops)
+static int alloc_regs(struct ops *ops)
 {
 	/** @todo analyze lifetime, for now just convert moves to correct ldst
 	 * etc. */
-	int ret = realize_moves(ops);
-	printf("Lowered ops after lifetime analysis:\n");
-	print_ops(ops);
+	/** @todo lifetime analysis could be done by looping over all ops, and
+	 * when we encounter a virtual register we haven't seen before, add it
+	 * to a list. When we encounter it used again, extend its lifetime to
+	 * wherever we are in the function. */
+	return realize_moves(ops);
+}
+
+int lower_ops(struct scope *root, const char *fname)
+{
+	FILE *f = fopen(fname, "w");
+
+	/* main should probably be mangled here as well */
+	fprintf(f, "jal x21, main\n");
+	/* tell simulator to turn off (very much temp) */
+	fprintf(f, "li x1, 3\n");
+	fprintf(f, "csrrw mpower, x0, x1\n");
+
+	/* this can potentially be parallelized in the future */
+	int ret = 0;
+	for (struct actual *a = root->actuals; a; a = a->next) {
+		assert(a->node);
+
+		struct ops *ops = create_ops();
+		if ((ret = lower_op(a->node, ops))) {
+			destroy_ops(ops);
+			break;
+		}
+
+		printf("Lowered ops before lifetime analysis:\n");
+		print_ops(ops);
+
+		if ((ret = alloc_regs(ops))) {
+			destroy_ops(ops);
+			break;
+		}
+
+		printf("Lowered ops after lifetime analysis:\n");
+		print_ops(ops);
+
+		if ((ret = print_asm(ops, f))) {
+			/* kind of silly as of now but eh */
+			destroy_ops(ops);
+			break;
+		}
+
+		destroy_ops(ops);
+	}
+
+	fclose(f);
 	return ret;
 }
+
