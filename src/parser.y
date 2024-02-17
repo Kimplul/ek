@@ -238,13 +238,13 @@ var
 	| var_init
 
 embed
-	: "embed" "(" STRING ")" { $$ = gen_embed(clone_string($3));  }
+	: "embed" "(" STRING ")" { $$ = gen_embed(clone_string($3), src_loc(@$));  }
 
 import
-	: "import" STRING { $$ = gen_import(clone_string($2));  }
+	: "import" STRING { $$ = gen_import(clone_string($2), src_loc(@$));  }
 
 assign
-	: expr "=" expr { $$ = gen_assign($1, $3); }
+	: expr "=" expr { $$ = gen_assign($1, $3, src_loc(@$)); }
 
 binop
 	: expr "+" expr { $$ = gen_binop(AST_ADD, $1, $3, src_loc(@$));  }
@@ -273,10 +273,10 @@ binop
 	| expr "==" expr { $$ = gen_binop(AST_EQ, $1, $3, src_loc(@$));  }
 
 unop
-	: "-" expr { $$ = gen_unop(AST_NEG, $2);  }
-	| "!" expr { $$ = gen_unop(AST_LNOT, $2);  }
-	| "&" expr { $$ = gen_unop(AST_REF, $2);  }
-	| "*" expr { $$ = gen_unop(AST_DEREF, $2);  }
+	: "-" expr { $$ = gen_unop(AST_NEG, $2, src_loc(@$));  }
+	| "!" expr { $$ = gen_unop(AST_LNOT, $2, src_loc(@$));  }
+	| "&" expr { $$ = gen_unop(AST_REF, $2, src_loc(@$));  }
+	| "*" expr { $$ = gen_unop(AST_DEREF, $2, src_loc(@$));  }
 
 arr_init
 	: "=>" const_expr "..." const_expr "=" arg {
@@ -295,7 +295,7 @@ arr
 	: "[" arr_inits "]" { $$ = $2; }
 
 arg
-	: "&" var_decl { $$ = gen_unop(AST_REF, $2);  }
+	: "&" var_decl { $$ = gen_unop(AST_REF, $2, src_loc(@$));  }
 	| expr
 	| switch
 	| if
@@ -315,7 +315,7 @@ decls
 	| param_decl
 
 defer
-	: "defer" body { $$ = gen_defer($2);  }
+	: "defer" body { $$ = gen_defer($2, src_loc(@$));  }
 
 const_binop
 	: const_expr "+" const_expr {
@@ -359,12 +359,12 @@ const_binop
 	}
 
 const_unop
-	: "-" const_expr { $$ = gen_unop(AST_NEG, $2);  }
-	| "!" const_expr { $$ = gen_unop(AST_LNOT, $2);  }
+	: "-" const_expr { $$ = gen_unop(AST_NEG, $2, src_loc(@$));  }
+	| "!" const_expr { $$ = gen_unop(AST_LNOT, $2, src_loc(@$));  }
 
 const_expr
 	: "(" const_expr ")" { $$ = $2; }
-	| INT { $$ = gen_int($1); }
+	| INT { $$ = gen_int($1, src_loc(@$)); }
 	| const_binop
 	| const_unop
 	| id
@@ -373,19 +373,19 @@ const_expr
 expr
 	: expr "." id { $$ = gen_dot($1, $3, src_loc(@$)); }
 	| "..." id { $$ = $2; }
-	| INT { $$ = gen_int($1); }
+	| INT { $$ = gen_int($1, src_loc(@$)); }
 	| STRING {
-		$$ = gen_string(clone_string($1));
+		$$ = gen_string(clone_string($1), src_loc(@$));
 	}
 	| "(" expr ")" { $$ = $2; }
 	| expr "(" args ")" { $$ = gen_call($1, $3, src_loc(@$)); }
 	| expr "(" ")" { $$ = gen_call($1, NULL, src_loc(@$)); }
 	| expr "[" expr "]" { $$ = gen_arr_access($1, $3, src_loc(@$)); /** @todo add arr access */}
 	| "(" var_init ")" { $$ = $2; }
-	| "sizeof" expr { $$ = gen_sizeof($2); }
-	| expr "as" type { $$ = gen_cast($1, $3);  }
-	| id "::" type { $$ = gen_fetch($1, $3); }
-	| "as" type { $$ = gen_as($2); }
+	| "sizeof" expr { $$ = gen_sizeof($2, src_loc(@$)); }
+	| expr "as" type { $$ = gen_cast($1, $3, src_loc(@$));  }
+	| id "::" type { $$ = gen_fetch($1, $3, src_loc(@$)); }
+	| "as" type { $$ = gen_as($2, src_loc(@$)); } /** @todo might be uneccessary? */
 	| macro_expand
 	| construct
 	| assign
@@ -395,20 +395,20 @@ expr
 	| id
 
 while
-	: "while" expr body { $$ = gen_while($2, $3);  }
+	: "while" expr body { $$ = gen_while($2, $3, src_loc(@$));  }
 
 do_while
 	: "do" body "while" expr ";" {
-		$$ = gen_while($2, $4);
+		$$ = gen_while($2, $4, src_loc(@$));
 		ast_set_flags($$, AST_FLAG_DELAYED);
 	}
 
 goto
-	: "goto" id { $$ = gen_goto(gen_label($2));  }
+	: "goto" id { $$ = gen_goto(gen_label($2, src_loc(@$)), src_loc(@$));  }
 
 statelet
-	: "return" args { $$ = gen_return($2);  }
-	| "return" { $$ = gen_return(NULL); }
+	: "return" args { $$ = gen_return($2, src_loc(@$));  }
+	| "return" { $$ = gen_return(NULL, src_loc(@$)); }
 	| "break" { $$ = gen_ctrl(AST_CTRL_BREAK, src_loc(@$)); }
 	| "continue" { $$ = gen_ctrl(AST_CTRL_CONTINUE, src_loc(@$)); }
 	| trait
@@ -446,7 +446,7 @@ statement
 	| enum
 	| macro
 	| ";" { $$ = gen_empty(); }
-	| id ":" { $$ = gen_label($1);  }
+	| id ":" { $$ = gen_label($1, src_loc(@$));  }
 
 statements
 	: statement statements { $$ = $1; $1->next = $2; }
@@ -458,7 +458,7 @@ opt_statements
 	| {$$ = NULL;}
 
 body
-	: "{" opt_statements "}" { $$ = gen_block($2);  }
+	: "{" opt_statements "}" { $$ = gen_block($2, src_loc(@$));  }
 
 references
 	: id "," references { $$ = $1; $$->next = $3; }
@@ -467,18 +467,18 @@ references
 
 macro
 	: "define" id "(" references ")" body {
-		$$ = gen_macro_construct($2, $4, $6);
+		$$ = gen_macro_construct($2, $4, $6, src_loc(@$));
 		ast_set_flags($6, AST_FLAG_UNHYGIENIC);
 	}
 	| "define" id "(" references "..." id ")" body {
 		/* TODO: the location data of the variadic ID is way off */
 		ast_append($4, $6);
-		$$ = gen_macro_construct($2, $4, $8);
+		$$ = gen_macro_construct($2, $4, $8, src_loc(@$));
 		ast_set_flags($$, AST_FLAG_VARIADIC);
 		ast_set_flags($8, AST_FLAG_UNHYGIENIC);
 	}
 	| "define" id "(" ")" body {
-		$$ = gen_macro_construct($2, NULL, $5);
+		$$ = gen_macro_construct($2, NULL, $5, src_loc(@$));
 		ast_set_flags($5, AST_FLAG_UNHYGIENIC);
 	}
 
@@ -497,12 +497,14 @@ construct_args
 	| construct_arg
 
 construct
-	: "{" construct_args "}" { $$ = gen_init($2); }
+	: "{" construct_args "}" {
+		$$ = gen_init($2, src_loc(@$));
+	}
 
 if
-	: "if" expr body { $$ = gen_if($2, $3, NULL);  }
-	| "if" expr body "else" body { $$ = gen_if($2, $3, $5);  }
-	| "if" expr body "else" if { $$ = gen_if($2, $3, $5);  }
+	: "if" expr body { $$ = gen_if($2, $3, NULL, src_loc(@$));  }
+	| "if" expr body "else" body { $$ = gen_if($2, $3, $5, src_loc(@$));  }
+	| "if" expr body "else" if { $$ = gen_if($2, $3, $5, src_loc(@$));  }
 
 opt_args
 	: args
@@ -513,20 +515,20 @@ opt_exprs
 	| {$$ = NULL;}
 
 for
-	: "for" opt_args ";" opt_exprs ";" exprs body { $$ = gen_for($2, $4, $6, $7); }
-	| "for" opt_args ";" opt_exprs ";" body {}
+	: "for" opt_args ";" opt_exprs ";" exprs body {
+		$$ = gen_for($2, $4, $6, $7, src_loc(@$));
+	}
+	| "for" opt_args ";" opt_exprs ";" body {
+		$$ = gen_for($2, $4, NULL, $6, src_loc(@$));
+	}
 
 case
 	: "case" const_expr ":" statements {
-		$$ = gen_case($2, $4);  }
-	| "case" const_expr "..." const_expr ":" statements {
-		(void)$6; /* what to do with this one? */
-		$$ = gen_case($2, $4);
-	}
+		$$ = gen_case($2, $4, src_loc(@$));  }
 	| "default" ":" statements {
 		/* default seems like it would be useful as something other than
 		 * a keyword... */
-		$$ = gen_case(NULL, $3);
+		$$ = gen_case(NULL, $3, src_loc(@$));
 	}
 
 cases
@@ -534,28 +536,28 @@ cases
 	| case
 
 switch
-	: "switch" expr "{" cases "}" { $$ = gen_switch($2, $4); }
+	: "switch" expr "{" cases "}" { $$ = gen_switch($2, $4, src_loc(@$)); }
 
 /* could there be a use case for number based iteration? */
 const_for
 	: "for" id ":" args body {
 		/* TODO: should id be a separate rule? */
-		$$ = gen_for($2, NULL, $4, $5);
+		$$ = gen_for($2, NULL, $4, $5, src_loc(@$));
 		ast_set_flags($5, AST_FLAG_UNHYGIENIC);
 	}
 
 const_if
 	: "if" const_expr body {
-		$$ = gen_if($2, $3, NULL);
+		$$ = gen_if($2, $3, NULL, src_loc(@$));
 		ast_set_flags($3, AST_FLAG_UNHYGIENIC);
 	}
 	| "if" const_expr body "else" body {
-		$$ = gen_if($2, $3, $5);
+		$$ = gen_if($2, $3, $5, src_loc(@$));
 		ast_set_flags($3, AST_FLAG_UNHYGIENIC);
 		ast_set_flags($5, AST_FLAG_UNHYGIENIC);
 	}
 	| "if" const_expr body "else" const_if {
-		$$ = gen_if($2, $3, $5);
+		$$ = gen_if($2, $3, $5, src_loc(@$));
 		ast_set_flags($3, AST_FLAG_UNHYGIENIC);
 	}
 
@@ -657,28 +659,38 @@ opt_members
 tagged_union
 	: "union" id "{" opt_members "}" {
 		/* essentially struct {union{members}} */
-		$$ = gen_struct($2, NULL, $4);
+		$$ = gen_struct($2, NULL, $4, src_loc(@$));
 	}
 
 anon_union
-	: "union" "{" opt_members "}" { $$ = gen_struct(NULL, NULL, $3); }
+	: "union" "{" opt_members "}" {
+		$$ = gen_struct(NULL, NULL, $3, src_loc(@$));
+	}
 
 macro_expand
-	: apply "(" opt_args ")" { $$ = gen_macro_expand($1, $3, src_loc(@$)); }
+	: apply "(" opt_args ")" {
+		$$ = gen_macro_expand($1, $3, src_loc(@$));
+	}
 
 tagged_struct
 	: "typedef" id "{" opt_members "}" {
-		$$ = gen_struct($2, NULL, $4);
+		$$ = gen_struct($2, NULL, $4, src_loc(@$));
 	}
 
 anon_struct
-	: "typedef" "{" opt_members "}" { $$ = gen_struct(NULL, NULL, $3); }
+	: "typedef" "{" opt_members "}" {
+		$$ = gen_struct(NULL, NULL, $3, src_loc(@$));
+	}
 
 alias
-	: "typedef" id type { $$ = gen_alias($2, $3);  }
+	: "typedef" id type {
+		$$ = gen_alias($2, $3, src_loc(@$));
+	}
 
 type_param
-	: id id { $$ = gen_var($2, $1, NULL, src_loc(@$)); }
+	: type id {
+		$$ = gen_var($2, $1, NULL, src_loc(@$));
+	}
 
 type_params
 	: type_param "," type_params { $$ = $1; $1->next = $3; }
@@ -690,8 +702,12 @@ trait
 	}
 
 enum_val
-	: id { $$ = gen_val($1, NULL);  }
-	| id "=" expr { $$ = gen_val($1, $3);  }
+	: id {
+		$$ = gen_val($1, NULL, src_loc(@$));
+	}
+	| id "=" expr {
+		$$ = gen_val($1, $3, src_loc(@$));
+	}
 
 enums
 	: enum_val "," enums { $$ = $1; $1->next = $3; }
@@ -699,23 +715,25 @@ enums
 	| enum_val { $$ = $1; }
 
 enum
-	: "enum" id ":" type "{" enums "}" { $$ = gen_enum($2, $4, $6); }
+	: "enum" id ":" type "{" enums "}" {
+		$$ = gen_enum($2, $4, $6, src_loc(@$));
+	}
 	| "enum" id "{" enums "}" {
-		$$ = gen_enum($2, NULL, $4);
+		$$ = gen_enum($2, NULL, $4, src_loc(@$));
 		ast_set_flags($$, AST_FLAG_UNTYPED);
 	}
 
 top_if
 	: "if" const_expr "{" unit "}" {
-		$$ = gen_if($2, $4, NULL);
+		$$ = gen_if($2, $4, NULL, src_loc(@$));
 		ast_set_flags($$, AST_FLAG_UNHYGIENIC);
 	}
 	| "if" const_expr "{" unit "}" "else" "{" unit "}" {
-		$$ = gen_if($2, $4, $8);
+		$$ = gen_if($2, $4, $8, src_loc(@$));
 		ast_set_flags($$, AST_FLAG_UNHYGIENIC);
 	}
 	| "if" const_expr "{" unit "}" "else" top_if {
-		$$ = gen_if($2, $4, $7);
+		$$ = gen_if($2, $4, $7, src_loc(@$));
 		ast_set_flags($$, AST_FLAG_UNHYGIENIC);
 	}
 

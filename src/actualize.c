@@ -127,7 +127,7 @@ static struct ast_node *find_label(struct act_state *state,
 	if (prev)
 		do {
 			cur = prev->next;
-			if (identical_ast_nodes(0, prev->node, label))
+			if (same_id(AST_LABEL(prev->node).id, AST_LABEL(label).id))
 				return prev->node;
 		} while ((prev = cur));
 
@@ -433,7 +433,7 @@ static int _replace_id(struct ast_node *node, void *data)
 	struct ast_node *id = pair[0];
 	struct ast_node *expr = pair[1];
 
-	if (!identical_ast_nodes(0, node, id))
+	if (!same_id(node, id))
 		return ast_call_on(_replace_id, node, data);
 
 	struct ast_node *clone = clone_ast_node(expr);
@@ -671,7 +671,7 @@ static int actualize_proc(struct act_state *state,
 		}
 		/* add 'implicit' return */
 		struct ast_node *body = AST_PROC(actual).body;
-		struct ast_node *r = gen_return(NULL);
+		struct ast_node *r = gen_return(NULL, NULL_LOC());
 		r->scope = body->scope;
 		ast_append(AST_BLOCK(body).body, r);
 	}
@@ -702,8 +702,8 @@ static int actualize_binop(struct act_state *state,
 {
 	assert(binop && binop->node_type == AST_BINOP);
 
-	struct ast_node *left = binop->binop.left;
-	struct ast_node *right = binop->binop.right;
+	struct ast_node *left = AST_BINOP(binop).left;
+	struct ast_node *right = AST_BINOP(binop).right;
 
 	int ret = 0;
 	ret |= actualize(state, scope, left);
@@ -1078,7 +1078,7 @@ static struct ast_node *lookup_member_name(struct ast_node *body,
 	struct ast_node *m = body;
 	while (m) {
 		assert(m->node_type == AST_VAR);
-		if (identical_ast_nodes(0, find, m->_var.id))
+		if (same_id(find, AST_VAR(m).id))
 			break;
 		m = m->next;
 		i++;
@@ -1106,7 +1106,7 @@ static struct ast_node *lookup_enum_member(struct ast_node *enu,
 	struct ast_node *m = enu->_enum.body;
 	while (m) {
 		assert(m->node_type == AST_VAL);
-		if (identical_ast_nodes(0, find, m->_val.id))
+		if (same_id(find, AST_VAL(m).id))
 			break;
 		m = m->next;
 		i++;
@@ -1417,8 +1417,8 @@ static int actualize_return(struct act_state *state, struct scope *scope,
  * nonetheless. */
 static void actualize_goto_defer(struct ast_node *got, struct ast_node *label)
 {
-	struct ast_node *goto_defers = got->_goto.defers;
-	struct ast_node *label_defers = label->_label.defers;
+	struct ast_node *goto_defers = AST_GOTO(got).defers;
+	struct ast_node *label_defers = AST_LABEL(label).defers;
 	/* since we're dealing with singly linked lists, keep a reference to one
 	 * node before the current goto defer. */
 	struct ast_node *prev_defer = NULL;
@@ -1446,7 +1446,7 @@ static void actualize_goto_defer(struct ast_node *got, struct ast_node *label)
 	 * defer statements themselves, building up a sort of tree, allowing us
 	 * to directly compare pointers, likely being a bit quicker. Still,
 	 * unlikely that goto stuff would be a major bottleneck. */
-	while (!identical_ast_nodes(1, goto_defers, label_defers)) {
+	while (!equiv_nodes(goto_defers, label_defers)) {
 		prev_defer = goto_defers;
 		label_defers = label_defers->next;
 		goto_defers = goto_defers->next;
@@ -1490,7 +1490,7 @@ static void actualize_goto_defers(struct act_state *state,
 		do {
 			cur = prev->next;
 			struct ast_node *got = prev->node;
-			if (identical_ast_nodes(0, got->_goto.label, label))
+			if (equiv_nodes(AST_GOTO(got).label, label))
 				actualize_goto_defer(got, label);
 
 		} while ((prev = cur));
@@ -1770,7 +1770,7 @@ static int actualize_enum(struct act_state *state, struct scope *scope,
 			counter = val->_const.integer;
 		}
 		else {
-			members->_val.val = gen_int(counter);
+			members->_val.val = gen_int(counter, NULL_LOC());
 		}
 
 		members = members->next;

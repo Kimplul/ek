@@ -240,7 +240,7 @@ static struct ast_node *scope_find_visible(struct visible *v,
 		return NULL;
 
 	while (v) {
-		if (identical_ast_nodes(0, v->id, id))
+		if (same_id(v->id, id))
 			return v->node;
 
 		v = v->next;
