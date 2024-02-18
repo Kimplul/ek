@@ -133,7 +133,7 @@
 %nterm <node> construct construct_args construct_arg
 %nterm <node> statelet apply types
 
-%nterm <node> tagged_struct anon_struct tagged_union anon_union
+%nterm <node> tagged_struct
 
 /* constant operations */
 %nterm <node> const_expr const_unop const_binop
@@ -147,7 +147,7 @@
 
 /* optional stuff */
 %nterm <node> opt_args opt_exprs proc_decl member opt_members
-%nterm <node> opt_statements opt_types
+%nterm <node> opt_statements opt_types opt_type_params
 
 %{
 
@@ -438,7 +438,6 @@ statement
 	| do_while
 	| body
 	| tagged_struct
-	| tagged_union
 	| for
 	| defer
 	| if
@@ -596,8 +595,6 @@ type
 	| "mut" type {
 		$$ = $2; ast_set_flags($$, AST_FLAG_MUTABLE);
 	}
-	| anon_struct
-	| anon_union
 	| apply "[" opt_types "]" {
 		$$ = gen_type(AST_TYPE_CONSTRUCT, $1, $3, src_loc(@$));
 	}
@@ -644,7 +641,6 @@ member
 	: var_decl ";"
 	| type_expand ";"
 	| proc_decl ";"
-	| id ";"
 	| proc
 	;
 
@@ -656,30 +652,17 @@ opt_members
 	: members
 	| {$$ = NULL;}
 
-tagged_union
-	: "union" id "{" opt_members "}" {
-		/* essentially struct {union{members}} */
-		$$ = gen_struct($2, NULL, $4, src_loc(@$));
-	}
-
-anon_union
-	: "union" "{" opt_members "}" {
-		$$ = gen_struct(NULL, NULL, $3, src_loc(@$));
-	}
-
 macro_expand
 	: apply "(" opt_args ")" {
 		$$ = gen_macro_expand($1, $3, src_loc(@$));
 	}
 
 tagged_struct
-	: "typedef" id "{" opt_members "}" {
-		$$ = gen_struct($2, NULL, $4, src_loc(@$));
+	: "typedef" id "[" opt_type_params "]" "{" opt_members "}" {
+		$$ = gen_struct($2, $4, $7, src_loc(@$));
 	}
-
-anon_struct
-	: "typedef" "{" opt_members "}" {
-		$$ = gen_struct(NULL, NULL, $3, src_loc(@$));
+	| "typedef" id "{" opt_members "}" {
+		$$ = gen_struct($2, NULL, $4, src_loc(@$));
 	}
 
 alias
@@ -688,7 +671,7 @@ alias
 	}
 
 type_param
-	: type id {
+	: id id {
 		$$ = gen_var($2, $1, NULL, src_loc(@$));
 	}
 
@@ -696,8 +679,12 @@ type_params
 	: type_param "," type_params { $$ = $1; $1->next = $3; }
 	| type_param
 
+opt_type_params
+	: type_params
+	| { $$ = NULL; }
+
 trait
-	: "typedef" id "[" type_params "]" "{" opt_members "}" {
+	: "define" id "[" opt_type_params "]" "{" opt_members "}" {
 		$$ = gen_trait($2, $4, $7, src_loc(@$));
 	}
 
@@ -743,7 +730,6 @@ top
 	: enum
 	| proc
 	| tagged_struct
-	| tagged_union
 	| macro { $$ = $1; }
 	| top_if { $$ = $1; ast_set_flags($$, AST_FLAG_CONST); }
 	| import { $$ = $1; }
@@ -751,7 +737,6 @@ top
 	| trait { $$ = $1; }
 	| "pub" enum { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" tagged_struct { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
-	| "pub" tagged_union { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" proc { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" macro { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" import { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }

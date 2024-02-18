@@ -54,6 +54,8 @@ void destroy_scope(struct scope *scope)
 	}
 
 	destroy_visible(scope, scope->vars);
+	destroy_visible(scope, scope->procs);
+	destroy_visible(scope, scope->macros);
 	destroy_visible(scope, scope->types);
 
 	struct scope *prev = scope->children, *cur;
@@ -204,6 +206,7 @@ int scope_add_proc(struct scope *scope, struct ast_node *proc)
 		semantic_info(scope->fctx, exists, "previously here");
 		return -1;
 	}
+
 	/* always add to scope, do resolve checking later */
 	create_proc(scope, AST_PROC(proc).id, proc);
 	if (scope->parent &&

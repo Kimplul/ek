@@ -334,12 +334,13 @@ struct ast_node *gen_case(struct ast_node *cond, struct ast_node *body, struct s
 	return n;
 }
 
-struct ast_node *gen_primitive(enum ast_primitive type, struct src_loc loc)
+struct ast_node *gen_primitive(enum ast_primitive type, struct ast_node *def, struct src_loc loc)
 {
 	ALLOC_NODE(n, "primitive");
 	n->node_type = AST_TYPE;
 	AST_TYPE(n).kind = AST_TYPE_PRIMITIVE;
 	AST_PRIMITIVE_TYPE(n).type = type;
+	AST_PRIMITIVE_TYPE(n).def = def;
 	n->loc = loc;
 	return n;
 }
@@ -666,6 +667,7 @@ const char *primitive_str(enum ast_primitive type)
 	case AST_VOID: return "void";
 	case AST_I9: return "i9";
 	case AST_I27: return "i27";
+	case AST_BOOL: return "bool";
 	default: return "unimp";
 	}
 
@@ -896,11 +898,20 @@ static void __dump_ast(int depth, struct ast_node *node)
 			       primitive_str(AST_PRIMITIVE_TYPE(node).type));
 			break;
 
-		case AST_TYPE_TRAIT:
+		case AST_TYPE_TRAIT: {
 			printf(" TRAIT\n");
-			/* might be a bit overkill? */
-			dump_ast(depth + 1, AST_TRAIT_TYPE(node).def);
+			struct ast_node *def = AST_TRAIT_TYPE(node).def;
+			/* this should be enough, avoid print loops */
+			dump_ast(depth + 1, AST_TRAIT(def).id);
 			break;
+		}
+
+		case AST_TYPE_CONSTRUCT: {
+			printf(" CONSTRUCT\n");
+			dump_ast(depth + 1, AST_CONSTRUCT_TYPE(node).id);
+			dump_ast(depth + 1, AST_CONSTRUCT_TYPE(node).args);
+			break;
+		}
 
 		case AST_TYPE_ID:
 			printf(" ID\n");
@@ -918,17 +929,21 @@ static void __dump_ast(int depth, struct ast_node *node)
 			dump_ast(depth + 1, AST_PTR_TYPE(node).base);
 			break;
 
-		case AST_TYPE_STRUCT:
+		case AST_TYPE_STRUCT: {
 			printf(" STRUCT\n");
+			struct ast_node *def = AST_STRUCT_TYPE(node).def;
 			/* oh yeah, struc is at least right now just an ID that
 			 * we can use to fetch the actual struct with. */
-			dump_ast(depth + 1, AST_STRUCT_TYPE(node).def);
+			dump_ast(depth + 1, AST_STRUCT(def).id);
 			break;
+		}
 
-		case AST_TYPE_ENUM:
+		case AST_TYPE_ENUM: {
 			printf(" ENUM\n");
-			dump_ast(depth + 1, AST_ENUM_TYPE(node).def);
+			struct ast_node *def = AST_ENUM_TYPE(node).def;
+			dump_ast(depth + 1, AST_ENUM(def).id);
 			break;
+		}
 
 		case AST_TYPE_SIGN:
 			printf(" SIGN\n");
@@ -1243,8 +1258,8 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 		 * correctly... */
 		switch (node->_type.kind) {
 		case AST_TYPE_PRIMITIVE:
-			new = gen_primitive(AST_PRIMITIVE_TYPE(
-						    node).type, node->loc);
+			new = gen_primitive(AST_PRIMITIVE_TYPE(node).type,
+					AST_PRIMITIVE_TYPE(node).def, node->loc);
 			break;
 
 		case AST_TYPE_TRAIT:
@@ -1252,6 +1267,13 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 			               AST_TRAIT_TYPE(node).def,
 			               NULL,
 			               node->loc);
+			break;
+
+		case AST_TYPE_CONSTRUCT:
+			new = gen_type(AST_TYPE_CONSTRUCT,
+					clone_ast_node(AST_CONSTRUCT_TYPE(node).id),
+					clone_ast_node(AST_CONSTRUCT_TYPE(node).args),
+					node->loc);
 			break;
 
 		case AST_TYPE_ID:
@@ -1269,20 +1291,21 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 			break;
 
 		case AST_TYPE_POINTER:
-			new = gen_type(AST_TYPE_POINTER, AST_PTR_TYPE(node).base,
-				NULL,
-			               node->loc);
+			new = gen_type(AST_TYPE_POINTER,
+					AST_PTR_TYPE(node).base,
+					NULL,
+					node->loc);
 			break;
 
 		case AST_TYPE_STRUCT:
 			new = gen_type(AST_TYPE_STRUCT,
-			               clone_ast_node(AST_STRUCT_TYPE(node).def),
+			               AST_STRUCT_TYPE(node).def,
 			               NULL, node->loc);
 			break;
 
 		case AST_TYPE_ENUM:
 			new = gen_type(AST_TYPE_ENUM,
-			               clone_ast_node(AST_ENUM_TYPE(node).def),
+			               AST_ENUM_TYPE(node).def,
 			               NULL,
 			               node->loc);
 			break;
@@ -1567,14 +1590,6 @@ static int call_on_case(int (*call)(struct ast_node *,
 	return ret;
 }
 
-static int call_on_type_trait(int (*call)(struct ast_node *,
-                                          void *), struct ast_node *node, void *data)
-{
-	int ret = 0;
-	ret |= call(AST_TRAIT_TYPE(node).def, data);
-	return ret;
-}
-
 static int call_on_type_id(int (*call)(struct ast_node *,
                                        void *), struct ast_node *node, void *data)
 {
@@ -1587,14 +1602,6 @@ static int call_on_type_arr(int (*call)(struct ast_node *,
 	return call(AST_ARR_TYPE(node).size, data);
 }
 
-static int call_on_type_struct(int (*call)(struct ast_node *,
-                                           void *), struct ast_node *node, void *data)
-{
-	int ret = 0;
-	ret |= call(AST_STRUCT_TYPE(node).def, data);
-	return ret;
-}
-
 static int call_on_type_sign(int (*call)(struct ast_node *,
                                          void *), struct ast_node *node, void *data)
 {
@@ -1604,26 +1611,27 @@ static int call_on_type_sign(int (*call)(struct ast_node *,
 	return ret;
 }
 
-static int call_on_type_enum(int (*call)(struct ast_node *,
-                                         void *), struct ast_node *node, void *data)
+static int call_on_type_construct(int (*call)(struct ast_node *, void *),
+		struct ast_node *node, void *data)
 {
 	int ret = 0;
-	ret |= call(AST_ENUM_TYPE(node).def, data);
+	ret |= call(AST_CONSTRUCT_TYPE(node).id, data);
+	ret |= call(AST_CONSTRUCT_TYPE(node).args, data);
 	return ret;
 }
 
-static int call_on_type(int (*call)(struct ast_node *,
-                                    void *), struct ast_node *node, void *data)
+static int call_on_type(int (*call)(struct ast_node *, void *),
+		struct ast_node *node, void *data)
 {
 	int ret = 0;
-	switch (node->_type.kind) {
-	case AST_TYPE_ENUM: ret = call_on_type_enum(call, node, data); break;
-	case AST_TYPE_TRAIT: ret = call_on_type_trait(call, node, data); break;
+	switch (AST_TYPE(node).kind) {
+	case AST_TYPE_ENUM: break;
+	case AST_TYPE_TRAIT: break;
 	case AST_TYPE_ID: ret = call_on_type_id(call, node, data); break;
 	case AST_TYPE_ARR: ret = call_on_type_arr(call, node, data); break;
-	case AST_TYPE_STRUCT: ret = call_on_type_struct(call, node, data);
-		break;
+	case AST_TYPE_STRUCT: break;
 	case AST_TYPE_SIGN: ret = call_on_type_sign(call, node, data); break;
+	case AST_TYPE_CONSTRUCT: ret = call_on_type_construct(call, node, data); break;
 	case AST_TYPE_POINTER: break;
 	case AST_TYPE_PRIMITIVE: break;
 	}

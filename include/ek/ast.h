@@ -542,7 +542,7 @@ struct ast_return {
 };
 
 enum ast_primitive {
-	AST_VOID, AST_I9, AST_I27
+	AST_VOID, AST_BOOL, AST_I9, AST_I27, AST_STR
 };
 
 /**
@@ -579,6 +579,8 @@ struct ast_type {
 
 		struct {
 			enum ast_primitive type;
+			struct ast_node *def; // for possible user defined
+					      // member functions
 		} _primitive;
 
 		/** Array type. */
@@ -1013,7 +1015,7 @@ struct ast_node *gen_switch(struct ast_node *cond, struct ast_node *cases, struc
  */
 struct ast_node *gen_case(struct ast_node *expr, struct ast_node *body, struct src_loc loc);
 
-struct ast_node *gen_primitive(enum ast_primitive type, struct src_loc loc);
+struct ast_node *gen_primitive(enum ast_primitive type, struct ast_node *def, struct src_loc loc);
 /**
  * Generate Ek type (besides primitive).
  *
@@ -1314,5 +1316,8 @@ const char *primitive_str(enum ast_primitive type);
 int same_id(struct ast_node *id1, struct ast_node *id2);
 int equiv_nodes(struct ast_node *n1, struct ast_node *n2);
 int equiv_node_chains(struct ast_node *c1, struct ast_node *c2);
+
+#define foreach_node(iter, nodes)\
+	for (struct ast_node *iter = nodes; iter; iter = iter->next)
 
 #endif /* AST_H */

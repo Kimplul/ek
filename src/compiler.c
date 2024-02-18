@@ -168,16 +168,19 @@ int compile(const char *input, const char *output) {
 	struct scope *root = NULL;
 	if (process_file(&root, 0, input)) {
 		destroy_scope(root);
+		destroy_ast_nodes();
 		error("compilation of %s stopped due to errors", input);
 		return ret;
 	}
 
+	/*
 	if ((ret = actualize_main(root))) {
 		destroy_scope(root);
 		destroy_ast_nodes();
 		error("compilation of %s stopped due to errors", input);
 		return ret;
 	}
+	*/
 
 	if ((ret = lower_ops(root, output))) {
 		destroy_scope(root);

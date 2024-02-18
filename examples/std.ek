@@ -1,32 +1,31 @@
 /* comparison traits */
-pub typedef cmp {
+pub define cmp[] {
 	eq(*cmp a, *cmp b => bool);
-	cmp(*cmp a, *cmp b => bool);
+	lt(*cmp a, *cmp b => bool);
+	bt(*cmp a, *cmp b => bool);
 
 	ne(*cmp a, *cmp b => bool) {return !a.eq(b)}
 
-	lt(*cmp a, *cmp b => bool) {return a.cmp(b) < 0}
-	bt(*cmp a, *cmp b => bool) {return a.cmp(b) > 0}
 	le(*cmp a, *cmp b => bool) {return !a.bt(b)}
 	ge(*cmp a, *cmp b => bool) {return !a.lt(b)}
-
 }
 
 /* hash traits */
-pub typedef hash {
+pub define hash[] {
 	hash(*hash h => i27);
 }
 
 /* builtin type 'implementations' */
 /* as a special case, builtin types are allowed to be typedef'd to implement
  * interfaces */
+pub typedef i27 {}
 pub typedef i9 {
-	fmt;
+	fmt![];
 	fmt(*i9 i, string args => result![string]) {
 		return ok!("123".str());
 	}
 
-	cmp;
+	cmp![];
 	eq(*i9 i, *i9 o => bool) {
 		return *i == *o;
 	}
@@ -35,23 +34,26 @@ pub typedef i9 {
 		return *i - *o;
 	}
 
-	hash;
+	hash![];
 	hash(*i9 i => i27) {
 		return i;
 	}
 }
 
+pub typedef bool {
+}
+
 /* special case of special case, 'str' means *i9 but pointers aren't allowed in
  * the parser stage. Is this an ugly solution? Feels kind of ugly. */
 pub typedef str {
-	fmt;
+	fmt![];
 	fmt(*i9 s, string args => result![string]) {
 		/* here we should probably copy s in case it is statically
 		 * defined */
 		return {.len = 2, .buf = "cp"} as string;
 	}
 
-	cmp;
+	cmp![];
 	eq(*i9 s, *i9 o => bool) {
 		if s == o {return true;}
 		/* iterate over stuff I guess */
@@ -62,7 +64,7 @@ pub typedef str {
 		/* iterate over stuff */
 	}
 
-	hash;
+	hash![];
 	hash(*i9 s => i27) {
 		/* iterate over all characters and hash them I guess */
 	}
@@ -109,7 +111,7 @@ pub define err(e) {
 }
 
 /* fmt import */
-pub typedef fmt {
+pub define fmt[] {
 	fmt(*fmt p, string args => result![string]);
 	str(*fmt p => string) {
 		/* is this a loop? allowed? */
@@ -178,7 +180,7 @@ pub define fprint(f, fmt, ...args) {
 /* vec import */
 pub typedef vec[any T] {
 	// we want our vector to be formattable, used by print etc.
-	fmt;
+	fmt![];
 	fmt(*vec v, string args => result![string]) {
 		return ok!("test".str());
 	}
@@ -238,6 +240,6 @@ pub typedef vec[any T] {
 }
 
 main() {
-	vec![i8] what;
+	vec![i9] what;
 	what.length();
 }
