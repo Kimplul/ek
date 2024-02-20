@@ -92,6 +92,10 @@ pub typedef string {
 	*i9 buf;
 }
 
+pub define string(s) {
+	{.len = sizeof(s), .buf = s} as string;
+}
+
 /* result import */
 pub typedef result[any T] {
 	*i9 err;
@@ -116,7 +120,7 @@ pub define fmt[] {
 	str(*fmt p => string) {
 		/* is this a loop? allowed? */
 		/* alternative would be {.len = 0, .buf = ""} as string I guess*/
-		const r = p.fmt("".str());
+		const r = p.fmt(string!(""));
 		if r.err() {
 			abort("error converting to string");
 		}

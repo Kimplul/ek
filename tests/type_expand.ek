@@ -1,0 +1,11 @@
+define trait[] {
+	trait_func(*trait a, *trait b);
+}
+
+typedef a[] {
+	trait![];
+}
+
+main() {
+	a![] some_var;
+}

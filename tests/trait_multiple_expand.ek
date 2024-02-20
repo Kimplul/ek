@@ -1,0 +1,18 @@
+define b[] {
+	c![];
+	a![];
+}
+
+define a[] {
+	c![];
+	a(*a a);
+}
+
+define c[] {
+	c(*c c);
+}
+
+typedef d {
+	b![];
+	c(*d d) {}
+}

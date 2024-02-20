@@ -518,14 +518,18 @@ struct ast_node *gen_alias(struct ast_node *id, struct ast_node *type, struct sr
 	return n;
 }
 
-struct ast_node *gen_trait(struct ast_node *id, struct ast_node *params,
-                           struct ast_node *body, struct src_loc loc)
+struct ast_node *gen_trait(struct ast_node *id,
+			struct ast_node *params,
+                           struct ast_node *raw_body,
+			   struct ast_node *body,
+			   struct src_loc loc)
 {
 	ALLOC_NODE(n, "trait");
 	n->node_type = AST_TRAIT;
 	AST_TRAIT(n).id = id;
 	AST_TRAIT(n).params = params;
 	AST_TRAIT(n).body = body;
+	AST_TRAIT(n).raw_body = raw_body;
 	n->loc = loc;
 	return n;
 }
@@ -1119,6 +1123,16 @@ static void __dump_ast(int depth, struct ast_node *node)
 	}
 }
 
+void dump_ast_node(int depth, struct ast_node *n)
+{
+	if (!n) {
+		dump(depth, "{NULL}\n");
+		return;
+	}
+
+	__dump_ast(depth, n);
+}
+
 void dump_ast(int depth, struct ast_node *root)
 {
 	if (!root) {
@@ -1128,7 +1142,7 @@ void dump_ast(int depth, struct ast_node *root)
 
 	struct ast_node *n = root;
 	do {
-		__dump_ast(depth, n);
+		dump_ast_node(depth, n);
 	} while ((n = n->next));
 }
 
@@ -1292,7 +1306,7 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 
 		case AST_TYPE_POINTER:
 			new = gen_type(AST_TYPE_POINTER,
-					AST_PTR_TYPE(node).base,
+					clone_ast_node(AST_PTR_TYPE(node).base),
 					NULL,
 					node->loc);
 			break;
@@ -1397,6 +1411,7 @@ struct ast_node *clone_ast_node(struct ast_node *node)
 	case AST_TRAIT:
 		new = gen_trait(clone_ast_node(AST_TRAIT(node).id),
 		                clone_ast_node(AST_TRAIT(node).params),
+				clone_ast_node(AST_TRAIT(node).raw_body),
 		                clone_ast_node(AST_TRAIT(node).body),
 		                node->loc);
 		break;
@@ -1483,9 +1498,9 @@ static int call_on_var(int (*call)(struct ast_node *,
                                    void *), struct ast_node *node, void *data)
 {
 	int ret = 0;
-	ret |= call(node->_var.id, data);
-	ret |= call(node->_var.type, data);
-	ret |= call(node->_var.init, data);
+	ret |= call(AST_VAR(node).id, data);
+	ret |= call(AST_VAR(node).type, data);
+	ret |= call(AST_VAR(node).init, data);
 	return ret;
 }
 
@@ -1620,6 +1635,12 @@ static int call_on_type_construct(int (*call)(struct ast_node *, void *),
 	return ret;
 }
 
+static int call_on_type_pointer(int (*call)(struct ast_node *, void *),
+		struct ast_node *node, void *data)
+{
+	return call(AST_PTR_TYPE(node).base, data);
+}
+
 static int call_on_type(int (*call)(struct ast_node *, void *),
 		struct ast_node *node, void *data)
 {
@@ -1632,7 +1653,7 @@ static int call_on_type(int (*call)(struct ast_node *, void *),
 	case AST_TYPE_STRUCT: break;
 	case AST_TYPE_SIGN: ret = call_on_type_sign(call, node, data); break;
 	case AST_TYPE_CONSTRUCT: ret = call_on_type_construct(call, node, data); break;
-	case AST_TYPE_POINTER: break;
+	case AST_TYPE_POINTER: ret = call_on_type_pointer(call, node, data); break;
 	case AST_TYPE_PRIMITIVE: break;
 	}
 

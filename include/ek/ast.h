@@ -370,20 +370,16 @@ struct trait_implemented {
 	struct trait_implemented *next;
 };
 
-/**
- * A trait declaration.
- *
- * @todo should templates take decls or should it just be for structures?
- */
+/** A trait definition. */
 struct ast_trait {
 	/** Name of trait. */
 	struct ast_node *id;
 	/** Parameters to construct concrete type from trait. */
 	struct ast_node *params;
+	/** Raw body before expansion. */
+	struct ast_node *raw_body;
 	/** Body of trait. */
 	struct ast_node *body;
-	/** List of types that implement this trait. */
-	struct trait_implemented *impl_by;
 };
 
 /** Cast. */
@@ -676,6 +672,7 @@ struct ast_struct {
 	struct ast_node *generics;
 	/** Body. */
 	struct ast_node *body;
+	struct trait_implemented *implemented_by;
 };
 
 /** Enum member constant value. */
@@ -1116,7 +1113,7 @@ struct ast_node *gen_alias(struct ast_node *id, struct ast_node *type, struct sr
  * @return Corresponding AST node.
  */
 struct ast_node *gen_trait(struct ast_node *id, struct ast_node *params,
-                           struct ast_node *body, struct src_loc loc);
+                           struct ast_node *raw_body, struct ast_node *body, struct src_loc loc);
 
 /**
  * Generate import;

@@ -366,7 +366,7 @@ static int analyze_visibility(struct scope *scope, struct ast_node *node)
 
 	default:
 		ret = -1;
-		semantic_error(scope->fctx, node, "unknown top element\n");
+		semantic_error(scope->fctx, node, "unknown top element");
 		break;
 	};
 
@@ -393,7 +393,7 @@ static int analyze_proc(struct scope *scope, struct ast_node *node)
 	return ret;
 }
 
-static struct ast_node *do_type_expand(struct scope *scope, struct ast_node *n)
+static struct ast_node *analyze_type_expand(struct scope *scope, struct ast_node *n)
 {
 	assert(n->node_type == AST_TYPE_EXPAND);
 	struct ast_node *trait = file_scope_find_type(scope, AST_TYPE_EXPAND(n).id);
@@ -408,7 +408,7 @@ static struct ast_node *do_type_expand(struct scope *scope, struct ast_node *n)
 	}
 
 	semantic_info(scope->fctx, n, "FIXME: skipping type param check for now");
-	struct ast_node *body = AST_TRAIT(trait).body;
+	struct ast_node *body = AST_TRAIT(trait).raw_body;
 	body = clone_ast_node(body);
 
 	struct ast_node *pa = AST_TYPE_EXPAND(n).args;
@@ -417,6 +417,28 @@ static struct ast_node *do_type_expand(struct scope *scope, struct ast_node *n)
 		pa = pa->next;
 	}
 	return body;
+}
+
+static int implements_trait(struct ast_node *body, struct ast_node *id)
+{
+	foreach_node(n, body) {
+		if (n->node_type != AST_ID)
+			continue;
+
+		if (same_id(n, id))
+			return 1;
+	}
+
+	return 0;
+}
+
+static void mark_implemented(struct ast_node *n)
+{
+	assert(n->node_type == AST_TYPE_EXPAND);
+	/** @todo very hacky but good enough for now */
+	struct ast_node *id = AST_TYPE_EXPAND(n).id;
+	n->node_type = AST_ID;
+	AST_ID(n).id = strdup(AST_ID(id).id);
 }
 
 static int analyze_struct(struct scope *scope, struct ast_node *node)
@@ -432,19 +454,43 @@ static int analyze_struct(struct scope *scope, struct ast_node *node)
 	if (generics)
 		ast_set_flags(node, AST_FLAG_GENERIC);
 
+	struct ast_node *type = gen_type(AST_TYPE_STRUCT, node, NULL, node->loc);
+
 	foreach_node(n, AST_STRUCT(node).body) {
-		/* function prototypes are checked later */
-		if (n->node_type == AST_PROC && !AST_PROC(n).body)
+		if (n->node_type != AST_TYPE_EXPAND)
 			continue;
 
-		if (n->node_type == AST_TYPE_EXPAND) {
-			struct ast_node *body = do_type_expand(scope, n);
-			if (!body)
-				return -1;
-
-			replace_type_id(body, AST_TYPE_EXPAND(n).id, AST_STRUCT(node).id);
-			*n = *body;
+		if (implements_trait(AST_STRUCT(node).body, AST_TYPE_EXPAND(n).id)) {
+			n->node_type = AST_EMPTY;
 			continue;
+		}
+
+		if (same_id(AST_STRUCT(node).id, AST_TYPE_EXPAND(n).id)) {
+			semantic_error(scope->fctx, n,
+					"recursive trait implementations not allowed");
+			return -1;
+		}
+
+		struct ast_node *body = analyze_type_expand(scope, n);
+		if (!body) {
+			n->node_type = AST_EMPTY;
+			continue;
+		}
+
+		replace_type_id(body, AST_TYPE_EXPAND(n).id, type);
+		ast_block_last(body)->next = n->next;
+		n->next = body;
+
+		mark_implemented(n);
+	}
+
+	foreach_node(n, AST_STRUCT(node).body) {
+		switch (n->node_type) {
+		case AST_EMPTY: continue;
+		case AST_ID: continue;
+			     /* prototypes are checked later */
+		case AST_PROC: if (!AST_PROC(n).body) continue;
+		default:
 		}
 
 		if (analyze_visibility(struct_scope, n))
@@ -453,7 +499,7 @@ static int analyze_struct(struct scope *scope, struct ast_node *node)
 
 	foreach_node(n, AST_STRUCT(node).body) {
 		/* also checks prototypes */
-		if (n->node_type == AST_PROC)
+		if (n->node_type != AST_PROC)
 			continue;
 
 		if (analyze_proc(struct_scope, n))
@@ -465,7 +511,7 @@ static int analyze_struct(struct scope *scope, struct ast_node *node)
 		if (n->node_type != AST_PROC)
 			continue;
 
-		if (!AST_PROC(n).body)
+		if (AST_PROC(n).body)
 			continue;
 
 		struct ast_node *proc = scope_find_proc(struct_scope, AST_PROC(n).id);
@@ -481,10 +527,12 @@ static int analyze_struct(struct scope *scope, struct ast_node *node)
 		}
 	}
 
-
+	/** @todo there is the possibility that two different traits add the
+	 * same prototype, which is reported in traits but not structs? */
 	return 0;
 }
 
+/* quite a lot of overlap with analyze_struct, kind of ugly I guess */
 static int analyze_trait(struct scope *scope, struct ast_node *node)
 {
 	assert(node->node_type == AST_TRAIT);
@@ -495,25 +543,84 @@ static int analyze_trait(struct scope *scope, struct ast_node *node)
 
 	scope_add_scope(node->scope, trait_scope);
 	node->scope = trait_scope;
+	/** @todo should probably add in aliases for the traits in scope? */
 	if (generics)
 		ast_set_flags(node, AST_FLAG_GENERIC);
 
-	foreach_node(n, AST_TRAIT(node).body) {
-		if (n->node_type == AST_TYPE_EXPAND) {
-			struct ast_node *body = do_type_expand(scope, n);
-			if (!body)
-				return -1;
+	struct ast_node *type = gen_type(AST_TYPE_TRAIT, node, NULL, node->loc);
 
-			replace_type_id(body, AST_TYPE_EXPAND(n).id, AST_STRUCT(node).id);
-			*n = *body;
+	AST_TRAIT(node).body = clone_ast_node(AST_TRAIT(node).raw_body);
+	/* do type expansions */
+	foreach_node(n, AST_TRAIT(node).body) {
+		if (n->node_type != AST_TYPE_EXPAND)
 			continue;
+
+		/* don't re-expand already implemented traits */
+		if (implements_trait(AST_TRAIT(node).body, AST_TYPE_EXPAND(n).id)) {
+			/* not sure about this, but at least we don't have stray
+			 * type expands everywhere */
+			n->node_type = AST_EMPTY;
+			continue;
+		}
+
+		if (same_id(AST_TRAIT(node).id, AST_TYPE_EXPAND(n).id)) {
+			semantic_error(scope->fctx, n,
+					"recursive trait implementations not allowed");
+			return -1;
+		}
+
+		struct ast_node *body = analyze_type_expand(scope, n);
+		if (!body) {
+			n->node_type = AST_EMPTY;
+			continue;
+		}
+
+		replace_type_id(body, AST_TYPE_EXPAND(n).id, type);
+		ast_last_node(body)->next = n->next;
+		n->next = body;
+
+		mark_implemented(n);
+	}
+
+	/* add all procedure definitions to scope */
+	foreach_node(n, AST_TRAIT(node).body) {
+		/* kind of a hack but these shouldn't be shown to
+		 * analyze_visibility  */
+		switch (n->node_type) {
+		case AST_EMPTY: continue;
+		case AST_ID: continue;
+			     /* prototypes are added later */
+		case AST_PROC: if (!AST_PROC(n).body) continue;
+		default:
 		}
 
 		if (analyze_visibility(trait_scope, n))
 			return -1;
 	}
 
+	/** @todo I should really check that there's just one prototype and one
+	 * implementation of that prototype, not sure what the best approach
+	 * would be. Add a prototypes -list to scopes? */
+
+	/* add all prototypes that don't have matching definition to scope */
 	foreach_node(n, AST_TRAIT(node).body) {
+		if (n->node_type != AST_PROC)
+			continue;
+
+		if (AST_PROC(n).body)
+			continue;
+
+		/* prototypes are checked only if there's no implementation */
+		if (scope_find_proc(trait_scope, AST_PROC(n).id))
+			continue;
+
+		if (analyze_visibility(trait_scope, n))
+			return -1;
+	}
+
+	foreach_node(n, AST_TRAIT(node).body) {
+		if (n->node_type != AST_PROC);
+
 		struct act_state state = {0};
 		if (analyze_proc(trait_scope, n))
 			return -1;
@@ -524,6 +631,7 @@ static int analyze_trait(struct scope *scope, struct ast_node *node)
 
 static int analyze_signs(struct scope *scope, struct ast_node *node)
 {
+	/** @todo aliases? */
 	switch (node->node_type) {
 	case AST_VAR: return analyze_var(scope, node); break;
 	case AST_PROC: return analyze_proc(scope, node); break;
@@ -554,7 +662,7 @@ static int analyze(struct scope *scope, struct ast_node *tree)
 			return -1;
 
 		printf("actualized:\n");
-		dump_ast(0, node);
+		dump_ast_node(0, node);
 	}
 
 	return 0;
@@ -964,8 +1072,18 @@ static int actualize_id(struct act_state *state,
 {
 	UNUSED(state);
 	assert(id && id->node_type == AST_ID);
-	/** @todo at the moment we always assume an ID is a variable, but stuff
-	 * like function callbacks should be added in the future */
+	/** @todo vars and procs kind of override eachother, i.e.
+	 *	do_something(){..}
+	 *	^() do_something;
+	 *
+	 *	do_something_else(){
+	 *		...
+	 *		do_something(); // calls variable at the moment
+	 *	}
+	 *
+	 *	Either add in some syntax to distinguish procedure calls and
+	 *	pointer calls or make procs and vars share the same namespace.
+	 *	*/
 	struct ast_node *decl = file_scope_find_var(scope, id);
 	if (decl) {
 		id->type = decl->type;
@@ -1804,19 +1922,39 @@ static int _replace_type_id(struct ast_node *node, void *data)
 	struct ast_node *id = pair[0];
 	struct ast_node *replacement = pair[1];
 
-	switch (node->node_type) {
-	case AST_VAR: replace_id(AST_VAR(node).type, id, replacement); break;
-	/* I think this might also change some extra stuff we might not want,
-	 * hmm */
-	case AST_TYPE: replace_id(node, id, replacement); break;
+	if (node->node_type != AST_TYPE)
+		goto next;
+
+	switch (AST_TYPE(node).kind) {
+	case AST_TYPE_ID: *node = *clone_ast_node(replacement); break;
+	case AST_TYPE_TRAIT: {
+		struct ast_node *def = AST_TRAIT_TYPE(node).def;
+		assert(def);
+		struct ast_node *name = AST_TRAIT(def).id;
+		if (same_id(id, name))
+			*node = *clone_ast_node(replacement);
+		break;
+	}
+
+	case AST_TYPE_STRUCT: {
+		struct ast_node *def = AST_STRUCT_TYPE(node).def;
+		assert(def);
+
+		struct ast_node *name = AST_STRUCT(def).id;
+		if (same_id(id, name))
+			*node = *clone_ast_node(replacement);
+		break;
+	}
 	default:
 	}
 
+next:
 	return ast_call_on(_replace_type_id, node, data);
 }
 
 static int replace_type_id(struct ast_node *nodes, struct ast_node *id, struct ast_node *replacement)
 {
+	assert(replacement->node_type == AST_TYPE);
 	struct ast_node *pair[2] = {id, replacement};
 	return ast_call_on(_replace_type_id, nodes, pair);
 }
@@ -1848,7 +1986,7 @@ static int actualize_trait(struct act_state *state, struct scope *scope,
 static int actualize_struct(struct act_state *state,
                             struct scope *scope, struct ast_node *node)
 {
-	assert(node->node_type == AST_TRAIT);
+	assert(node->node_type == AST_STRUCT);
 	foreach_node(n, AST_STRUCT(node).body) {
 		/* there's really only prodcedure body actualization left I
 		 * guess, as type stuff was taken care of in the analysis phase

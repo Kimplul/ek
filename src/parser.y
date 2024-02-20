@@ -672,7 +672,8 @@ alias
 
 type_param
 	: id id {
-		$$ = gen_var($2, $1, NULL, src_loc(@$));
+		struct ast_node *t = gen_type(AST_TYPE_ID, $1, NULL, src_loc(@1));
+		$$ = gen_var($2, t, NULL, src_loc(@$));
 	}
 
 type_params
@@ -685,7 +686,7 @@ opt_type_params
 
 trait
 	: "define" id "[" opt_type_params "]" "{" opt_members "}" {
-		$$ = gen_trait($2, $4, $7, src_loc(@$));
+		$$ = gen_trait($2, $4, $7, NULL, src_loc(@$));
 	}
 
 enum_val

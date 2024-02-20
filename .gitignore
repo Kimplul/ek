@@ -3,5 +3,6 @@ docs/output
 build
 gen
 ek
+*.t
 !gen/.gitkeep
 !include/ek
