@@ -2041,8 +2041,6 @@ static int actualize_dot(struct act_state *state,
 
 	struct ast_node *id = AST_DOT(node).id;
 	struct ast_node *type = expr->type;
-	if (AST_TYPE(type).kind == AST_TYPE_POINTER)
-		type = AST_PTR_TYPE(type).base;
 
 	struct ast_node *def = NULL;
 	switch (AST_TYPE(type).kind) {

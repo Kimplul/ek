@@ -122,7 +122,7 @@
 %left "::"
 
 /* why doesn't bison allow <*> for %nterm? would be so much easier */
-%nterm <node> import binop unop arg args decls expr
+%nterm <node> import binop unop decls expr
 %nterm <node> while do_while statement statements body references macro
 %nterm <node> exprs if for case cases switch const
 %nterm <node> func_sign type var_decl var
@@ -133,20 +133,20 @@
 %nterm <node> construct construct_args construct_arg
 %nterm <node> statelet apply types
 
-%nterm <node> tagged_struct
+%nterm <node> tagged_struct expr_if
 
 /* constant operations */
 %nterm <node> const_expr const_unop const_binop
 
 %nterm <node> macro_expand type_expand
 
-%nterm <node> type_params type_param
+%nterm <node> type_params type_param opt_for_inits for_inits for_init
 
 /* array stuff */
 %nterm <node> arr arr_inits arr_init
 
 /* optional stuff */
-%nterm <node> opt_args opt_exprs proc_decl member opt_members
+%nterm <node> opt_exprs proc_decl member opt_members
 %nterm <node> opt_statements opt_types opt_type_params
 
 %{
@@ -276,35 +276,23 @@ unop
 	: "-" expr { $$ = gen_unop(AST_NEG, $2, src_loc(@$));  }
 	| "!" expr { $$ = gen_unop(AST_LNOT, $2, src_loc(@$));  }
 	| "&" expr { $$ = gen_unop(AST_REF, $2, src_loc(@$));  }
-	| "*" expr { $$ = gen_unop(AST_DEREF, $2, src_loc(@$));  }
+	| expr "*" { $$ = gen_unop(AST_DEREF, $1, src_loc(@$));  }
 
 arr_init
-	: "=>" const_expr "..." const_expr "=" arg {
+	: "=>" const_expr "..." const_expr "=" expr {
 		$$ = gen_var($2, $4, $6, src_loc(@$));
 	}
-	| "=>" const_expr "=" arg {
+	| "=>" const_expr "=" expr {
 		$$ = gen_var($2, NULL, $4, src_loc(@$));
 	}
-	| arg
+	| expr
 
 arr_inits
 	: arr_init "," arr_inits { $$ = $1; $1->next = $3; }
 	| arr_init
 
 arr
-	: "[" arr_inits "]" { $$ = $2; }
-
-arg
-	: "&" var_decl { $$ = gen_unop(AST_REF, $2, src_loc(@$));  }
-	| expr
-	| switch
-	| if
-	| arr
-	| body
-
-args
-	: arg "," args { $$ = $1; $1->next = $3; }
-	| arg
+	: "!" "[" arr_inits "]" { $$ = $3; }
 
 param_decl
 	: type { $$ = gen_var(NULL, $1, NULL, src_loc(@$));  }
@@ -378,20 +366,32 @@ expr
 		$$ = gen_string(clone_string($1), src_loc(@$));
 	}
 	| "(" expr ")" { $$ = $2; }
-	| expr "(" args ")" { $$ = gen_call($1, $3, src_loc(@$)); }
-	| expr "(" ")" { $$ = gen_call($1, NULL, src_loc(@$)); }
-	| expr "[" expr "]" { $$ = gen_arr_access($1, $3, src_loc(@$)); /** @todo add arr access */}
-	| "(" var_init ")" { $$ = $2; }
+	/* special rule, user is allowed to define new variables in if
+	 * statements etc but it should stand out, which is why we require
+	 * parentheses. Also because otherwise the parser craps itself lol */
+	| "(" var ")" { $$ = $2; }
+	/* by adding "do" some statement-like things become expressions. It was
+	 * either this or adding parentheses around them, I personally think
+	 * "do" looks a bit cleaner. There is the slight annoyance that a very
+	 * long do {} ... might have a 'while'; at the end, not sure if do ...
+	 * while should be removed from the language altogether or what */
+	| "do" body { $$ = $2; }
+	| "do" expr_if { $$ = $2; }
+	| "do" "const" expr_if { $$ = $3; }
+	| "do" switch { $$ = $2; }
+	| "do" "const" switch { $$ = $3; }
+	| expr "(" opt_exprs ")" { $$ = gen_call($1, $3, src_loc(@$)); }
+	| expr "[" expr "]" { $$ = gen_arr_access($1, $3, src_loc(@$)); }
 	| "sizeof" expr { $$ = gen_sizeof($2, src_loc(@$)); }
 	| expr "as" type { $$ = gen_cast($1, $3, src_loc(@$));  }
 	| id "::" type { $$ = gen_fetch($1, $3, src_loc(@$)); }
-	| "as" type { $$ = gen_as($2, src_loc(@$)); } /** @todo might be uneccessary? */
 	| macro_expand
 	| construct
 	| assign
 	| embed
 	| binop
 	| unop
+	| arr
 	| id
 
 while
@@ -407,7 +407,7 @@ goto
 	: "goto" id { $$ = gen_goto(gen_label($2, src_loc(@$)), src_loc(@$));  }
 
 statelet
-	: "return" args { $$ = gen_return($2, src_loc(@$));  }
+	: "return" exprs { $$ = gen_return($2, src_loc(@$));  }
 	| "return" { $$ = gen_return(NULL, src_loc(@$)); }
 	| "break" { $$ = gen_ctrl(AST_CTRL_BREAK, src_loc(@$)); }
 	| "continue" { $$ = gen_ctrl(AST_CTRL_CONTINUE, src_loc(@$)); }
@@ -470,7 +470,6 @@ macro
 		ast_set_flags($6, AST_FLAG_UNHYGIENIC);
 	}
 	| "define" id "(" references "..." id ")" body {
-		/* TODO: the location data of the variadic ID is way off */
 		ast_append($4, $6);
 		$$ = gen_macro_construct($2, $4, $8, src_loc(@$));
 		ast_set_flags($$, AST_FLAG_VARIADIC);
@@ -496,8 +495,12 @@ construct_args
 	| construct_arg
 
 construct
-	: "{" construct_args "}" {
-		$$ = gen_init($2, src_loc(@$));
+	: apply "{" construct_args "}" {
+		/** @todo add type info? */
+		$$ = gen_init($3, src_loc(@$));
+	}
+	| apply "[" opt_types "]" "{" construct_args "}" {
+		$$ = gen_init($6, src_loc(@$));
 	}
 
 if
@@ -505,20 +508,29 @@ if
 	| "if" expr body "else" body { $$ = gen_if($2, $3, $5, src_loc(@$));  }
 	| "if" expr body "else" if { $$ = gen_if($2, $3, $5, src_loc(@$));  }
 
-opt_args
-	: args
-	| {$$ = NULL;}
+expr_if
+	: "if" expr body "else" body { $$ = gen_if($2, $3, $5, src_loc(@$)); }
+	| "if" expr body "else" expr_if { $$ = gen_if($2, $3, $5, src_loc(@$)); }
 
 opt_exprs
 	: exprs
 	| {$$ = NULL;}
 
+for_init
+	: expr
+	| var_init
+
+for_inits
+	: for_init "," for_inits { $$ = $1; $$->next = $3; }
+	| for_init
+
+opt_for_inits
+	: for_inits
+	| {$$ = NULL;}
+
 for
-	: "for" opt_args ";" opt_exprs ";" exprs body {
+	: "for" opt_for_inits ";" opt_exprs ";" opt_exprs body {
 		$$ = gen_for($2, $4, $6, $7, src_loc(@$));
-	}
-	| "for" opt_args ";" opt_exprs ";" body {
-		$$ = gen_for($2, $4, NULL, $6, src_loc(@$));
 	}
 
 case
@@ -539,7 +551,7 @@ switch
 
 /* could there be a use case for number based iteration? */
 const_for
-	: "for" id ":" args body {
+	: "for" id ":" exprs body {
 		/* TODO: should id be a separate rule? */
 		$$ = gen_for($2, NULL, $4, $5, src_loc(@$));
 		ast_set_flags($5, AST_FLAG_UNHYGIENIC);
@@ -614,9 +626,9 @@ var_decl
 	: type id { $$ = gen_var($2, $1, NULL, src_loc(@$));  }
 
 var_init
-	: var_decl "=" arg { $$ = $1; $$->_var.init = $3; }
-	| "const" id "=" arg { $$ = gen_var($2, NULL, $4, src_loc(@$)); }
-	| "mut" id "=" arg {
+	: var_decl "=" expr { $$ = $1; $$->_var.init = $3; }
+	| "const" id "=" expr { $$ = gen_var($2, NULL, $4, src_loc(@$)); }
+	| "mut" id "=" expr {
 		$$ = gen_var($2, NULL, $4, src_loc(@$));
 		ast_set_flags($$, AST_FLAG_MUTABLE);
 	}
@@ -653,7 +665,7 @@ opt_members
 	| {$$ = NULL;}
 
 macro_expand
-	: apply "(" opt_args ")" {
+	: apply "(" opt_exprs ")" {
 		$$ = gen_macro_expand($1, $3, src_loc(@$));
 	}
 

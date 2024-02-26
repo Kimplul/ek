@@ -22,16 +22,21 @@ pub typedef i27 {}
 pub typedef i9 {
 	fmt![];
 	fmt(*i9 i, string args => result![string]) {
-		return ok!("123".str());
+		/* hmm, this static string would have to be deinitialized
+		 * somewhere else with possibly bad results. Should free() or
+		 * whatever I choose to use check if the pointer is in static
+		 * memory or something? Or should it be the user's
+		 * responsibility to ensure static strings are cloned? */
+		return ok!(string!("123"));
 	}
 
 	cmp![];
 	eq(*i9 i, *i9 o => bool) {
-		return *i == *o;
+		return i* == o*;
 	}
 
 	cmp(*i9 i, *i9 o => bool) {
-		return *i - *o;
+		return i* - o*;
 	}
 
 	hash![];
@@ -50,7 +55,7 @@ pub typedef str {
 	fmt(*i9 s, string args => result![string]) {
 		/* here we should probably copy s in case it is statically
 		 * defined */
-		return {.len = 2, .buf = "cp"} as string;
+		return ok!(string!("cp"));
 	}
 
 	cmp![];
@@ -93,7 +98,7 @@ pub typedef string {
 }
 
 pub define string(s) {
-	{.len = sizeof(s), .buf = s} as string;
+	string!{.len = sizeof(s), .buf = s}
 }
 
 /* result import */
@@ -102,16 +107,22 @@ pub typedef result[any T] {
 	T val;
 
 	err(*result r => bool) {
-		return r.err != null;
+		return r*.err != null;
 	}
 }
 
 pub define ok(v) {
-	{.err = null, .val = v} as result;
+	result!{.err = null, .val = v};
 }
 
 pub define err(e) {
-	{.err = e} as result;
+	/* for this to work properly, I'll probably need some pretty decent type
+	 * decuction...*/
+	result!{.err = e};
+}
+
+pub define errv(e, v) {
+	result!{.err = e, .val = v};
 }
 
 /* fmt import */
@@ -119,13 +130,12 @@ pub define fmt[] {
 	fmt(*fmt p, string args => result![string]);
 	str(*fmt p => string) {
 		/* is this a loop? allowed? */
-		/* alternative would be {.len = 0, .buf = ""} as string I guess*/
-		const r = p.fmt(string!(""));
-		if r.err() {
+		const r = p*.fmt(string!(""));
+		if r*.err() {
 			abort("error converting to string");
 		}
 
-		return r.v;
+		return r*.v;
 	}
 }
 
@@ -135,7 +145,7 @@ pub typedef file {
 }
 
 /* here would be useful if macros could take type arguments as well, for example
- * f must be a file and fmt must be a string, but I guess this is a quick I can
+ * f must be a file and fmt must be a string, but I guess this is a quirk I can
  * live with... */
 pub define fprint(f, fmt, ...args) {
 	/* possible name clash, hmmm */
@@ -186,7 +196,7 @@ pub typedef vec[any T] {
 	// we want our vector to be formattable, used by print etc.
 	fmt![];
 	fmt(*vec v, string args => result![string]) {
-		return ok!("test".str());
+		return ok!(string!("test"));
 	}
 
 	usize len;
@@ -194,47 +204,47 @@ pub typedef vec[any T] {
 	^(usize) alloc;
 
 	init(*vec v, ^(usize) alloc) {
-		v.len = 0;
-		v.buf = null;
-		v.alloc = alloc;
+		v*.len = 0;
+		v*.buf = null;
+		v*.alloc = alloc;
 	}
 
 	init(*vec v) {
-		init(v, alloc);
+		v*.init(alloc);
 	}
 
 	length(*vec v => usize) { return v.len; }
 	index(*vec v, usize i => T)
 	{
-		assert(i < v.len, "index %zu out of bounds\n", i);
-		return &v.buf[i];
+		assert(i < v*.len, "index %zu out of bounds\n", i);
+		return &v*.buf[i];
 	}
 
 	index(*vec v, isize i => T)
 	{
 		if i < 0 {
-			assert(-i < v.len, "reverse index %zi out of bounds\n", i);
-			return &v.buf[v.len + i];
+			assert(-i < v*.len, "reverse index %zi out of bounds\n", i);
+			return &v*.buf[v*.len + i];
 		}
 
 		/* v.whatever() is effectively syntactic sugar for
 		 * whatever::typeof(v)(&v), but since I don't allow typeof()
 		 * it's built-in. */
-		return v.index(i as usize);
+		return v*.index(i as usize);
 	}
 
-	prepend(*vec v, T e) { v.insert(e, 0); }
-	append(*vec v, T e) { v.insert(e, v.len); }
+	prepend(*vec v, T e) { v*.insert(e, 0); }
+	append(*vec v, T e) { v*.insert(e, v*.len); }
 
-	preplace(*vec v, T e) { v.place(e, 0); }
-	applace(*vec v, T e) { v.place(e, v.len); }
+	preplace(*vec v, T e) { v*.place(e, 0); }
+	applace(*vec v, T e) { v*.place(e, v*.len); }
 
 	place(*vec v, T e) {}
 	insert(*vec v, T e) {}
 
 	deinit(*vec v)
 	{
-		for (usize i = 0); i < v.len; i += 1 {
+		for i27 i = 0; i < v.len; i += 1 {
 			deinit(v[i]);
 			v[i] = null;
 		}
