@@ -83,8 +83,8 @@ struct scope {
 	struct scope *children;
 
 	/**
-	 * List of actualized functions,
-	 * shared between all scopes in the file.
+	 * List of generic structs with actual arguments to generate before
+	 * lowering
 	 */
 	struct actual *actuals;
 
@@ -125,7 +125,7 @@ void destroy_actuals(struct actual *actuals);
  * @param scope Scope list belongs to.
  * @param visible List of visibles to destroy.
  */
-void destroy_visible(struct scope *scope, struct visible *visible);
+void destroy_visible(struct visible *visible);
 
 /**
  * Destroy scope.

@@ -1,0 +1,23 @@
+typedef i9 {}
+typedef i27 {}
+
+putchar(i9 c)
+{
+	*i9 p = 19683 as *i9;
+	p* = c;
+}
+
+main()
+{
+	if 0 {
+		putchar('0');
+	}
+	else if 1 {
+		putchar('1');
+	}
+	else {
+		putchar('1');
+	}
+
+	putchar('\n');
+}

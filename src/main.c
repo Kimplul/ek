@@ -22,13 +22,11 @@
  * some way to make flag handling more generic
  */
 static const char *cmdline_usage =
-	"ek compiler usage:\n"
+	"ek frontend usage:\n"
 	" ek [-I <dir>...] [-o <outfile>] infile\n"
 	"	-h            Show usage (this)\n"
 	"	-I <dir>      Add directory to import path\n"
 	"	infile        Top file(s) to compile\n"
-	"	-o <outfile>  Name of output assembly file\n"
-	"	              (infile minus file extension if not given)\n"
 ;
 
 /** Print usage of compiler. */
@@ -50,13 +48,8 @@ static void usage()
 int main(int argc, char *argv[])
 {
 	int opt;
-	const char *output = "e.t";
-	while ((opt = getopt(argc, argv, "hI:o:")) != -1) {
+	while ((opt = getopt(argc, argv, "hI:")) != -1) {
 		switch (opt) {
-		case 'o':
-			output = optarg;
-			break;
-
 		case 'I':
 			add_import_path(optarg);
 			break;
@@ -84,5 +77,5 @@ int main(int argc, char *argv[])
 	}
 
 	const char *input = argv[optind];
-	return compile(input, output);
+	return compile(input);
 }

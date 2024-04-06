@@ -296,6 +296,8 @@ enum ast_flag {
 	AST_FLAG_SHARED = (1 << 12),
 	/** Struct/union is generic. */
 	AST_FLAG_GENERIC = (1 << 13),
+	AST_FLAG_NOMANGLE = (1 << 14),
+	AST_FLAG_DOEXPR = (1 << 15),
 };
 
 struct ast_node;
@@ -576,7 +578,7 @@ struct ast_type {
 		struct {
 			enum ast_primitive type;
 			struct ast_node *def; // for possible user defined
-					      // member functions
+			                      // member functions
 		} _primitive;
 
 		/** Array type. */
@@ -754,7 +756,7 @@ struct ast_node {
 	/** Ek type. */
 	struct ast_node *type;
 
-	size_t reg;
+	size_t uses;
 
 	/** Data relevant to kind. */
 	union {
@@ -859,7 +861,8 @@ struct ast_node *gen_binop(enum ast_binops op,
  * @param expr Expression.
  * @return Corresponding AST node.
  */
-struct ast_node *gen_unop(enum ast_unops op, struct ast_node *expr, struct src_loc loc);
+struct ast_node *gen_unop(enum ast_unops op, struct ast_node *expr,
+                          struct src_loc loc);
 
 /**
  * Generate call.
@@ -910,7 +913,8 @@ struct ast_node *gen_float(double dbl, struct src_loc loc);
  * @param from Where to assign from.
  * @return Corresponding AST node.
  */
-struct ast_node *gen_assign(struct ast_node *to, struct ast_node *from, struct src_loc loc);
+struct ast_node *gen_assign(struct ast_node *to, struct ast_node *from,
+                            struct src_loc loc);
 
 /**
  * Generate initialization.
@@ -927,7 +931,8 @@ struct ast_node *gen_init(struct ast_node *body, struct src_loc loc);
  * @param body Body.
  * @return Corresponding AST node.
  */
-struct ast_node *gen_while(struct ast_node *cond, struct ast_node *body, struct src_loc loc);
+struct ast_node *gen_while(struct ast_node *cond, struct ast_node *body,
+                           struct src_loc loc);
 
 /**
  * Generate for loop.
@@ -939,7 +944,8 @@ struct ast_node *gen_while(struct ast_node *cond, struct ast_node *body, struct 
  * @return Corresponding AST node.
  */
 struct ast_node *gen_for(struct ast_node *pre, struct ast_node *cond,
-                         struct ast_node *post, struct ast_node *body, struct src_loc loc);
+                         struct ast_node *post, struct ast_node *body,
+                         struct src_loc loc);
 
 /**
  * Generate return.
@@ -1001,7 +1007,8 @@ struct ast_node *gen_if(struct ast_node *cond, struct ast_node *body,
  * @param cases List of cases.
  * @return Corresponding AST node.
  */
-struct ast_node *gen_switch(struct ast_node *cond, struct ast_node *cases, struct src_loc loc);
+struct ast_node *gen_switch(struct ast_node *cond, struct ast_node *cases,
+                            struct src_loc loc);
 
 /**
  * Generate switch case.
@@ -1010,9 +1017,11 @@ struct ast_node *gen_switch(struct ast_node *cond, struct ast_node *cases, struc
  * @param body Body.
  * @return Corresponding AST node.
  */
-struct ast_node *gen_case(struct ast_node *expr, struct ast_node *body, struct src_loc loc);
+struct ast_node *gen_case(struct ast_node *expr, struct ast_node *body,
+                          struct src_loc loc);
 
-struct ast_node *gen_primitive(enum ast_primitive type, struct ast_node *def, struct src_loc loc);
+struct ast_node *gen_primitive(enum ast_primitive type, struct ast_node *def,
+                               struct src_loc loc);
 /**
  * Generate Ek type (besides primitive).
  *
@@ -1054,7 +1063,8 @@ struct ast_node *gen_var(struct ast_node *id, struct ast_node *type,
  * @return Corresponding AST node.
  */
 struct ast_node *gen_lambda(struct ast_node *captures,
-                            struct ast_node *type, struct ast_node *body, struct src_loc loc);
+                            struct ast_node *type, struct ast_node *body,
+                            struct src_loc loc);
 
 /**
  * Generate procedure definition.
@@ -1074,7 +1084,8 @@ struct ast_node *gen_proc(struct ast_node *id, struct ast_node *type,
  * @param id Name to do dot with.
  * @return Corresponding AST node.
  */
-struct ast_node *gen_dot(struct ast_node *expr, struct ast_node *id, struct src_loc loc);
+struct ast_node *gen_dot(struct ast_node *expr, struct ast_node *id,
+                         struct src_loc loc);
 
 /**
  * Generate enum definition.
@@ -1094,7 +1105,8 @@ struct ast_node *gen_enum(struct ast_node *id, struct ast_node *type,
  * @param val Value of enumeration member.
  * @return Corresponding AST node.
  */
-struct ast_node *gen_val(struct ast_node *id, struct ast_node *val, struct src_loc loc);
+struct ast_node *gen_val(struct ast_node *id, struct ast_node *val,
+                         struct src_loc loc);
 
 /**
  * Generate alias definition.
@@ -1103,7 +1115,8 @@ struct ast_node *gen_val(struct ast_node *id, struct ast_node *val, struct src_l
  * @param type Type to alias.
  * @return Corresponding AST node.
  */
-struct ast_node *gen_alias(struct ast_node *id, struct ast_node *type, struct src_loc loc);
+struct ast_node *gen_alias(struct ast_node *id, struct ast_node *type,
+                           struct src_loc loc);
 
 /**
  * Generate trait definition.
@@ -1113,7 +1126,8 @@ struct ast_node *gen_alias(struct ast_node *id, struct ast_node *type, struct sr
  * @return Corresponding AST node.
  */
 struct ast_node *gen_trait(struct ast_node *id, struct ast_node *params,
-                           struct ast_node *raw_body, struct ast_node *body, struct src_loc loc);
+                           struct ast_node *raw_body, struct ast_node *body,
+                           struct src_loc loc);
 
 /**
  * Generate import;
@@ -1130,7 +1144,8 @@ struct ast_node *gen_import(const char *file, struct src_loc loc);
  * @param type Type to cast expression result to.
  * @return Corresponding AST node.
  */
-struct ast_node *gen_cast(struct ast_node *expr, struct ast_node *type, struct src_loc loc);
+struct ast_node *gen_cast(struct ast_node *expr, struct ast_node *type,
+                          struct src_loc loc);
 
 /**
  * Generate embed.
@@ -1198,7 +1213,8 @@ struct ast_node *gen_struct(struct ast_node *id, struct ast_node *generics,
  * @param type Enum type to fetch from.
  * @return Corresponding AST node.
  */
-struct ast_node *gen_fetch(struct ast_node *id, struct ast_node *type, struct src_loc loc);
+struct ast_node *gen_fetch(struct ast_node *id, struct ast_node *type,
+                           struct src_loc loc);
 
 /**
  * Generate empty AST node.
@@ -1234,6 +1250,7 @@ int identical_ast_nodes(int exact, struct ast_node *left,
  * @param root AST node to dump.
  */
 void dump_ast(int depth, struct ast_node *root);
+void dump_ast_node(int depth, struct ast_node *node);
 
 /**
  * Add \p elem to end of \p list.
@@ -1267,7 +1284,7 @@ void ast_clear_flags(struct ast_node *node, enum ast_flag flags);
  * @param flags Flags to check.
  * @return \c 1 if all \p flags are set, \c 0 othewise.
  */
-int ast_flags(struct ast_node *node, enum ast_flag flags);
+unsigned ast_flags(struct ast_node *node, enum ast_flag flags);
 
 /**
  * Call external callback on all nodes in tree.
@@ -1281,7 +1298,7 @@ int ast_call_on(int (*call)(struct ast_node *, void *),
                 struct ast_node *node, void *data);
 
 int ast_call_on_chain(int (*call)(struct ast_node *, void *),
-		struct ast_node *node, void *data);
+                      struct ast_node *node, void *data);
 
 /**
  * Number of elements in AST list.
@@ -1314,7 +1331,7 @@ int same_id(struct ast_node *id1, struct ast_node *id2);
 int equiv_nodes(struct ast_node *n1, struct ast_node *n2);
 int equiv_node_chains(struct ast_node *c1, struct ast_node *c2);
 
-#define foreach_node(iter, nodes)\
+#define foreach_node(iter, nodes) \
 	for (struct ast_node *iter = nodes; iter; iter = iter->next)
 
 #endif /* AST_H */

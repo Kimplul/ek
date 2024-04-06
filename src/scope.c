@@ -32,7 +32,7 @@ struct scope *create_scope()
 	return scope;
 }
 
-void destroy_visible(struct scope *scope, struct visible *visible)
+void destroy_visible(struct visible *visible)
 {
 	struct visible *prev = visible, *cur;
 	if (prev)
@@ -53,10 +53,10 @@ void destroy_scope(struct scope *scope)
 		free((void *)scope->fctx.fname);
 	}
 
-	destroy_visible(scope, scope->vars);
-	destroy_visible(scope, scope->procs);
-	destroy_visible(scope, scope->macros);
-	destroy_visible(scope, scope->types);
+	destroy_visible(scope->vars);
+	destroy_visible(scope->procs);
+	destroy_visible(scope->macros);
+	destroy_visible(scope->types);
 
 	struct scope *prev = scope->children, *cur;
 	if (prev)
@@ -179,7 +179,8 @@ int scope_add_type(struct scope *scope, struct ast_node *id,
 int scope_add_macro(struct scope *scope, struct ast_node *macro)
 {
 	assert(macro->node_type == AST_MACRO_CONSTRUCT);
-	struct ast_node *exists = file_scope_find_macro(scope, AST_MACRO_CONSTRUCT(
+	struct ast_node *exists = file_scope_find_macro(scope,
+	                                                AST_MACRO_CONSTRUCT(
 								macro).id);
 	if (exists) {
 		semantic_error(scope->fctx, macro, "macro redefined");
@@ -362,7 +363,7 @@ static int add_actual(struct actual *actuals, struct ast_node *node)
 		return 0;
 	}
 
-	/* TODO: check that there isn't already an actual like ours? */
+	/* TODO: check that there isn't already an actual like ours */
 	struct actual *actual = calloc(1, sizeof(struct actual));
 	if (!actual)
 		return -1;

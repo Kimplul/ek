@@ -1,5 +1,8 @@
+typedef i9 {}
+typedef i27 {}
+
 main()
 {
 	*i9 p = 19683 as *i9;
-	*p = 'A' as i9;
+	p* = 'A' as i9;
 }

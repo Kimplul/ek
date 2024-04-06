@@ -4,5 +4,6 @@ build
 gen
 ek
 *.t
+*.log
 !gen/.gitkeep
 !include/ek

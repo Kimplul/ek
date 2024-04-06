@@ -375,11 +375,11 @@ expr
 	 * "do" looks a bit cleaner. There is the slight annoyance that a very
 	 * long do {} ... might have a 'while'; at the end, not sure if do ...
 	 * while should be removed from the language altogether or what */
-	| "do" body { $$ = $2; }
-	| "do" expr_if { $$ = $2; }
-	| "do" "const" expr_if { $$ = $3; }
-	| "do" switch { $$ = $2; }
-	| "do" "const" switch { $$ = $3; }
+	| "do" body { $$ = $2; ast_set_flags($$, AST_FLAG_DOEXPR); }
+	| "do" expr_if { $$ = $2; ast_set_flags($$, AST_FLAG_DOEXPR); }
+	| "do" "const" expr_if { $$ = $3; ast_set_flags($$, AST_FLAG_DOEXPR); }
+	| "do" switch { $$ = $2; ast_set_flags($$, AST_FLAG_DOEXPR); }
+	| "do" "const" switch { $$ = $3; ast_set_flags($$, AST_FLAG_DOEXPR); }
 	| expr "(" opt_exprs ")" { $$ = gen_call($1, $3, src_loc(@$)); }
 	| expr "[" expr "]" { $$ = gen_arr_access($1, $3, src_loc(@$)); }
 	| "sizeof" expr { $$ = gen_sizeof($2, src_loc(@$)); }

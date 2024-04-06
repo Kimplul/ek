@@ -1,0 +1,15 @@
+typedef i9 {}
+typedef i27 {}
+
+putchar(i9 c)
+{
+	*i9 p = 19683 as *i9;
+	p* = c;
+}
+
+main()
+{
+	for i27 i = 0; i < 5; i = i + 1 {
+		putchar('A' + i);
+	}
+}

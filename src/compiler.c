@@ -21,8 +21,8 @@
 #include <ek/parser.h>
 #include <ek/debug.h>
 #include <ek/scope.h>
+#include <ek/lower.h>
 #include <ek/path.h>
-#include <ek/ops.h>
 #include <ek/res.h>
 
 /**
@@ -140,8 +140,6 @@ int process_file(struct scope **scope, int public, const char *file)
 	if (!cwd)
 		goto out;
 
-	debug("(cwd:%s)(dir:%s)(base:%s)", cwd, dir, base);
-
 	if (*dir != 0 && chdir(dir)) {
 		error("couldn't change to directory %s: %s", dir, strerror(
 			      errno));
@@ -152,7 +150,8 @@ int process_file(struct scope **scope, int public, const char *file)
 		goto out;
 
 	if (chdir(cwd)) {
-		error("couldn't change back to directory %s: %s\n", cwd, strerror(
+		error("couldn't change back to directory %s: %s\n", cwd,
+		      strerror(
 			      errno));
 		goto out;
 	}
@@ -163,7 +162,7 @@ out:
 	return res;
 }
 
-int compile(const char *input, const char *output) {
+int compile(const char *input) {
 	int ret = -1;
 	struct scope *root = NULL;
 	if (process_file(&root, 0, input)) {
@@ -173,16 +172,7 @@ int compile(const char *input, const char *output) {
 		return ret;
 	}
 
-	/*
-	if ((ret = actualize_main(root))) {
-		destroy_scope(root);
-		destroy_ast_nodes();
-		error("compilation of %s stopped due to errors", input);
-		return ret;
-	}
-	*/
-
-	if ((ret = lower_ops(root, output))) {
+	if ((ret = lower_actuals(root))) {
 		destroy_scope(root);
 		destroy_ast_nodes();
 		error("compilation of %s stopped due to errors", input);
