@@ -250,13 +250,13 @@ static void destroy_act_state(struct act_state *state)
 	clear_gotos(state, NULL);
 }
 
-static void type_mismatch(struct scope *scope, struct ast *node, struct type *a, struct type *b)
+static void type_mismatch(struct scope *scope, char *s, struct ast *node, struct type *a, struct type *b)
 {
 	char *left_type = type_str(a);
 	char *right_type = type_str(b);
 	semantic_error(scope->fctx, node,
-		       "type mismatch: %s vs %s",
-		       left_type, right_type);
+		       "%s: %s vs %s",
+		       s, left_type, right_type);
 	free(left_type);
 	free(right_type);
 }
@@ -871,7 +871,7 @@ static int actualize_call(struct act_state *state,
 		}
 
 		if (!types_match(p, arg->t)) {
-			type_mismatch(scope, arg, p, arg->t);
+			type_mismatch(scope, "argument type mismatch", arg, p, arg->t);
 			return -1;
 		}
 
@@ -986,7 +986,7 @@ static int actualize_binop(struct act_state *state,
 		return -1;
 
 	if (!types_match(left->t, right->t)) {
-		type_mismatch(scope, binop, left->t, right->t);
+		type_mismatch(scope, "op type mismatch", binop, left->t, right->t);
 		return -1;
 	}
 
@@ -1107,7 +1107,7 @@ static int actualize_var(struct act_state *state,
 	if (init && type) {
 		/* make sure the asked type and the actualized types match */
 		if (!types_match(init->t, type)) {
-			type_mismatch(scope, var, init->t, type);
+			type_mismatch(scope, "var type mismatch", var, init->t, type);
 			return -1;
 		}
 	}
@@ -1625,8 +1625,7 @@ static int actualize_return(struct act_state *state, struct scope *scope,
 	struct ast *cur_proc = state->cur_proc;
 	struct type *rtype = proc_rtype(cur_proc);
 	if (!types_match(node->t, rtype)) {
-		/* hmm, should this be "return type mismatch? */
-		type_mismatch(scope, node, rtype, node->t);
+		type_mismatch(scope, "return type mismatch", node, rtype, node->t);
 		return -1;
 	}
 
@@ -2020,7 +2019,7 @@ static int actualize_assign(struct act_state *state, struct scope *scope,
 	}
 
 	if (!types_match(to->t, from->t)) {
-		type_mismatch(scope, node, to->t, from->t);
+		type_mismatch(scope, "assign type mismatch", node, to->t, from->t);
 		return -1;
 	}
 
@@ -2182,7 +2181,7 @@ static int actualize_comparison(struct act_state *state, struct scope *scope, st
 	}
 
 	if (!types_match(left->t, right->t)) {
-		type_mismatch(scope, node, left->t, right->t);
+		type_mismatch(scope, "comparison type mismatch", node, left->t, right->t);
 		return -1;
 	}
 
