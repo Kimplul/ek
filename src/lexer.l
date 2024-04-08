@@ -84,36 +84,26 @@ STRING		\"(\\.|[^"\\])*\"
 "%"		{return REM;}
 "^"		{return XOR;}
 
+"true" {
+	yylval->integer = 1;
+	return BOOL;
+}
+
+"false" {
+	yylval->integer = 0;
+	return BOOL;
+}
+
 '[^'\\]'	{
 	/* regular character constant, 'a' */
 	yylval->integer = yytext[1];
-	return INT;
-}
-
-'\\x[0-9a-fA-F]+' {
-	/* hex character constant, '\xef' */
-	/* handling is slightly different from C, here it's more or less just
-	 * another way to specify a hex integer */
-	yylval->integer = strtoll(yytext + 3, NULL, 16);
-	return INT;
-}
-
-'\\[0-8]+' {
-	/* octal character constant, '\033' */
-	yylval->integer = strtoll(yytext + 2, NULL, 8);
-	return INT;
-}
-
-'\\b[01]+' {
-	/* binary character constant, '\b101' */
-	yylval->integer = strtoll(yytext + 3, NULL, 2);
-	return INT;
+	return CHAR;
 }
 
 '\\.' {
 	/* escaped character constant */
 	yylval->integer = match_escape(yytext[2]);
-	return INT;
+	return CHAR;
 }
 
 "?"		{return QUESTION;}
@@ -185,7 +175,7 @@ STRING		\"(\\.|[^"\\])*\"
 }
 
 {ID} {
-	yylval->str = yytext;
+	yylval->str = strdup(yytext);
 	return ID;
 }
 
@@ -194,7 +184,7 @@ STRING		\"(\\.|[^"\\])*\"
 	char *s = yytext + strlen(yytext);
 	s[-1] = '\0';
 
-	yylval->str = yytext;
+	yylval->str = strdup(yytext);
 	return APPLY;
 }
 

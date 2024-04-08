@@ -34,9 +34,9 @@ enum scope_flags {
  */
 struct visible {
 	/** Name of the visible node. */
-	struct ast_node *id;
+	char *id;
 	/** AST node that is visible. */
-	struct ast_node *node;
+	struct ast *node;
 	/** Next visible object in the scope we're in. */
 	struct visible *next;
 };
@@ -44,15 +44,15 @@ struct visible {
 /** Actualized nodes visible to scope. */
 struct actual {
 	/** Actualized AST node. */
-	struct ast_node *node;
+	struct ast *node;
 	/** Next actual node. */
 	struct actual *next;
 };
 
-struct types {
-	struct ast_node *id;
-	struct ast_node *type;
-	struct ast_node *next;
+struct type_defs {
+	char *id;
+	struct ast *type_def;
+	struct type_defs *next;
 };
 
 /**
@@ -160,7 +160,7 @@ void scope_destroy_defaults(struct scope *root);
  * @param scratch Scratch node to add to \p scope.
  * @return \c 0 when successful, non-zero otherwise.
  */
-int scope_add_scratch(struct scope *scope, struct ast_node *scratch);
+int scope_add_scratch(struct scope *scope, struct ast *scratch);
 
 /**
  * Set scope flags.
@@ -178,7 +178,7 @@ void scope_set_flags(struct scope *scope, enum scope_flags flags);
  * @return \c 1 if flags are set, \c 0 if flags are unset.
  * @note All flags have to be set for the result to be \c 1.
  */
-int scope_flags(struct scope *scope, enum scope_flags flags);
+unsigned scope_flags(struct scope *scope, enum scope_flags flags);
 
 /**
  * Add child scope to \p parent.
@@ -196,7 +196,7 @@ void scope_add_scope(struct scope *parent, struct scope *child);
  * @param node Actualized AST node.
  * @return \c 0 when succesful, non-zero otherwise.
  */
-int scope_add_actual(struct scope *scope, struct ast_node *node);
+int scope_add_actual(struct scope *scope, struct ast *node);
 
 /**
  * Add variable to scope.
@@ -206,7 +206,7 @@ int scope_add_actual(struct scope *scope, struct ast_node *node);
  * @param var Variable to add to scope.
  * @return \c 0 when succesful, non-zero otherwise.
  */
-int scope_add_var(struct scope *scope, struct ast_node *var);
+int scope_add_var(struct scope *scope, struct ast *var);
 
 /**
  * Add type to scope.
@@ -216,8 +216,7 @@ int scope_add_var(struct scope *scope, struct ast_node *var);
  * @param type Type to add to scope.
  * @return \c 0 when succesful, non-zero otherwise.
  */
-int scope_add_type(struct scope *scope, struct ast_node *id,
-                   struct ast_node *type);
+int scope_add_type(struct scope *scope, char *id, struct ast *type);
 
 /**
  * Add procedure to scope.
@@ -227,7 +226,7 @@ int scope_add_type(struct scope *scope, struct ast_node *id,
  * @param proc Procedure to add to scope.
  * @return \c 0 when succesful, non-zero otherwise.
  */
-int scope_add_proc(struct scope *scope, struct ast_node *proc);
+int scope_add_proc(struct scope *scope, struct ast *proc);
 
 /**
  * Add macro to scope.
@@ -237,7 +236,7 @@ int scope_add_proc(struct scope *scope, struct ast_node *proc);
  * @param macro Macro to add to scope.
  * @return \c 0 when succesful, non-zero otherwise.
  */
-int scope_add_macro(struct scope *scope, struct ast_node *macro);
+int scope_add_macro(struct scope *scope, struct ast *macro);
 
 /**
  * Add template to scope.
@@ -247,7 +246,7 @@ int scope_add_macro(struct scope *scope, struct ast_node *macro);
  * @param type_template Template to add to scope.
  * @return \c 0 when succesful, non-zero otherwise.
  */
-int scope_add_trait(struct scope *scope, struct ast_node *trait);
+int scope_add_trait(struct scope *scope, struct ast *trait);
 
 int scope_resolve(struct scope *scope);
 
@@ -261,7 +260,7 @@ int scope_resolve(struct scope *scope);
  * @return Pointer to the AST node corresponding to \p id if found,
  * otherwise \c NULL.
  */
-struct ast_node *scope_find_var(struct scope *scope, struct ast_node *id);
+struct ast *scope_find_var(struct scope *scope, char *id);
 
 /**
  * Find a type with ID in \p scope.
@@ -273,7 +272,7 @@ struct ast_node *scope_find_var(struct scope *scope, struct ast_node *id);
  * @return Pointer to the AST node corresponding to \p id if found,
  * otherwise \c NULL.
  */
-struct ast_node *scope_find_type(struct scope *scope, struct ast_node *id);
+struct ast *scope_find_type(struct scope *scope, char *id);
 
 /**
  * Find a procedure with ID in \p scope.
@@ -285,7 +284,7 @@ struct ast_node *scope_find_type(struct scope *scope, struct ast_node *id);
  * @return Pointer to the AST node corresponding to \p id if found,
  * otherwise \c NULL.
  */
-struct ast_node *scope_find_proc(struct scope *scope, struct ast_node *id);
+struct ast *scope_find_proc(struct scope *scope, char *id);
 
 /**
  * Find a  macro with ID in \p scope.
@@ -297,7 +296,7 @@ struct ast_node *scope_find_proc(struct scope *scope, struct ast_node *id);
  * @return Pointer to the AST node corresponding to \p id if found,
  * otherwise \c NULL.
  */
-struct ast_node *scope_find_macro(struct scope *scope, struct ast_node *id);
+struct ast *scope_find_macro(struct scope *scope, char *id);
 
 /**
  * Find an alias with ID in \p scope.
@@ -309,7 +308,7 @@ struct ast_node *scope_find_macro(struct scope *scope, struct ast_node *id);
  * @return Pointer to the AST node corresponding to \p id if found,
  * otherwise \c NULL.
  */
-struct ast_node *scope_find_alias(struct scope *scope, struct ast_node *id);
+struct ast *scope_find_alias(struct scope *scope, char *id);
 
 /**
  * Find a template with ID in \p scope.
@@ -321,7 +320,7 @@ struct ast_node *scope_find_alias(struct scope *scope, struct ast_node *id);
  * @return Pointer to the AST node corresponding to \p id if found,
  * otherwise \c NULL.
  */
-struct ast_node *scope_find_trait(struct scope *scope, struct ast_node *id);
+struct ast *scope_find_trait(struct scope *scope, char *id);
 
 /**
  * Find a variable with ID visible to \p scope.
@@ -331,7 +330,7 @@ struct ast_node *scope_find_trait(struct scope *scope, struct ast_node *id);
  * @return Pointer to the AST node corresponding to \p id if found,
  * otherwise \c NULL.
  */
-struct ast_node *file_scope_find_var(struct scope *scope, struct ast_node *id);
+struct ast *file_scope_find_var(struct scope *scope, char *id);
 
 /**
  * Find a type with ID visible to \p scope.
@@ -341,7 +340,7 @@ struct ast_node *file_scope_find_var(struct scope *scope, struct ast_node *id);
  * @return Pointer to the AST node corresponding to \p id if found,
  * otherwise \c NULL.
  */
-struct ast_node *file_scope_find_type(struct scope *scope, struct ast_node *id);
+struct ast *file_scope_find_type(struct scope *scope, char *id);
 
 /**
  * Find a procedure with ID visible to \p scope.
@@ -351,7 +350,7 @@ struct ast_node *file_scope_find_type(struct scope *scope, struct ast_node *id);
  * @return Pointer to the AST node corresponding to \p id if found,
  * otherwise \c NULL.
  */
-struct ast_node *file_scope_find_proc(struct scope *scope, struct ast_node *id);
+struct ast *file_scope_find_proc(struct scope *scope, char *id);
 
 /**
  * Find a macro with ID visible to \p scope.
@@ -361,8 +360,7 @@ struct ast_node *file_scope_find_proc(struct scope *scope, struct ast_node *id);
  * @return Pointer to the AST node corresponding to \p id if found,
  * otherwise \c NULL.
  */
-struct ast_node *file_scope_find_macro(struct scope *scope,
-                                       struct ast_node *id);
+struct ast *file_scope_find_macro(struct scope *scope, char *id);
 /**
  * Find a alias with ID visible to \p scope.
  *
@@ -371,8 +369,7 @@ struct ast_node *file_scope_find_macro(struct scope *scope,
  * @return Pointer to the AST node corresponding to \p id if found,
  * otherwise \c NULL.
  */
-struct ast_node *file_scope_find_alias(struct scope *scope,
-                                       struct ast_node *id);
+struct ast *file_scope_find_alias(struct scope *scope, char *id);
 
 /**
  * Find a template with ID visible to \p scope.
@@ -382,7 +379,9 @@ struct ast_node *file_scope_find_alias(struct scope *scope,
  * @return Pointer to the AST node corresponding to \p id if found,
  * otherwise \c NULL.
  */
-struct ast_node *file_scope_find_trait(struct scope *scope,
-                                       struct ast_node *id);
+struct ast *file_scope_find_trait(struct scope *scope, char *id);
+
+#define foreach_visible(iter, init)\
+	for (struct visible *iter = init; iter; iter = iter->next)
 
 #endif /* SCOPE_H */

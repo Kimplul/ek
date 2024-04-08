@@ -5,6 +5,7 @@
 #define AST_H
 
 #include <stddef.h>
+#include <stdbool.h>
 
 /**
  * @file ast.h
@@ -12,60 +13,92 @@
  * Abstract syntax tree handling.
  */
 
-#define AST_ID(x) x->_id
-#define AST_AS(x) x->_as
-#define AST_DOT(x) x->_dot
-#define AST_UNOP(x) x->_unop
-#define AST_IMPORT(x) x->_import
-#define AST_ALIAS(x) x->_alias
-#define AST_TRAIT(x) x->_trait
-#define AST_CAST(x) x->_cast
-#define AST_PROC(x) x->_proc
-#define AST_VAR(x) x->_var
-#define AST_RETURN(x) x->_return
-#define AST_STRUCT(x) x->_struct
-#define AST_ENUM(x) x->_enum
-#define AST_CALL(x) x->_call
-#define AST_CONST(x) x->_const
-#define AST_ASSIGN(x) x->_assign
-#define AST_BLOCK(x) x->_block
-#define AST_ARR_ACCESS(x) x->_arr_access
-#define AST_MACRO_CONSTRUCT(x) x->_macro_construct
-#define AST_MACRO_EXPAND(x) x->_macro_expand
-#define AST_TYPE_EXPAND(x) x->_type_expand
-#define AST_IF(x) x->_if
-#define AST_CASE(x) x->_case
-#define AST_SWITCH(x) x->_switch
-#define AST_VAL(x) x->_val
-#define AST_EMBED(x) x->_embed
-#define AST_CTRL(x) x->_ctrl
-#define AST_WHILE(x) x->_while
-#define AST_FOR(x) x->_for
-#define AST_DEFER(x) x->_defer
-#define AST_BINOP(x) x->_binop
-#define AST_LABEL(x) x->_label
-#define AST_GOTO(x) x->_goto
-#define AST_INIT(x) x->_init
-#define AST_SIZEOF(x) x->_sizeof
-#define AST_FETCH(x) x->_fetch
+#define NULL_LOC() ((struct src_loc){0, 0, 0, 0})
 
-#define AST_TYPE(x) x->_type
-#define AST_ID_TYPE(x) x->_type._id
-#define AST_CONSTRUCT_TYPE(x) x->_type._construct
-#define AST_TRAIT_TYPE(x) x->_type._trait
-/** @todo is sign and proc type the same ? */
-#define AST_PROC_TYPE(x) x->_type._proc
-#define AST_ARR_TYPE(x) x->_type._arr
-#define AST_SIGN_TYPE(x) x->_type._sign
-#define AST_ENUM_TYPE(x) x->_type._enum
-#define AST_UNION_TYPE(x) x->_type._union
-#define AST_STRUCT_TYPE(x) x->_type._struct
-/* might rename primitive to something else */
-#define AST_PRIMITIVE_TYPE(x) x->_type._primitive
-#define AST_PTR_TYPE(x) x->_type._ptr
+/** Represents a source location, spanning over some bit of code. */
+struct src_loc {
+	/** First line of interesting text. */
+	int first_line;
+	/** Last line of interesting text. */
+	int last_line;
+	/** First column in first line of interesting text. */
+	int first_col;
+	/** Last column in last line of interesting text. */
+	int last_col;
+};
 
-/** Binary operands, that is they take two arguments and produce a result. */
-enum ast_binops {
+/** Possible AST node types. We reserve node 0 as an illegal value. */
+enum ast_kind {
+	/** Fetch enum constant. */
+	AST_FETCH = 1,
+	/** Value initialization. */
+	AST_INIT,
+	/** Assignment. */
+	AST_ASSIGN,
+	/** Call procedure. */
+	AST_CALL,
+	AST_ARR,
+	/** Sizeof. */
+	AST_SIZEOF,
+	/** Cast. */
+	AST_CAST,
+	/** Defer. */
+	AST_DEFER,
+	/** Macro definition. */
+	AST_MACRO_DEF,
+	AST_MACRO_EXPAND,
+	AST_TYPE_EXPAND,
+	/** Procedure definition. */
+	AST_PROC_DEF,
+	/** Goto. */
+	AST_GOTO,
+	/** Goto label. */
+	AST_LABEL,
+	/** Variable declaration/definition. */
+	AST_VAR_DEF,
+	/** For loop. */
+	AST_FOR,
+	/** Embed file contents. */
+	AST_EMBED,
+	/** Dot. \c a.b; */
+	AST_DOT,
+	/**
+	 * While loop, both \c do and \c while.
+	 * \c AST_DELAYED is active for \c do loops.
+	 */
+	AST_WHILE,
+	AST_DO_WHILE,
+	/** Control statement, \c break or \c continue. */
+	AST_BREAK,
+	AST_CONTINUE,
+	/** Return. */
+	AST_RETURN,
+	/** Alias definition. */
+	AST_ALIAS_DEF,
+	/** More like trait. @todo really come up with consistent naming. */
+	AST_TRAIT_DEF,
+	/** Structure definition. */
+	AST_STRUCT_DEF,
+	/** If. */
+	AST_IF,
+	/** Block. E.g. \c {} */
+	AST_BLOCK,
+	/** Import. */
+	AST_IMPORT,
+	/** Enum definition. */
+	AST_ENUM_DEF,
+	/** Enum constant value. */
+	AST_VAL,
+	/** Switch. */
+	AST_SWITCH,
+	/** Switch case. */
+	AST_CASE,
+	/** Any ID, variable or whatever. */
+	AST_ID,
+	/** As statement, used to determine types. */
+	AST_AS,
+	/** Empty. Essentially noop. */
+	AST_EMPTY,
 	/** Add, \c + */
 	AST_ADD,
 	/** Subtract, \c - */
@@ -110,160 +143,23 @@ enum ast_binops {
 	AST_NE,
 	/** Equal, \c == */
 	AST_EQ,
-};
-
-/** Unary operations, that is they take one argument and produce a result. */
-enum ast_unops {
 	/** Negation, \c - */
 	AST_NEG,
 	/** Logical negation, \c ! */
 	AST_LNOT,
+	AST_NOT,
 	/** Referencing, \c & */
 	AST_REF,
 	/** Dereferencing, \c ' */
 	AST_DEREF,
-};
-
-#define NULL_LOC() ((struct src_loc){0, 0, 0, 0})
-
-/** Represents a source location, spanning over some bit of code. */
-struct src_loc {
-	/** First line of interesting text. */
-	int first_line;
-	/** Last line of interesting text. */
-	int last_line;
-	/** First column in first line of interesting text. */
-	int first_col;
-	/** Last column in last line of interesting text. */
-	int last_col;
-};
-
-/** Possible AST node types. We reserve node 0 as an illegal value. */
-enum ast_node_type {
-	/** Binary operation. */
-	AST_BINOP = 1,
-	/** Unary operation. */
-	AST_UNOP,
-	/** Fetch enum constant. */
-	AST_FETCH,
-	/** Value initialization. */
-	AST_INIT,
-	/** Assignment. */
-	AST_ASSIGN,
-	/** Call procedure. */
-	AST_CALL,
-	AST_ARR_ACCESS,
-	/** Sizeof. */
-	AST_SIZEOF,
-	/** Cast. */
-	AST_CAST,
-	/** Defer. */
-	AST_DEFER,
-	/** Macro definition. */
-	AST_MACRO_CONSTRUCT,
-	AST_MACRO_EXPAND,
-	AST_TYPE_EXPAND,
-	/** Procedure definition. */
-	AST_PROC,
-	/** Goto. */
-	AST_GOTO,
-	/** Goto label. */
-	AST_LABEL,
-	/** Variable declaration/definition. */
-	AST_VAR,
-	/** For loop. */
-	AST_FOR,
-	/** Embed file contents. */
-	AST_EMBED,
-	/** Dot. \c a.b; */
-	AST_DOT,
-	/**
-	 * While loop, both \c do and \c while.
-	 * \c AST_DELAYED is active for \c do loops.
-	 */
-	AST_WHILE,
-	/** Control statement, \c break or \c continue. */
-	AST_CTRL,
-	/** Return. */
-	AST_RETURN,
-	/** Alias definition. */
-	AST_ALIAS,
-	/** More like trait. @todo really come up with consistent naming. */
-	AST_TRAIT,
-	/** Structure definition. */
-	AST_STRUCT,
-	/** If. */
-	AST_IF,
-	/** Special 'meta' node that represents a type. */
-	AST_TYPE,
-	/** Block. E.g. \c {} */
-	AST_BLOCK,
-	/** Import. */
-	AST_IMPORT,
-	/** Enum definition. */
-	AST_ENUM,
-	/** Enum constant value. */
-	AST_VAL,
-	/** Switch. */
-	AST_SWITCH,
-	/** Switch case. */
-	AST_CASE,
-	/** Constant value. */
-	AST_CONST,
-	/** Any ID, variable or whatever. */
-	AST_ID,
-	/** As statement, used to determine types. */
-	AST_AS,
-	/** Empty. Essentially noop. */
-	AST_EMPTY,
-};
-
-/** Whether \c AST_CTRL is break or continue. */
-enum ast_ctrl_kind {
-	/** Break. */
-	AST_CTRL_BREAK,
-	/** Continue. */
-	AST_CTRL_CONTINUE
-};
-
-/** Constant value kind. */
-enum ast_const_kind {
-	/** Integer, i27 */
-	AST_CONST_INTEGER,
-	/** String. */
-	AST_CONST_STRING,
-};
-
-/** Type representation. */
-enum ast_type_kind {
-	/** ID, can refer to pretty much anything. */
-	AST_TYPE_ID,
-	AST_TYPE_PRIMITIVE,
-	/** Array. */
-	AST_TYPE_ARR,
-	AST_TYPE_CONSTRUCT,
-	/** Trait. */
-	AST_TYPE_TRAIT,
-	/** Pointer to a type. */
-	AST_TYPE_POINTER,
-	/** Structure. */
-	AST_TYPE_STRUCT,
-	/** Enum. */
-	AST_TYPE_ENUM,
-	/** Signature, i.e. procedure signature. */
-	AST_TYPE_SIGN,
-};
-
-/** Whether typedef makes an alias on trait. */
-enum ast_typedef_kind {
-	/** Alias. */
-	AST_TYPEDEF_ALIAS,
-	/** Trait. */
-	AST_TYPEDEF_TRAIT,
+	AST_CONST_INT,
+	AST_CONST_CHAR,
+	AST_CONST_BOOL,
+	AST_CONST_STR,
 };
 
 /** Flags an AST node can have. */
-enum ast_flag {
+enum ast_flags {
 	/** Node is mutable. Mostly used for variables. */
 	AST_FLAG_MUTABLE = (1 << 0),
 	/** Value is constant. Constant if, for, etc. */
@@ -300,1005 +196,461 @@ enum ast_flag {
 	AST_FLAG_DOEXPR = (1 << 15),
 };
 
-struct ast_node;
+struct ast;
 
-/**
- * AST if node.
- *
- * \verbatim
- * if cond {body} [els]
- * \endverbatim
- */
-struct ast_if {
-	/** Conditional block. */
-	struct ast_node *cond;
-	/** Body. */
-	struct ast_node *body;
-	/** Else block. */
-	struct ast_node *els;
+enum type_kind {
+	TYPE_VOID = 1, TYPE_BOOL, TYPE_I9, TYPE_I27, TYPE_STR, TYPE_PTR,
+	TYPE_ID, TYPE_CONSTRUCT, TYPE_STRUCT, TYPE_ENUM, TYPE_CALLABLE,
+	TYPE_TRAIT,
 };
 
-/** AST fetch enum member node. */
-struct ast_fetch {
-	/** Name of member to fetch. */
-	struct ast_node *id;
-	/** Enum type to fetch from. */
-	struct ast_node *type;
-};
+struct type {
+	enum type_kind k;
 
-/** Goto label. */
-struct ast_label {
-	/** Label name. */
-	struct ast_node *id;
-	/**
-	 * List of active defers.
-	 * Used to determine which defer statements should be executed
-	 * when a goto jumps to this label.
-	 */
-	struct ast_node *defers;
-};
+	/* arg */
+	struct type *t0;
+	struct type *t1;
 
-struct ast_arr_access {
-	struct ast_node *base;
-	struct ast_node *idx;
-};
+	/* definition */
+	struct ast *d;
+	/* alias */
+	struct ast *a;
+	/* id */
+	char *id;
+	/* next */
+	struct type *n;
 
-/** Goto node. */
-struct ast_goto {
-	/** Name of label to jump to. */
-	struct ast_node *label;
-	/**
-	 * List of active defers.
-	 * With the list in the corresponding label, we can detect which
-	 * defers should be triggered and which ones shouldn't.
-	 * See actualize_goto_defers().
-	 */
-	struct ast_node *defers;
-};
-
-/** Alias definition. */
-struct ast_alias {
-	/** Name of alias. */
-	struct ast_node *id;
-	/** Type to alias. */
-	struct ast_node *type;
-};
-
-/** List of types that implements the template list belongs to. */
-struct trait_implemented {
-	/** A type that implements the template. */
-	struct ast_node *type;
-	/** Next type that implements the template. */
-	struct trait_implemented *next;
-};
-
-/** A trait definition. */
-struct ast_trait {
-	/** Name of trait. */
-	struct ast_node *id;
-	/** Parameters to construct concrete type from trait. */
-	struct ast_node *params;
-	/** Raw body before expansion. */
-	struct ast_node *raw_body;
-	/** Body of trait. */
-	struct ast_node *body;
-};
-
-/** Cast. */
-struct ast_cast {
-	/** Expression. */
-	struct ast_node *expr;
-	/** Type to cast expression result to. */
-	struct ast_node *type;
-};
-
-/** Binary operation. */
-struct ast_binop {
-	/** Which operation. */
-	enum ast_binops op;
-	/** Left operand. */
-	struct ast_node *left;
-	/** Right operand. */
-	struct ast_node *right;
-};
-
-/** Unary operation. */
-struct ast_unop {
-	/** Which operation. */
-	enum ast_unops op;
-	/** Expression. */
-	struct ast_node *expr;
-};
-
-/** A call. */
-struct ast_call {
-	/** Name to call, whatever it may be. */
-	struct ast_node *expr;
-	/** List of arguments to call. */
-	struct ast_node *args;
-};
-
-/** Defer. */
-struct ast_defer {
-	/** Expression to defer. */
-	struct ast_node *expr;
-};
-
-/** Macro definition. */
-struct ast_macro_construct {
-	/** Name of macro. */
-	struct ast_node *id;
-	/** Parameters macro takes. */
-	struct ast_node *params;
-	/** Macro body. */
-	struct ast_node *body;
-};
-
-struct ast_macro_expand {
-	struct ast_node *id;
-	struct ast_node *args;
-};
-
-struct ast_type_expand {
-	struct ast_node *id;
-	struct ast_node *args;
-};
-
-/** Procedure definition. */
-struct ast_proc {
-	/** Procedure name. */
-	struct ast_node *id;
-	/** Procedure signature. */
-	struct ast_node *sign;
-	/** Procedure body. */
-	struct ast_node *body;
-};
-
-/** Dot. */
-struct ast_dot {
-	/** Expression to do dot operation on. */
-	struct ast_node *expr;
-	/** Name to dot. */
-	struct ast_node *id;
-};
-
-/** As. */
-struct ast_as {
-	/** Type to use for resolution. */
-	struct ast_node *type;
-};
-
-/** Sizeof. */
-struct ast_sizeof {
-	/** Expression to get type of. */
-	struct ast_node *expr;
-};
-
-/** Variable declaration. */
-struct ast_var {
-	/** Name of variable. */
-	struct ast_node *id;
-	/** Type of variable. */
-	struct ast_node *type;
-	/** Initialization expression. */
-	struct ast_node *init;
-};
-
-/** Lambda definition. */
-struct ast_lambda {
-	/** Which variables to capture from the context. */
-	struct ast_node *captures;
-	/** Signature of lambda. */
-	struct ast_node *sign;
-	/** Body of lambda. */
-	struct ast_node *body;
-};
-
-/**
- * For loop.
- *
- * \verbatim
- * for (pre; cond; post) {body}
- * \endverbatim
- */
-struct ast_for {
-	/** Initialization. */
-	struct ast_node *pre;
-	/** Condition. */
-	struct ast_node *cond;
-	/** Iteration. */
-	struct ast_node *post;
-	/** Body. */
-	struct ast_node *body;
-};
-
-/**  While loop. */
-struct ast_while {
-	/** Condition. */
-	struct ast_node *cond;
-	/** Body. */
-	struct ast_node *body;
-};
-
-/** Control. */
-struct ast_ctrl {
-	/** Break or continue. */
-	enum ast_ctrl_kind kind;
-	/**
-	 * List of active defers.
-	 * Similarly to goto, used to figure out which defers to trigger.
-	 */
-	struct ast_node *defers;
-};
-
-/** Return. */
-struct ast_return {
-	/** Expression to return. */
-	struct ast_node *expr;
-	/** List of active defers. */
-	struct ast_node *defers;
-};
-
-enum ast_primitive {
-	AST_VOID, AST_BOOL, AST_I9, AST_I27, AST_STR
-};
-
-/**
- * Type.
- * I'm not entirely happy with the current type system, for one
- * some parts are only used until they get initialized, which makes it
- * sort of difficult to follow what each kind means.
- *
- * @todo Could be better to have separate type nodes instead of co-opting
- * AST nodes.
- */
-struct ast_type {
-	/** Type kind. */
-	enum ast_type_kind kind;
-	/**
-	 * Next type element in whole type. I.e. *i9 is two elements, one
-	 * AST_TYPE_POINTER and one AST_TYPE_ID.
-	 */
-	struct ast_node *next;
-	struct ast_node *as;
-	struct ast_node *aliased;
-
-	/** Data relevant to kind. */
-	union {
-		/** Name of a type, to be converted later. */
-		struct {
-			struct ast_node *id;
-		} _id;
-
-		struct {
-			struct ast_node *id;
-			struct ast_node *args;
-		} _construct;
-
-		struct {
-			enum ast_primitive type;
-			struct ast_node *def; // for possible user defined
-			                      // member functions
-		} _primitive;
-
-		/** Array type. */
-		struct {
-			struct ast_node *size;
-			struct ast_node *base;
-		} _arr;
-
-		struct {
-			struct ast_node *base;
-		} _ptr;
-
-		/** Procedure. */
-		struct {
-			/** Name. */
-			struct ast_node *id;
-			/** Parameters. */
-			struct ast_node *params;
-			/** Return type. */
-			struct ast_node *ret;
-		} _proc;
-
-		/** Trait. */
-		struct {
-			/** Trait definition. */
-			struct ast_node *def;
-		} _trait;
-
-		/** Structure. */
-		struct {
-			/** Structure definition. */
-			struct ast_node *def;
-		} _struct;
-
-		/** Enumeration. */
-		struct {
-			/** Enum definition. */
-			struct ast_node *def;
-		} _enum;
-
-		/** Union. */
-		struct {
-			/** Name of union. */
-			struct ast_node *id;
-			/** Arguments for type parameters. */
-			struct ast_node *impls;
-		} _union;
-
-		struct {
-			/** Parameter types. */
-			struct ast_node *params;
-			/** Return type. */
-			struct ast_node *ret;
-		} _sign;
-	};
-};
-
-/** Block. */
-struct ast_block {
-	/** Body of block. */
-	struct ast_node *body;
-	/** List of defers. */
-	struct ast_node *defers;
-};
-
-/** Import. */
-struct ast_import {
-	/** File to import. */
-	const char *file;
-};
-
-/** Embed. @todo figure out how embedding should be done, just *u8? */
-struct ast_embed {
-	/** File to embed. */
-	const char *file;
-};
-
-/** Enum definition. */
-struct ast_enum {
-	/** Name of enum. */
-	struct ast_node *id;
-	/** Type enum is convertible to/from. */
-	struct ast_node *type;
-	/** Body. */
-	struct ast_node *body;
-};
-
-/** Structure definition. */
-struct ast_struct {
-	/** Name of structure. */
-	struct ast_node *id;
-	/** List of type parameters, if any. */
-	struct ast_node *generics;
-	/** Body. */
-	struct ast_node *body;
-	struct trait_implemented *implemented_by;
-};
-
-/** Enum member constant value. */
-struct ast_val {
-	/** Name of member. */
-	struct ast_node *id;
-	/** Constant value of member. */
-	struct ast_node *val;
-};
-
-/** Switch. */
-struct ast_switch {
-	/** Condition. */
-	struct ast_node *cond;
-	/** List of cases. */
-	struct ast_node *cases;
-};
-
-/** Switch case. */
-struct ast_case {
-	/** Condition. */
-	struct ast_node *cond;
-	/** Body. */
-	struct ast_node *body;
-};
-
-/** Constant value. */
-struct ast_const {
-	/** Constant kind. */
-	enum ast_const_kind kind;
-	union {
-		/** Integer. */
-		long long integer;
-		/** String. */
-		const char *str;
-	};
-};
-
-/** Value initialization. */
-struct ast_init {
-	/** Body. @todo maybe come up with a better name? */
-	struct ast_node *body;
-};
-
-/** Assignment. */
-struct ast_assign {
-	/** Where to assign to. */
-	struct ast_node *to;
-	/** What to assign from. */
-	struct ast_node *from;
-};
-
-/**
- * An ID.
- * @todo One optimization would be to reduce number of ast_ids,
- * replacing them with raw strings.
- */
-struct ast_id {
-	/** Actual ID. */
-	const char *id;
-};
-
-/** Empty node. */
-struct ast_empty {
-};
-
-/** AST node. */
-struct ast_node {
-	/** Node type. */
-	enum ast_node_type node_type;
-	/** Node flags. */
-	enum ast_flag flags;
-	/** Next node, when applicable. I.e. body statements. */
-	struct ast_node *next;
-	/** Source location. */
 	struct src_loc loc;
-	/** Scope node belongs to. */
 	struct scope *scope;
-	/** Ek type. */
-	struct ast_node *type;
-
-	size_t uses;
-
-	/** Data relevant to kind. */
-	union {
-		struct ast_arr_access _arr_access;
-		/** Binary operation. */
-		struct ast_binop _binop;
-		/** Unary operation. */
-		struct ast_unop _unop;
-		/** Call. */
-		struct ast_call _call;
-		/** Cast. */
-		struct ast_cast _cast;
-		/** Macro definition. */
-		struct ast_macro_construct _macro_construct;
-		struct ast_macro_expand _macro_expand;
-		struct ast_type_expand _type_expand;
-		/** Procedure definition. */
-		struct ast_proc _proc;
-		/** Goto. */
-		struct ast_goto _goto;
-		/** Goto label. */
-		struct ast_label _label;
-		/** Variable. */
-		struct ast_var _var;
-		/** Lambda. */
-		struct ast_lambda _lambda;
-		/** If. */
-		struct ast_if _if;
-		/** For. */
-		struct ast_for _for;
-		/** While. */
-		struct ast_while _while;
-		/** Break/continue. */
-		struct ast_ctrl _ctrl;
-		/** Defer. */
-		struct ast_defer _defer;
-		/** Type. */
-		struct ast_type _type;
-		/** Dot. */
-		struct ast_dot _dot;
-		/** Block. */
-		struct ast_block _block;
-		/** Import. */
-		struct ast_import _import;
-		/** Embed. */
-		struct ast_embed _embed;
-		/** Return. */
-		struct ast_return _return;
-		/** Switch. */
-		struct ast_switch _switch;
-		/** Alias. */
-		struct ast_alias _alias;
-		/** Trait definition. */
-		struct ast_trait _trait;
-		/** Enum definition. */
-		struct ast_enum _enum;
-		/** Structure definition. */
-		struct ast_struct _struct;
-		/** Enum value. */
-		struct ast_val _val;
-		/** Switch case. */
-		struct ast_case _case;
-		/** Constant value. */
-		struct ast_const _const;
-		/** Initialization. */
-		struct ast_init _init;
-		/** Assignment. */
-		struct ast_assign _assign;
-		/** ID. */
-		struct ast_id _id;
-		/** As type. */
-		struct ast_as _as;
-		/** Sizeof. */
-		struct ast_sizeof _sizeof;
-		/** Fetch enum member. */
-		struct ast_fetch _fetch;
-		/** Empty. */
-		struct ast_empty _empty;
-	};
 };
 
-struct ast_node *gen_arr_access(struct ast_node *base, struct ast_node *idx,
-                                struct src_loc loc);
+struct ast {
+	enum ast_kind k;
+	struct type *t;
+	long long v;
+	char *s;
+	struct ast *a0;
+	struct ast *a1;
+	struct ast *a2;
+	struct ast *a3;
+	struct type *t2;
+	enum ast_flags f;
 
-/**
- * Generate binary operation node.
- *
- * @param op Which operation.
- * @param left Left operand.
- * @param right Right operand.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_binop(enum ast_binops op,
-                           struct ast_node *left,
-                           struct ast_node *right,
-                           struct src_loc loc);
+	struct ast *n;
+	long long uses;
 
-/**
- * Generate unary operation.
- *
- * @param op Which operation.
- * @param expr Expression.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_unop(enum ast_unops op, struct ast_node *expr,
-                          struct src_loc loc);
+	struct src_loc loc;
+	struct scope *scope;
+};
 
-/**
- * Generate call.
- *
- * @param id ID to call.
- * @param args Arguments to call.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_call(struct ast_node *id, struct ast_node *args,
-                          struct src_loc loc);
+struct ast *gen_ast(enum ast_kind kind,
+		struct ast *a0,
+		struct ast *a1,
+		struct ast *a2,
+		struct ast *a3,
+		struct type *t1,
+		char *s,
+		long long v,
+		struct src_loc loc);
 
-/**
- * Generate ID.
- *
- * @param id ID.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_id(const char *id, struct src_loc loc);
+struct type *tgen_type(enum type_kind kind,
+		struct type *t0,
+		struct type *t1,
+		struct ast *d,
+		struct ast *a,
+		char *id,
+		struct src_loc loc);
 
-/**
- * Generate constant integer.
- *
- * @param integer Integer.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_int(long long integer, struct src_loc loc);
+#define tgen_primitive(kind, id, def, loc)\
+	tgen_type(kind, NULL, NULL, def, NULL, id, loc)
 
-/**
- * Generate constant string.
- *
- * @param str String.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_string(const char *str, struct src_loc loc);
+#define tgen_id(id, loc)\
+	tgen_type(TYPE_ID, NULL, NULL, NULL, NULL, id, loc)
 
-/**
- * Generate constant float.
- *
- * @param dbl Double.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_float(double dbl, struct src_loc loc);
+#define tgen_struct(id, def, loc)\
+	tgen_type(TYPE_STRUCT, NULL, NULL, def, NULL, id, loc)
 
-/**
- * Generate assignment.
- *
- * @param to Where to assign to.
- * @param from Where to assign from.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_assign(struct ast_node *to, struct ast_node *from,
-                            struct src_loc loc);
+#define tgen_trait(id, def, loc)\
+	tgen_type(TYPE_TRAIT, NULL, NULL, def, NULL, id, loc)
 
-/**
- * Generate initialization.
- *
- * @param body Body of initialization.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_init(struct ast_node *body, struct src_loc loc);
+static inline bool is_binop(struct ast *x)
+{
+	switch (x->k) {
+	case AST_ADD:
+	case AST_SUB:
+	case AST_MUL:
+	case AST_DIV:
+	case AST_REM:
+	case AST_LSHIFT:
+	case AST_RSHIFT:
+		return true;
+	default:
+	};
 
-/**
- * Generate while loop.
- *
- * @param cond Condition.
- * @param body Body.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_while(struct ast_node *cond, struct ast_node *body,
-                           struct src_loc loc);
+	return false;
+}
 
-/**
- * Generate for loop.
- *
- * @param pre Pre condition.
- * @param cond Condition.
- * @param post Post condition.
- * @param body Loop body.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_for(struct ast_node *pre, struct ast_node *cond,
-                         struct ast_node *post, struct ast_node *body,
-                         struct src_loc loc);
+static inline bool is_opassign(struct ast *x)
+{
+	switch (x->k) {
+	case AST_ASSIGN_ADD:
+	case AST_ASSIGN_SUB:
+	case AST_ASSIGN_MUL:
+	case AST_ASSIGN_DIV:
+	case AST_ASSIGN_REM:
+	case AST_ASSIGN_LSHIFT:
+	case AST_ASSIGN_RSHIFT:
+		return true;
+	default:
+	};
+	return false;
+}
 
-/**
- * Generate return.
- *
- * @param expr Expression.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_return(struct ast_node *expr, struct src_loc loc);
+static inline bool is_unop(struct ast *x)
+{
+	switch (x->k) {
+	case AST_REF:
+	case AST_DEREF:
+	case AST_NOT:
+	case AST_NEG:
+		return true;
+	default:
+	}
 
-/**
- * Generate control statement.
- * @note Some generators take source location info, which is then
- * propagated to higher level nodes.
- *
- * @todo not sure where to best place the note about location
- *
- * @param kind Break or continue.
- * @param loc Source location.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_ctrl(enum ast_ctrl_kind kind, struct src_loc loc);
+	return false;
+}
 
-/**
- * Generate macro definition.
- *
- * @param id Macro name.
- * @param params Macro parameters.
- * @param body Macro body.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_macro_construct(struct ast_node *id,
-                                     struct ast_node *params,
-                                     struct ast_node *body, struct src_loc loc);
+static inline bool is_comparison(struct ast *x)
+{
+	switch (x->k) {
+	case AST_LT:
+	case AST_GT:
+	case AST_LE:
+	case AST_GE:
+	case AST_NE:
+	case AST_EQ:
+		return true;
+	default:
+	}
 
-struct ast_node *gen_macro_expand(struct ast_node *id, struct ast_node *args,
-                                  struct src_loc loc);
+	return false;
+}
 
-/** @todo change args to type type when I figure out how it should be
- * constructed */
-struct ast_node *gen_type_expand(struct ast_node *id,
-                                 struct ast_node *args,
-                                 struct src_loc loc);
+static inline bool is_const(struct ast *x)
+{
+	/* note that const strings are sort of their own entity */
+	switch (x->k) {
+	case AST_CONST_INT:
+	case AST_CONST_CHAR:
+	case AST_CONST_BOOL:
+		return true;
+	default:
+	}
 
-/**
- * Generate if.
- *
- * @param cond Condition.
- * @param body Body.
- * @param els Else.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_if(struct ast_node *cond, struct ast_node *body,
-                        struct ast_node *els, struct src_loc loc);
+	return false;
+}
 
-/**
- * Generate switch.
- *
- * @param cond Condition.
- * @param cases List of cases.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_switch(struct ast_node *cond, struct ast_node *cases,
-                            struct src_loc loc);
+static inline bool is_primitive(struct type *t)
+{
+	switch (t->k) {
+	case TYPE_I27:
+	case TYPE_I9:
+	case TYPE_BOOL:
+	case TYPE_PTR:
+		return true;
+	default:
+	}
 
-/**
- * Generate switch case.
- *
- * @param expr Condition.
- * @param body Body.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_case(struct ast_node *expr, struct ast_node *body,
-                          struct src_loc loc);
+	return false;
+}
 
-struct ast_node *gen_primitive(enum ast_primitive type, struct ast_node *def,
-                               struct src_loc loc);
-/**
- * Generate Ek type (besides primitive).
- *
- * @param kind Type kind.
- * @param id Name of type.
- * @param decl List of parameters, when applicable.
- * @param rets Return type, when applicable.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_type(enum ast_type_kind kind, struct ast_node *t2,
-                          struct ast_node *t1,
-                          struct src_loc loc);
+#define gen_str_type1(k, s, t, a, loc) gen_ast(k, a, NULL, NULL, NULL, t, s, 0, loc)
+#define gen_str_type(k, s, t, loc) gen_str_type1(k, s, t, NULL, loc)
+#define gen_type(k, a, type, loc) gen_ast(k, a, NULL, NULL, NULL, type, NULL, 0, loc)
+#define gen_str2(k, s, a, b, loc) gen_ast(k, a, b, NULL, NULL, NULL, s, 0, loc)
+#define gen_str1(k, s, a, loc) gen_str2(k, s, a, NULL, loc)
+#define gen_str(k, s, loc) gen_ast(k, NULL, NULL, NULL, NULL, NULL, s, 0, loc)
 
-/**
- * Generate block.
- *
- * @param body Body.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_block(struct ast_node *body, struct src_loc loc);
 
-/**
- * Generate variable.
- *
- * @param id Name of variable.
- * @param type Type of varibable.
- * @param init Initialization, when applicable.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_var(struct ast_node *id, struct ast_node *type,
-                         struct ast_node *init, struct src_loc loc);
+#define gen4(k, a, b, c, d, loc) gen_ast(k, a, b, c, d, NULL, NULL, 0, loc)
+#define gen3(k, a, b, c, loc) gen4(k, a, b, c, NULL, loc)
+#define gen2(k, a, b, loc) gen3(k, a, b, NULL, loc)
+#define gen1(k, a, loc) gen2(k, a, NULL, loc)
 
-/**
- * Generate lambda.
- *
- * @param captures List of captures.
- * @param type Signature of lambda.
- * @param body Body.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_lambda(struct ast_node *captures,
-                            struct ast_node *type, struct ast_node *body,
-                            struct src_loc loc);
+#define tgen2(k, a, b, loc) tgen_type(k, a, b, NULL, NULL, NULL, loc)
+#define tgen1(k, a, loc) tgen2(k, a, NULL, loc)
 
-/**
- * Generate procedure definition.
- *
- * @param id Name of procedure.
- * @param type Signature of procedure.
- * @param body Body.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_proc(struct ast_node *id, struct ast_node *type,
-                          struct ast_node *body, struct src_loc loc);
+#define tgen_str1(k, s, a, loc) tgen_type(k, a, NULL, NULL, NULL, s, loc)
 
-/**
- * Generate dot operation.
- *
- * @param expr Expression to do dot operation to.
- * @param id Name to do dot with.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_dot(struct ast_node *expr, struct ast_node *id,
-                         struct src_loc loc);
+/* kind of hacky but I guess it works, and allows us to check that the type is
+ * correct every time */
+#define return_s(x, kind)  *({assert((x)->k == kind); &(x)->s;})
+#define return_a0(x, kind) *({assert((x)->k == kind); &(x)->a0;})
+#define return_a1(x, kind) *({assert((x)->k == kind); &(x)->a1;})
+#define return_a2(x, kind) *({assert((x)->k == kind); &(x)->a2;})
+#define return_a3(x, kind) *({assert((x)->k == kind); &(x)->a3;})
 
-/**
- * Generate enum definition.
- *
- * @param id Name of enumeration type.
- * @param type Type of enum.
- * @param body Body.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_enum(struct ast_node *id, struct ast_node *type,
-                          struct ast_node *body, struct src_loc loc);
+#define return_t0(x, kind) *({assert((x)->k == kind); &(x)->t0;})
+#define return_t1(x, kind) *({assert((x)->k == kind); &(x)->t1;})
+/* note that this one is in ast, the other two are in type */
+#define return_t2(x, kind) *({assert((x)->k == kind); &(x)->t2;})
 
-/**
- * Generate enum member value.
- *
- * @param id Name of enumeration member.
- * @param val Value of enumeration member.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_val(struct ast_node *id, struct ast_node *val,
-                         struct src_loc loc);
+#define if_cond(x) return_a0(x, AST_IF)
+#define if_body(x) return_a1(x, AST_IF)
+#define if_else(x) return_a2(x, AST_IF)
+#define gen_if(cond, body, else, loc)\
+	gen3(AST_IF, cond, body, else, loc)
 
-/**
- * Generate alias definition.
- *
- * @param id Name of alias.
- * @param type Type to alias.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_alias(struct ast_node *id, struct ast_node *type,
-                           struct src_loc loc);
+#define fetch_id(x) return_s(x, AST_FETCH)
+#define fetch_type(x) return_t2(x, AST_FETCH)
+#define gen_fetch(id, type, loc)\
+	gen_str_type(AST_FETCH, id, type, loc)
 
-/**
- * Generate trait definition.
- *
- * @param id Name of trait.
- * @param body Body.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_trait(struct ast_node *id, struct ast_node *params,
-                           struct ast_node *raw_body, struct ast_node *body,
-                           struct src_loc loc);
+#define label_id(x) return_s(x, AST_LABEL)
+#define label_defers(x) return_a0(x, AST_LABEL)
+#define gen_label(id, defers, loc)\
+	gen_str1(AST_LABEL, id, defers, loc)
 
-/**
- * Generate import;
- *
- * @param file File to import.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_import(const char *file, struct src_loc loc);
+#define arr_base(x) return_a0(x, AST_ARR)
+#define arr_idx(x) return_a1(x, AST_ARR)
+#define gen_arr(base, idx, loc)\
+	gen2(AST_ARR, base, idx, loc)
 
-/**
- * Generate cast.
- *
- * @param expr Expression.
- * @param type Type to cast expression result to.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_cast(struct ast_node *expr, struct ast_node *type,
-                          struct src_loc loc);
+#define goto_label(x) return_s(x, AST_GOTO)
+#define goto_defers(x) return_a0(x, AST_GOTO)
+#define gen_goto(label, defers, loc)\
+	gen_str1(AST_GOTO, label, defers, loc)
 
-/**
- * Generate embed.
- *
- * @param file File to embed.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_embed(const char *file, struct src_loc loc);
+#define alias_id(x) return_s(x, AST_ALIAS_DEF)
+#define alias_type(x) return_t2(x, AST_ALIAS_DEF)
+#define gen_alias(id, type, loc)\
+	gen_str_type(AST_ALIAS_DEF, id, type, loc)
 
-/**
- * Generate goto.
- *
- * @param label Name of label to jump to.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_goto(struct ast_node *label, struct src_loc loc);
+#define trait_id(x) return_s(x, AST_TRAIT_DEF)
+#define trait_params(x) return_a0(x, AST_TRAIT_DEF)
+#define trait_raw_body(x) return_a1(x, AST_TRAIT_DEF)
+#define trait_body(x) return_a2(x, AST_TRAIT_DEF)
+#define gen_trait(id, params, body, loc)\
+	gen_str2(AST_TRAIT_DEF, id, params, body, loc)
 
-/**
- * Generate goto label.
- *
- * @param id Name of label.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_label(struct ast_node *id, struct src_loc loc);
+#define cast_expr(x) return_a0(x, AST_CAST)
+#define cast_type(x) return_t2(x, AST_CAST)
+#define gen_cast(expr, type, loc)\
+	gen_type(AST_CAST, expr, type, loc)
 
-/**
- * Generate defer.
- *
- * @param expr Expression to defer.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_defer(struct ast_node *expr, struct src_loc loc);
+#define opassign_left(x) ({assert(is_opassign(x)); x->a0;})
+#define opassign_right(x) ({assert(is_opassign(x)); x->a1;})
+#define gen_opassign(op, left, right, loc)\
+	gen2(op, left, right, loc)
 
-/**
- * Generate as.
- *
- * @param type Type to resolve with.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_as(struct ast_node *type, struct src_loc loc);
+#define binop_left(x) ({assert(is_binop(x)); x->a0;})
+#define binop_right(x) ({assert(is_binop(x)); x->a1;})
+#define gen_binop(op, left, right, loc)\
+	gen2(op, left, right, loc)
 
-/**
- * Generate sizeof.
- *
- * @param expr Expression to take type of.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_sizeof(struct ast_node *expr, struct src_loc loc);
+#define comparison_left(x) ({assert(is_comparison(x)); x->a0;})
+#define comparison_right(x) ({assert(is_comparison(x)); x->a1;})
+#define gen_comparison(op, left, right, loc)\
+	gen2(op, left, right, loc)
 
-/**
- * Generate structure definition.
- *
- * @param id Name of structure.
- * @param generics List of type parameters.
- * @param body Body of structure.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_struct(struct ast_node *id, struct ast_node *generics,
-                            struct ast_node *body, struct src_loc loc);
+#define unop_expr(x) ({assert(is_unop(x)); x->a0;})
+#define gen_unop(op, expr, loc)\
+	gen1(op, expr, loc)
 
-/**
- * Generate enum member fetch.
- *
- * @param id Name of enum member to fetch.
- * @param type Enum type to fetch from.
- * @return Corresponding AST node.
- */
-struct ast_node *gen_fetch(struct ast_node *id, struct ast_node *type,
-                           struct src_loc loc);
+#define call_expr(x) return_a0(x, AST_CALL)
+#define call_args(x) return_a1(x, AST_CALL)
+#define gen_call(expr, args, loc)\
+	gen2(AST_CALL, expr, args, loc)
 
-/**
- * Generate empty AST node.
- *
- * @return Corresponding AST node.
- */
-struct ast_node *gen_empty();
+#define defer_expr(x) return_a0(x, AST_DEFER)
+#define gen_defer(expr, loc)\
+	gen1(AST_DEFER, expr, loc)
 
-/**
- * Clone AST node.
- *
- * @param node Node to clone.
- * @return A clone of \p node.
- */
-struct ast_node *clone_ast_node(struct ast_node *node);
+#define macro_def_id(x) return_s(x, AST_MACRO_DEF)
+#define macro_def_params(x) return_a0(x, AST_MACRO_DEF)
+#define macro_def_body(x) return_a1(x, AST_MACRO_DEF)
+#define gen_macro_def(id, params, body, loc)\
+	gen_str2(AST_MACRO_DEF, id, params, body, loc)
 
-/**
- * Check if two nodes are identical.
- *
- * @param exact Ignore some less important checks, such as flags, location and
- * scope.
- * @param left One AST node to compare.
- * @param right Other AST node to compare.
- * @return \c 0 if nodes aren't identical, \c 1 otherwise.
- */
-int identical_ast_nodes(int exact, struct ast_node *left,
-                        struct ast_node *right);
+#define macro_expand_id(x) return_s(x, AST_MACRO_EXPAND)
+#define macro_expand_args(x) return_a0(x, AST_MACRO_EXPAND)
+#define gen_macro_expand(id, args, loc)\
+	gen_str1(AST_MACRO_EXPAND, id, args, loc)
 
-/**
- * Dump textual representation of AST to stdout.
- *
- * @param depth How many spaces to prepend.
- * @param root AST node to dump.
- */
-void dump_ast(int depth, struct ast_node *root);
-void dump_ast_node(int depth, struct ast_node *node);
+#define type_expand_id(x) return_s(x, AST_TYPE_EXPAND)
+#define type_expand_args(x) return_t2(x, AST_TYPE_EXPAND)
+#define gen_type_expand(id, args, loc)\
+	gen_str_type(AST_TYPE_EXPAND, id, args, loc)
 
-/**
- * Add \p elem to end of \p list.
- *
- * @param list List of AST nodes.
- * @param elem Add to end of \p list.
- */
-void ast_append(struct ast_node *list, struct ast_node *elem);
+#define proc_id(x) return_s(x, AST_PROC_DEF)
+#define proc_params(x) return_a0(x, AST_PROC_DEF)
+#define proc_rtype(x) return_t2(x, AST_PROC_DEF)
+#define proc_body(x) return_a1(x, AST_PROC_DEF)
+#define gen_proc(id, params, rtype, body, loc)\
+	gen_ast(AST_PROC_DEF, params, body, NULL, NULL, rtype, id, 0, loc)
 
-/**
- * Set AST node flags.
- *
- * @param node Node to set flags for.
- * @param flags Flags to set.
- */
-void ast_set_flags(struct ast_node *node, enum ast_flag flags);
+#define dot_id(x) return_s(x, AST_DOT)
+#define dot_expr(x) return_a0(x, AST_DOT)
+#define gen_dot(id, expr, loc)\
+	gen_str1(AST_DOT, id, expr, loc)
 
-/**
- * Clear AST node flags.
- *
- * @param node Node to clear flags for.
- * @param flags Flags to set.
- */
-void ast_clear_flags(struct ast_node *node, enum ast_flag flags);
+#define as_type(x) return_t2(x, AST_AS)
+#define gen_as(type, loc)\
+	gen_type(NULL, type, loc)
 
-/**
- * Check if \p node has \p flags set.
- * All flags have to be set.
- *
- * @param node Node to check flags for.
- * @param flags Flags to check.
- * @return \c 1 if all \p flags are set, \c 0 othewise.
- */
-unsigned ast_flags(struct ast_node *node, enum ast_flag flags);
+#define sizeof_expr(x) return_a0(x, AST_SIZEOF)
+#define gen_sizeof(expr, loc)\
+	gen1(AST_SIZEOF, expr, loc)
 
-/**
- * Call external callback on all nodes in tree.
- *
- * @param call Callback to call.
- * @param node Node whose all subnodes should be passed to \p call.
- * @param data Extra data to pass to \p call.
- * @return Whatever \p call returns.
- */
-int ast_call_on(int (*call)(struct ast_node *, void *),
-                struct ast_node *node, void *data);
+#define var_id(x) return_s(x, AST_VAR_DEF)
+#define var_type(x) return_t2(x, AST_VAR_DEF)
+#define var_init(x) return_a0(x, AST_VAR_DEF)
+#define gen_var(id, type, init, loc)\
+	gen_ast(AST_VAR_DEF, init, NULL, NULL, NULL, type, id, 1, loc)
 
-int ast_call_on_chain(int (*call)(struct ast_node *, void *),
-                      struct ast_node *node, void *data);
+#define for_pre(x) return_a0(x, AST_FOR)
+#define for_cond(x) return_a1(x, AST_FOR)
+#define for_post(x) return_a2(x, AST_FOR)
+#define for_body(x) return_a3(x, AST_FOR)
+#define gen_for(pre, cond, post, body, loc)\
+	gen4(AST_FOR, pre, cond, post, body, loc)
+
+#define while_cond(x) return_a0(x, AST_WHILE)
+#define while_body(x) return_a1(x, AST_WHILE)
+#define gen_while(cond, body, loc)\
+	gen2(AST_WHILE, cond, body, loc)
+
+#define do_while_cond(x) return_a0(x, AST_DO_WHILE)
+#define do_while_body(x) return_a1(x, AST_DO_WHILE)
+#define gen_do_while(cond, body, loc)\
+	gen2(AST_DO_WHILE, cond, body, loc)
+
+#define continue_defers(x) return_a0(x, AST_CONTINUE)
+#define gen_continue(defers, loc)\
+	gen1(AST_CONTINUE, defers, loc)
+
+#define break_defers(x) return_a0(x, AST_BREAK)
+#define gen_break(defers, loc)\
+	gen1(AST_BREAK, defers, loc)
+
+#define return_expr(x) return_a0(x, AST_RETURN)
+#define return_defers(x) return_a1(x, AST_RETURN)
+#define gen_return(expr, defers, loc)\
+	gen2(AST_RETURN, expr, defers, loc)
+
+#define block_body(x) return_a0(x, AST_BLOCK)
+#define block_defers(x) return_a1(x, AST_BLOCK)
+#define gen_block(body, defers, loc)\
+	gen2(AST_BLOCK, body, defers, loc)
+
+#define import_file(x) return_s(x, AST_IMPORT)
+#define gen_import(f, loc)\
+	gen_str(AST_IMPORT, f, loc)
+
+#define embed_file(x) return_s(x, AST_EMBED)
+#define gen_embed(f, loc)\
+	gen_str(AST_EMBED, f, loc)
+
+#define enum_id(x) return_s(x, AST_ENUM_DEF)
+#define enum_type(x) return_t2(x, AST_ENUM_DEF)
+#define enum_body(x) return_a0(x, AST_ENUM_DEF)
+#define gen_enum(id, type, body, loc)\
+	gen_ast(AST_ENUM_DEF, body, NULL, NULL, NULL, type, id, 0, loc)
+
+#define struct_id(x) return_s(x, AST_STRUCT_DEF)
+#define struct_params(x) return_a0(x, AST_STRUCT_DEF)
+#define struct_body(x) return_a1(x, AST_STRUCT_DEF)
+#define gen_struct(id, params, body, loc)\
+	gen_str2(AST_STRUCT_DEF, id, params, body, loc)
+
+#define val_id(x) return_s(x, AST_VAL)
+#define val_val(x) return_a0(x, AST_VAL)
+#define gen_val(id, val, loc)\
+	gen_str1(AST_VAL, id, val, loc)
+
+#define switch_cond(x) return_a0(x, AST_SWITCH)
+#define switch_cases(x) return_a1(x, AST_SWITCH)
+#define gen_switch(cond, cases, loc)\
+	gen2(AST_SWITCH, cond, cases, loc)
+
+#define case_cond(x) return_a0(x, AST_CASE)
+#define case_body(x) return_a1(x, AST_CASE)
+#define gen_case(cond, body, loc)\
+	gen2(AST_CASE, cond, body, loc)
+
+#define str_val(x) return_s(x, AST_CONST_STR)
+#define gen_const_str(s, loc)\
+	gen_ast(AST_CONST_STR, NULL, NULL, NULL, NULL, NULL, s, 0, loc)
+
+#define int_val(x) *({assert(x->k == AST_CONST_INT); &x->v;})
+#define gen_const_int(i, loc)\
+	gen_ast(AST_CONST_INT, NULL, NULL, NULL, NULL, NULL, NULL, i, loc)
+
+#define char_val(x) *({assert(x->k == AST_CONST_CHAR); &x->v;})
+#define gen_const_char(i, loc)\
+	gen_ast(AST_CONST_CHAR, NULL, NULL, NULL, NULL, NULL, NULL, i, loc)
+
+#define bool_val(x) *({assert(x->k == AST_CONST_CHAR); &x->v;})
+#define gen_const_bool(i, loc)\
+	gen_ast(AST_CONST_BOOL, NULL, NULL, NULL, NULL, NULL, NULL, i, loc)
+
+#define init_body(x) return_a0(x, AST_ASSIGN)
+#define gen_init(body, loc)\
+	gen1(AST_INIT, body, loc)
+
+#define assign_to(x) return_a0(x, AST_ASSIGN)
+#define assign_from(x) return_a1(x, AST_ASSIGN)
+#define gen_assign(from, to, loc)\
+	gen2(AST_ASSIGN, from, to, loc)
+
+#define id_str(x) return_s(x, AST_ID)
+#define gen_id(id, loc)\
+	gen_str(AST_ID, id, loc)
+
+#define gen_empty(loc)\
+	gen1(AST_EMPTY, NULL, loc)
+
+/* types */
+#define callable_ptypes(x) return_t0(x, TYPE_CALLABLE)
+#define callable_rtype(x) return_t0(x, TYPE_CALLABLE)
+#define tgen_callable(ptypes, rtype, loc)\
+	tgen2(TYPE_CALLABLE, ptypes, rtype, loc)
+
+#define ptr_base(x) return_t0(x, TYPE_PTR)
+#define tgen_ptr(base, loc)\
+	tgen1(TYPE_PTR, base, loc)
+
+#define construct_id(x) return_t0(x, TYPE_CONSTRUCT)
+#define construct_atypes(x) return_t1(x, TYPE_CONSTRUCT)
+#define tgen_construct(id, atypes, loc)\
+	tgen_str1(TYPE_CONSTRUCT, id, atypes, loc)
+
+struct ast *clone_ast(struct ast *n);
+struct ast *clone_ast_list(struct ast *l);
+
+struct type *clone_type(struct type *n);
+struct type *clone_type_list(struct type *l);
+
+void ast_dump_list(int depth, struct ast *root);
+void ast_dump(int depth, struct ast *node);
+
+void type_dump_list(struct type *root);
+void type_dump(struct type *node);
+
+void ast_append(struct ast *list, struct ast *elem);
+void type_append(struct type *list, struct type *elem);
+
+void ast_set_flags(struct ast *node, enum ast_flags flags);
+void ast_clear_flags(struct ast *node, enum ast_flags flags);
+unsigned ast_flags(struct ast *node, enum ast_flags flags);
+
+typedef int (*ast_callback_t)(struct ast *, void *);
+typedef int (*type_callback_t)(struct type *, void *);
+int ast_visit(ast_callback_t before, ast_callback_t after, struct ast *node, void *data);
+int ast_visit_list(ast_callback_t before, ast_callback_t after, struct ast *node, void *data);
+
+int type_visit(type_callback_t before, type_callback_t after, struct type *node, void *data);
+int type_visit_list(type_callback_t before, type_callback_t after, struct type *node, void *data);
 
 /**
  * Number of elements in AST list.
@@ -1306,7 +658,7 @@ int ast_call_on_chain(int (*call)(struct ast_node *, void *),
  * @param list List whose elements to count.
  * @return Number of elements in \p list.
  */
-size_t ast_list_len(struct ast_node *list);
+size_t ast_list_len(struct ast *list);
 
 /**
  * Get last nose in ASt list.
@@ -1314,7 +666,7 @@ size_t ast_list_len(struct ast_node *list);
  * @param list List whose last element to get.
  * @return Last node in \p list.
  */
-struct ast_node *ast_last_node(struct ast_node *list);
+struct ast *ast_last(struct ast *list);
 
 /**
  * Get last element in block.
@@ -1322,16 +674,22 @@ struct ast_node *ast_last_node(struct ast_node *list);
  * @param block Block whose last element to get.
  * @return Last node in block.
  */
-struct ast_node *ast_block_last(struct ast_node *block);
+struct ast *ast_block_last(struct ast *block);
 
-void destroy_ast_nodes();
-const char *primitive_str(enum ast_primitive type);
+void destroy_allocs();
+const char *primitive_str(struct type *kind);
 
-int same_id(struct ast_node *id1, struct ast_node *id2);
-int equiv_nodes(struct ast_node *n1, struct ast_node *n2);
-int equiv_node_chains(struct ast_node *c1, struct ast_node *c2);
+int same_id(char *id1, char *id2);
+int equiv_nodes(struct ast *n1, struct ast *n2);
+int equiv_node_lists(struct ast *c1, struct ast *c2);
+
+int equiv_types(struct type *t1, struct type *t2);
+int equiv_type_lists(struct type *t1, struct type *t2);
 
 #define foreach_node(iter, nodes) \
-	for (struct ast_node *iter = nodes; iter; iter = iter->next)
+	for (struct ast *iter = nodes; iter; iter = iter->n)
+
+#define foreach_type(iter, nodes) \
+	for (struct type *iter = nodes; iter; iter = iter->n)
 
 #endif /* AST_H */

@@ -1,7 +1,7 @@
 DO	!= echo -n > deps.mk
 
 DEBUGFLAGS	!= [ $(RELEASE) ] && echo "-flto=auto -O2 -DNODEBUG" || echo "-O0 -DDEBUG"
-CFLAGS		= -Wall -Wextra -Wconversion -g
+CFLAGS		= -Wall -Wextra -Wconversion -ggdb3
 DEPFLAGS	= -MT $@ -MMD -MP -MF $@.d
 LINTFLAGS	= -fsyntax-only
 INCLUDEFLAGS	= -Iinclude

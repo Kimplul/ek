@@ -120,7 +120,7 @@ void src_issue(struct src_issue issue, const char *err_msg, ...)
 	va_end(args);
 }
 
-void semantic_error(struct file_ctx fctx, struct ast_node *node,
+void semantic_error(struct file_ctx fctx, struct ast *node,
                     const char *fmt, ...)
 {
 	va_list args;
@@ -133,7 +133,20 @@ void semantic_error(struct file_ctx fctx, struct ast_node *node,
 	va_end(args);
 }
 
-void semantic_warn(struct file_ctx fctx, struct ast_node *node, const char *fmt,
+void type_error(struct file_ctx fctx, struct type *node,
+                    const char *fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+	struct src_issue issue;
+	issue.level = SRC_ERROR;
+	issue.loc = node->loc;
+	issue.fctx = fctx;
+	_issue(issue, fmt, args);
+	va_end(args);
+}
+
+void semantic_warn(struct file_ctx fctx, struct ast *node, const char *fmt,
                    ...)
 {
 	va_list args;
@@ -146,7 +159,20 @@ void semantic_warn(struct file_ctx fctx, struct ast_node *node, const char *fmt,
 	va_end(args);
 }
 
-void semantic_info(struct file_ctx fctx, struct ast_node *node, const char *fmt,
+void semantic_info(struct file_ctx fctx, struct ast *node, const char *fmt,
+                   ...)
+{
+	va_list args;
+	va_start(args, fmt);
+	struct src_issue issue;
+	issue.level = SRC_INFO;
+	issue.loc = node->loc;
+	issue.fctx = fctx;
+	_issue(issue, fmt, args);
+	va_end(args);
+}
+
+void type_info(struct file_ctx fctx, struct type *node, const char *fmt,
                    ...)
 {
 	va_list args;
@@ -185,117 +211,60 @@ void internal_warn(const char *fmt, ...)
  * @param fp File pointer to write string representation to.
  * @param type Type to generate string representation for.
  */
-static void _type_str(FILE *fp, struct ast_node *type)
+static void _type_str(FILE *fp, struct type *type)
 {
 	if (!type)
 		return;
 
-	assert(type->node_type == AST_TYPE);
-
-	switch (AST_TYPE(type).kind) {
-	case AST_TYPE_POINTER:
+	switch (type->k) {
+	case TYPE_PTR:
 		fputc('*', fp);
-		_type_str(fp, AST_PTR_TYPE(type).base);
+		_type_str(fp, ptr_base(type));
 		break;
 
-	case AST_TYPE_ID: {
-		struct ast_node *id = AST_ID_TYPE(type).id;
-		fprintf(fp, "%s", AST_ID(id).id);
+	case TYPE_ID: {
+		fprintf(fp, "%s", type->id);
 		break;
 	}
 
-	case AST_TYPE_TRAIT: {
-		struct ast_node *def = AST_TRAIT_TYPE(type).def;
-		if (AST_TRAIT(def).id) {
-			struct ast_node *name = AST_TRAIT(def).id;
-			fprintf(fp, "%s ", AST_ID(name).id);
+	case TYPE_TRAIT: {
+		struct ast *def = type->d;
+		if (trait_id(def)) {
+			fprintf(fp, "%s ", trait_id(def));
 		}
 		fprintf(fp, "(trait)");
 		break;
 	}
 
-	case AST_TYPE_STRUCT: {
-		struct ast_node *def = AST_STRUCT_TYPE(type).def;
-		if (AST_STRUCT(def).id) {
-			struct ast_node *name = AST_STRUCT(def).id;
-			fprintf(fp, "%s ", AST_ID(name).id);
+	case TYPE_STRUCT: {
+		struct ast *def = type->d;
+		if (struct_id(def)) {
+			fprintf(fp, "%s ", struct_id(def));
 		}
 		fprintf(fp, "(struct)");
-		/** @todo print out anonymous structs with members? */
-		break;
-	}
-
-	case AST_TYPE_PRIMITIVE: {
-		fprintf(fp, "%s", primitive_str(AST_PRIMITIVE_TYPE(type).type));
 		break;
 	}
 
 	default:
-		fprintf(fp, "NOT YET IMPLEMENTED");
+		if (is_primitive(type))
+			fprintf(fp, "%s", primitive_str(type));
+		else
+			fprintf(fp, "UNKNOWN TYPE");
 	}
-
-	_type_str(fp, AST_TYPE(type).next);
 }
 
-char *type_str(struct ast_node *node)
+char *type_str(struct type *t)
 {
 	/* maybe hacky? */
-	if (!node)
+	if (!t)
 		return strdup("void");
 
 	char *buf = NULL; size_t size = 0;
+	/* hehe */
 	FILE *memstream = open_memstream(&buf, &size);
 
-	/* TODO: improve trait detection */
-	/* we were given a plain type, pass it directly along to _type_str */
-	if (node->node_type == AST_TYPE)
-		_type_str(memstream, node);
-	else
-		/* otherwise, try to fish out the type of the node */
-		_type_str(memstream, node->type);
+	_type_str(memstream, t);
 
-	fclose(memstream);
-	return buf;
-}
-
-/**
- * Workhorse for call_str().
- *
- * @param f File pointer to write string representation to.
- * @param call Call to generate string representation for.
- */
-static void _call_str(FILE *f, struct ast_node *call)
-{
-	struct ast_node *expr = AST_CALL(call).expr;
-	if (expr->node_type == AST_ID) {
-		const char *id_str = AST_ID(expr).id;
-		fprintf(f, "%s", id_str);
-	}
-
-	struct ast_node *args = AST_CALL(call).args;
-	fprintf(f, "(");
-
-	while (args) {
-		char *type = type_str(args);
-		fprintf(f, "%s", type);
-		free(type);
-
-		args = args->next;
-		if (args)
-			fprintf(f, ", ");
-		else
-			break;
-	}
-
-	fprintf(f, ")");
-}
-
-char *call_str(struct ast_node *call)
-{
-	assert(call->node_type == AST_CALL);
-	char *buf = NULL; size_t size = 0;
-	FILE *memstream = open_memstream(&buf, &size);
-	_call_str(memstream, call);
 	fclose(memstream);
 	return buf;
 }

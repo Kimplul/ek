@@ -30,7 +30,7 @@ struct parser {
 	/** How deeply we've nested comments. */
 	size_t comment_nesting;
 	/** Raw AST. */
-	struct ast_node *tree;
+	struct ast *tree;
 };
 
 /**

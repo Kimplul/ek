@@ -74,14 +74,13 @@ void scope_set_flags(struct scope *scope, enum scope_flags flags)
 	scope->flags |= flags;
 }
 
-int scope_flags(struct scope *scope, enum scope_flags flags)
+unsigned scope_flags(struct scope *scope, enum scope_flags flags)
 {
 	assert(scope);
 	return scope->flags & flags;
 }
 
-static struct visible *create_visible(struct ast_node *id,
-                                      struct ast_node *node)
+static struct visible *create_visible(char *id, struct ast *node)
 {
 	struct visible *visible = calloc(1, sizeof(struct visible));
 	visible->id = id;
@@ -89,8 +88,7 @@ static struct visible *create_visible(struct ast_node *id,
 	return visible;
 }
 
-struct visible *create_type(struct scope *scope, struct ast_node *id,
-                            struct ast_node *type)
+struct visible *create_type(struct scope *scope, char *id, struct ast *type)
 {
 	struct visible *n = create_visible(id, type);
 	if (!n)
@@ -102,8 +100,7 @@ struct visible *create_type(struct scope *scope, struct ast_node *id,
 	return n;
 }
 
-struct visible *create_var(struct scope *scope, struct ast_node *id,
-                           struct ast_node *var)
+struct visible *create_var(struct scope *scope, char *id, struct ast *var)
 {
 	struct visible *n = create_visible(id, var);
 	if (!n)
@@ -115,8 +112,7 @@ struct visible *create_var(struct scope *scope, struct ast_node *id,
 	return n;
 }
 
-struct visible *create_macro(struct scope *scope, struct ast_node *id,
-                             struct ast_node *macro)
+struct visible *create_macro(struct scope *scope, char *id, struct ast *macro)
 {
 	struct visible *n = create_visible(id, macro);
 	if (!n)
@@ -128,8 +124,7 @@ struct visible *create_macro(struct scope *scope, struct ast_node *id,
 	return n;
 }
 
-struct visible *create_proc(struct scope *scope, struct ast_node *id,
-                            struct ast_node *proc)
+struct visible *create_proc(struct scope *scope, char *id, struct ast *proc)
 {
 	struct visible *n = create_visible(id, proc);
 	if (!n)
@@ -141,16 +136,16 @@ struct visible *create_proc(struct scope *scope, struct ast_node *id,
 	return n;
 }
 
-int scope_add_var(struct scope *scope, struct ast_node *var)
+int scope_add_var(struct scope *scope, struct ast *var)
 {
-	struct ast_node *exists = file_scope_find_var(scope, AST_VAR(var).id);
+	struct ast *exists = file_scope_find_var(scope, var_id(var));
 	if (exists) {
 		semantic_error(scope->fctx, var, "var redefined");
 		semantic_info(scope->fctx, exists, "previously here");
 		return -1;
 	}
 
-	create_var(scope, AST_VAR(var).id, var);
+	create_var(scope, var_id(var), var);
 	if (scope->parent &&
 	    scope_flags(scope, SCOPE_FILE) && ast_flags(var, AST_FLAG_PUBLIC))
 		return scope_add_var(scope->parent, var);
@@ -158,10 +153,9 @@ int scope_add_var(struct scope *scope, struct ast_node *var)
 	return 0;
 }
 
-int scope_add_type(struct scope *scope, struct ast_node *id,
-                   struct ast_node *type)
+int scope_add_type(struct scope *scope, char *id, struct ast *type)
 {
-	struct ast_node *exists = file_scope_find_type(scope, id);
+	struct ast *exists = file_scope_find_type(scope, id);
 	if (exists) {
 		semantic_error(scope->fctx, type, "type redefined");
 		semantic_info(scope->fctx, exists, "previously here");
@@ -176,12 +170,10 @@ int scope_add_type(struct scope *scope, struct ast_node *id,
 	return 0;
 }
 
-int scope_add_macro(struct scope *scope, struct ast_node *macro)
+int scope_add_macro(struct scope *scope, struct ast *macro)
 {
-	assert(macro->node_type == AST_MACRO_CONSTRUCT);
-	struct ast_node *exists = file_scope_find_macro(scope,
-	                                                AST_MACRO_CONSTRUCT(
-								macro).id);
+	assert(macro->k == AST_MACRO_DEF);
+	struct ast *exists = file_scope_find_macro(scope, macro_def_id(macro));
 	if (exists) {
 		semantic_error(scope->fctx, macro, "macro redefined");
 		semantic_info(scope->fctx, exists, "previously here");
@@ -189,7 +181,7 @@ int scope_add_macro(struct scope *scope, struct ast_node *macro)
 	}
 
 	/* always add to scope, do resolve checking later */
-	create_macro(scope, AST_MACRO_CONSTRUCT(macro).id, macro);
+	create_macro(scope, macro_def_id(macro), macro);
 	if (scope->parent &&
 	    scope_flags(scope, SCOPE_FILE) && ast_flags(macro, AST_FLAG_PUBLIC))
 		return scope_add_macro(scope->parent, macro);
@@ -197,11 +189,10 @@ int scope_add_macro(struct scope *scope, struct ast_node *macro)
 	return 0;
 }
 
-int scope_add_proc(struct scope *scope, struct ast_node *proc)
+int scope_add_proc(struct scope *scope, struct ast *proc)
 {
-	assert(proc->node_type == AST_PROC);
-	struct ast_node *exists =
-		file_scope_find_proc(scope, AST_PROC(proc).id);
+	assert(proc->k == AST_PROC_DEF);
+	struct ast *exists = file_scope_find_proc(scope, proc_id(proc));
 	if (exists) {
 		semantic_error(scope->fctx, proc, "proc redefined");
 		semantic_info(scope->fctx, exists, "previously here");
@@ -209,7 +200,7 @@ int scope_add_proc(struct scope *scope, struct ast_node *proc)
 	}
 
 	/* always add to scope, do resolve checking later */
-	create_proc(scope, AST_PROC(proc).id, proc);
+	create_proc(scope, proc_id(proc), proc);
 	if (scope->parent &&
 	    scope_flags(scope, SCOPE_FILE) && ast_flags(proc, AST_FLAG_PUBLIC))
 		return scope_add_proc(scope->parent, proc);
@@ -217,12 +208,12 @@ int scope_add_proc(struct scope *scope, struct ast_node *proc)
 	return 0;
 }
 
-int scope_add_trait(struct scope *scope, struct ast_node *trait)
+int scope_add_trait(struct scope *scope, struct ast *trait)
 {
-	assert(trait->node_type == AST_TRAIT);
+	assert(trait->k == AST_TRAIT_DEF);
 
-	struct ast_node *id = AST_TRAIT(trait).id;
-	struct ast_node *exists = file_scope_find_type(scope, id);
+	char *id = trait_id(trait);
+	struct ast *exists = file_scope_find_type(scope, id);
 	if (exists) {
 		semantic_error(scope->fctx, trait, "type redefined");
 		semantic_info(scope->fctx, exists, "previously here");
@@ -237,105 +228,96 @@ int scope_add_trait(struct scope *scope, struct ast_node *trait)
 	return 0;
 }
 
-static struct ast_node *scope_find_visible(struct visible *v,
-                                           struct ast_node *id)
+static struct ast *scope_find_visible(struct visible *v, char *id)
 {
 	if (!v)
 		return NULL;
 
-	while (v) {
-		if (same_id(v->id, id))
-			return v->node;
-
-		v = v->next;
+	foreach_visible(n, v) {
+		struct ast *node = n->node;
+		if (same_id(node->s, id))
+			return node;
 	}
 
 	return NULL;
 }
 
-struct ast_node *scope_find_type(struct scope *scope, struct ast_node *type)
+struct ast *scope_find_type(struct scope *scope, char *id)
 {
-	return scope_find_visible(scope->types, type);
+	return scope_find_visible(scope->types, id);
 }
 
-struct ast_node *file_scope_find_type(struct scope *scope,
-                                      struct ast_node *type)
+struct ast *file_scope_find_type(struct scope *scope, char *id)
 {
-	assert(type->node_type == AST_ID);
 	if (!scope)
 		return NULL;
 
-	struct ast_node *found = scope_find_type(scope, type);
+	struct ast *found = scope_find_type(scope, id);
 	if (found)
 		return found;
 
 	if (!scope_flags(scope, SCOPE_FILE))
-		return file_scope_find_type(scope->parent, type);
+		return file_scope_find_type(scope->parent, id);
 
 	return NULL;
 }
 
-struct ast_node *scope_find_macro(struct scope *scope, struct ast_node *macro)
+struct ast *scope_find_macro(struct scope *scope, char *id)
 {
-	return scope_find_visible(scope->macros, macro);
+	return scope_find_visible(scope->macros, id);
 }
 
-struct ast_node *file_scope_find_macro(struct scope *scope,
-                                       struct ast_node *macro)
+struct ast *file_scope_find_macro(struct scope *scope, char *id)
 {
-	assert(macro->node_type == AST_ID);
 	if (!scope)
 		return NULL;
 
-	struct ast_node *found = scope_find_macro(scope, macro);
+	struct ast *found = scope_find_macro(scope, id);
 	if (found)
 		return found;
 
 	if (!scope_flags(scope, SCOPE_FILE))
-		return file_scope_find_macro(scope->parent, macro);
+		return file_scope_find_macro(scope->parent, id);
 
 	return NULL;
 }
 
-struct ast_node *scope_find_proc(struct scope *scope, struct ast_node *proc)
+struct ast *scope_find_proc(struct scope *scope, char *id)
 {
-	return scope_find_visible(scope->procs, proc);
+	return scope_find_visible(scope->procs, id);
 }
 
-struct ast_node *file_scope_find_proc(struct scope *scope,
-                                      struct ast_node *proc)
+struct ast *file_scope_find_proc(struct scope *scope, char *id)
 {
-	assert(proc->node_type == AST_ID);
 	if (!scope)
 		return NULL;
 
-	struct ast_node *found = scope_find_proc(scope, proc);
+	struct ast *found = scope_find_proc(scope, id);
 	if (found)
 		return found;
 
 	if (!scope_flags(scope, SCOPE_FILE))
-		return file_scope_find_proc(scope->parent, proc);
+		return file_scope_find_proc(scope->parent, id);
 
 	return NULL;
 }
 
-struct ast_node *scope_find_var(struct scope *scope, struct ast_node *var)
+struct ast *scope_find_var(struct scope *scope, char *id)
 {
-	return scope_find_visible(scope->vars, var);
+	return scope_find_visible(scope->vars, id);
 }
 
-struct ast_node *file_scope_find_var(struct scope *scope, struct ast_node *var)
+struct ast *file_scope_find_var(struct scope *scope, char *id)
 {
-	assert(var->node_type == AST_ID);
 	if (!scope)
 		return NULL;
 
-	struct ast_node *found = scope_find_var(scope, var);
+	struct ast *found = scope_find_var(scope, id);
 	if (found)
 		return found;
 
 	if (!scope_flags(scope, SCOPE_FILE))
-		return file_scope_find_var(scope->parent, var);
+		return file_scope_find_var(scope->parent, id);
 
 	return NULL;
 }
@@ -355,7 +337,7 @@ void scope_add_scope(struct scope *parent, struct scope *child)
 	parent->children = child;
 }
 
-static int add_actual(struct actual *actuals, struct ast_node *node)
+static int add_actual(struct actual *actuals, struct ast *node)
 {
 	if (!actuals->node) {
 		/* fill empty first element */
@@ -374,7 +356,7 @@ static int add_actual(struct actual *actuals, struct ast_node *node)
 	return 0;
 }
 
-int scope_add_actual(struct scope *scope, struct ast_node *node)
+int scope_add_actual(struct scope *scope, struct ast *node)
 {
 	return add_actual(scope->actuals, node);
 }

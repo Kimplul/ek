@@ -25,47 +25,7 @@
  * @param b Type to compare against \p a.
  * @return \c 1 if types match, \c 0 otherwise.
  */
-int types_match(struct ast_node *a, struct ast_node *b);
-
-/**
- * Replace type in \p type that matches with \p from
- * with \p to.
- *
- * @param type Whole type to replace part in.
- * @param from Part of type to replace.
- * @param to Type to replace \p from with.
- */
-void replace_type(struct ast_node *type,
-                  struct ast_node *from, struct ast_node *to);
-
-/**
- * Loop over parameters and replace types that match with \p param_type
- * with \p arg_type.
- *
- * @param param Parameters to replace types for.
- * @param param_type Type to replace with \p arg_type.
- * @param arg_type Type to replace \p param_type with.
- */
-void replace_param_types(struct ast_node *param,
-                         struct ast_node *param_type,
-                         struct ast_node *arg_type);
-
-/**
- * Extract trait type, that is strip pointer/expression/alias stuff
- * and get the trait itself from the type.
- *
- * @param type Type to extract trait from.
- * @return Pointer to trait node when found, \c NULL otherwise.
- */
-struct ast_node *extract_trait(struct ast_node *type);
-
-/**
- * Extract typeof expression.
- *
- * @param type Type to extract typeof from.
- * @return Pointer to typeof expression node when found, \c NULL otherwise.
- */
-struct ast_node *extract_typeof(struct ast_node *type);
+int types_match(struct type *a, struct type *b);
 
 /**
  * Analyze raw AST, assumed to be file scope.
@@ -77,23 +37,6 @@ struct ast_node *extract_typeof(struct ast_node *type);
  * @param tree Raw AST to analyze.
  * @return \c 0 when successful, non-zero otherwise.
  */
-int analyze_root(struct scope *scope, struct ast_node *tree);
-
-/**
- * Start actual compilation by trying to actualize main.
- *
- * @param scope Scope \c main() should be visible to, likely root scope.
- * @return \c 0 when succesful, non-zero otherwise.
- */
-int actualize_main(struct scope *scope);
-
-/**
- * Create temporary actualization context and actualizes \p type within it.
- *
- * @param scope Scope to actualize \p type in.
- * @param type Type to actualize.
- * @return \c 0 when succesful, non-zero otherwise.
- */
-int actualize_temp_type(struct scope *scope, struct ast_node *type);
+int analyze_root(struct scope *scope, struct ast *tree);
 
 #endif /* ANALYZE_H */

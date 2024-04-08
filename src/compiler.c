@@ -85,14 +85,14 @@ static int process(struct scope **parent, int public, const char *file)
 	if (!p)
 		return -1;
 	parse(p, file, buf);
-	struct ast_node *tree = p->tree;
+	struct ast *tree = p->tree;
 	bool failed = p->failed;
 	destroy_parser(p);
 
 	if (failed)
 		return -1;
 
-	dump_ast(0, tree);
+	ast_dump_list(0, tree);
 
 	struct scope *scope = create_scope();
 	if (!scope)
@@ -167,19 +167,19 @@ int compile(const char *input) {
 	struct scope *root = NULL;
 	if (process_file(&root, 0, input)) {
 		destroy_scope(root);
-		destroy_ast_nodes();
+		destroy_allocs();
 		error("compilation of %s stopped due to errors", input);
 		return ret;
 	}
 
-	if ((ret = lower_actuals(root))) {
+	if ((ret = lower(root))) {
 		destroy_scope(root);
-		destroy_ast_nodes();
+		destroy_allocs();
 		error("compilation of %s stopped due to errors", input);
 		return ret;
 	}
 
 	destroy_scope(root);
-	destroy_ast_nodes();
+	destroy_allocs();
 	return 0;
 }

@@ -65,15 +65,7 @@ struct file_ctx {
  * @param type Type to generate string representation of.
  * @return \p type as string.
  */
-char *type_str(struct ast_node *type);
-
-/**
- * Generate string representation of call.
- *
- * @param call Call to generate string representation of.
- * @return \p call as string.
- */
-char *call_str(struct ast_node *call);
+char *type_str(struct type *type);
 
 /**
  * Print info that relates to a specific AST node.
@@ -84,8 +76,8 @@ char *call_str(struct ast_node *call);
  * @param node AST node to print message with.
  * @param fmt Format string. Follows standard printf() formatting.
  */
-void semantic_info(struct file_ctx ctx, struct ast_node *node, const char *fmt,
-                   ...);
+void semantic_info(struct file_ctx ctx, struct ast *node, const char *fmt, ...);
+void type_info(struct file_ctx ctx, struct type *node, const char *fmt, ...);
 
 /**
  * Print warning that relates to a specific AST node.
@@ -100,7 +92,7 @@ void semantic_info(struct file_ctx ctx, struct ast_node *node, const char *fmt,
  * @param node AST node to print message with.
  * @param fmt Format string. Follows standard printf() formatting.
  */
-void semantic_warn(struct file_ctx ctx, struct ast_node *node, const char *fmt,
+void semantic_warn(struct file_ctx ctx, struct ast *node, const char *fmt,
                    ...);
 
 /**
@@ -111,8 +103,8 @@ void semantic_warn(struct file_ctx ctx, struct ast_node *node, const char *fmt,
  * @param node AST node to print message with.
  * @param fmt Format string. Follows standard printf() formatting.
  */
-void semantic_error(struct file_ctx ctx, struct ast_node *node, const char *fmt,
-                    ...);
+void semantic_error(struct file_ctx ctx, struct ast *node, const char *fmt, ...);
+void type_error(struct file_ctx ctx, struct type *type, const char *fmt, ...);
 
 /**
  * Print internal error.

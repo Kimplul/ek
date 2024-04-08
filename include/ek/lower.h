@@ -4,6 +4,6 @@
 #include <ek/ast.h>
 #include <stdio.h>
 
-int lower_actuals(struct scope *root);
+int lower(struct scope *root);
 
 #endif /* EK_OPS_H */

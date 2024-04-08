@@ -1,5 +1,6 @@
 typedef i9 {}
 typedef i27 {}
+typedef bool {}
 
 putchar(i9 c)
 {
@@ -10,6 +11,6 @@ putchar(i9 c)
 main()
 {
 	for i27 i = 0; i < 5; i = i + 1 {
-		putchar('A' + i);
+		putchar('A' + (i as i9));
 	}
 }

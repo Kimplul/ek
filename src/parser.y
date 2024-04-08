@@ -11,6 +11,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
+
 #include <ek/parser.h>
 
 %}
@@ -26,12 +28,15 @@
 %parse-param {void *scanner} {struct parser* parser}
 
 %union {
-	struct ast_node *node;
+	struct ast *node;
+	struct type *type;
 	long long integer;
 	char *str;
 };
 
 %token <integer> INT
+%token <integer> CHAR
+%token <integer> BOOL
 %token <dbl> FLOAT
 %token <str> STRING
 %token <str> ID
@@ -122,16 +127,18 @@
 %left "::"
 
 /* why doesn't bison allow <*> for %nterm? would be so much easier */
-%nterm <node> import binop unop decls expr
+%nterm <node> import binop unop decls opt_decls expr
 %nterm <node> while do_while statement statements body references macro
 %nterm <node> exprs if for case cases switch const
-%nterm <node> func_sign type var_decl var
+%nterm <node> var_decl var
 %nterm <node> var_init proc
 %nterm <node> alias trait enum_val enums enum top unit id
 %nterm <node> embed param_decl members
 %nterm <node> top_if const_if const_for defer goto assign
 %nterm <node> construct construct_args construct_arg
-%nterm <node> statelet apply types
+%nterm <node> statelet apply
+
+%nterm <type> types type opt_type
 
 %nterm <node> tagged_struct expr_if
 
@@ -140,14 +147,15 @@
 
 %nterm <node> macro_expand type_expand
 
-%nterm <node> type_params type_param opt_for_inits for_inits for_init
+%nterm <node> type_params opt_type_params type_param opt_for_inits for_inits for_init
 
 /* array stuff */
 %nterm <node> arr arr_inits arr_init
 
 /* optional stuff */
 %nterm <node> opt_exprs proc_decl member opt_members
-%nterm <node> opt_statements opt_types opt_type_params
+%nterm <node> opt_statements
+%nterm <type> opt_types opt_sign_decls sign_decls sign_decl sign_var_decl
 
 %{
 
@@ -209,7 +217,7 @@ static void yyerror(YYLTYPE *yylloc, void *lexer,
  * @param c Escape character without backslash.
  * @return Corresponding value.
  */
-static long long match_escape(char c);
+static char match_escape(char c);
 
 /**
  * Similar to strdup() but skips quotation marks that would
@@ -219,18 +227,18 @@ static long long match_escape(char c);
  * @param s String to clone, with quotation marks surrounding it.
  * @return Identical string but without quotation marks around it.
  */
-static const char *clone_string(const char *s);
+static char *strip(const char *s);
 
 %}
 
 %start input;
 %%
 id
-	: ID {$$ = gen_id(strdup($1), src_loc(@$));}
+	: ID {$$ = gen_id($1, src_loc(@$));}
 
 apply
 	: APPLY {
-		$$ = gen_id(strdup($1), src_loc(@$));
+		$$ = gen_id($1, src_loc(@$));
 	}
 
 var
@@ -238,10 +246,10 @@ var
 	| var_init
 
 embed
-	: "embed" "(" STRING ")" { $$ = gen_embed(clone_string($3), src_loc(@$));  }
+	: "embed" "(" STRING ")" { $$ = gen_embed(strip($3), src_loc(@$));  }
 
 import
-	: "import" STRING { $$ = gen_import(clone_string($2), src_loc(@$));  }
+	: "import" STRING { $$ = gen_import(strip($2), src_loc(@$));  }
 
 assign
 	: expr "=" expr { $$ = gen_assign($1, $3, src_loc(@$)); }
@@ -265,12 +273,12 @@ binop
 	| expr ">>=" expr {
 		$$ = gen_binop(AST_ASSIGN_RSHIFT, $1, $3, src_loc(@$));
 	}
-	| expr "<" expr { $$ = gen_binop(AST_LT, $1, $3, src_loc(@$));  }
-	| expr ">" expr { $$ = gen_binop(AST_GT, $1, $3, src_loc(@$));  }
-	| expr "<=" expr { $$ = gen_binop(AST_LE, $1, $3, src_loc(@$));  }
-	| expr ">=" expr { $$ = gen_binop(AST_GE, $1, $3, src_loc(@$));  }
-	| expr "!=" expr { $$ = gen_binop(AST_NE, $1, $3, src_loc(@$));  }
-	| expr "==" expr { $$ = gen_binop(AST_EQ, $1, $3, src_loc(@$));  }
+	| expr "<" expr { $$ = gen_comparison(AST_LT, $1, $3, src_loc(@$));  }
+	| expr ">" expr { $$ = gen_comparison(AST_GT, $1, $3, src_loc(@$));  }
+	| expr "<=" expr { $$ = gen_comparison(AST_LE, $1, $3, src_loc(@$));  }
+	| expr ">=" expr { $$ = gen_comparison(AST_GE, $1, $3, src_loc(@$));  }
+	| expr "!=" expr { $$ = gen_comparison(AST_NE, $1, $3, src_loc(@$));  }
+	| expr "==" expr { $$ = gen_comparison(AST_EQ, $1, $3, src_loc(@$));  }
 
 unop
 	: "-" expr { $$ = gen_unop(AST_NEG, $2, src_loc(@$));  }
@@ -280,15 +288,17 @@ unop
 
 arr_init
 	: "=>" const_expr "..." const_expr "=" expr {
-		$$ = gen_var($2, $4, $6, src_loc(@$));
+		assert(0 && "range array init is unimplemented");
+		abort();
 	}
 	| "=>" const_expr "=" expr {
-		$$ = gen_var($2, NULL, $4, src_loc(@$));
+		assert(0 && "range array init is unimplemented");
+		abort();
 	}
 	| expr
 
 arr_inits
-	: arr_init "," arr_inits { $$ = $1; $1->next = $3; }
+	: arr_init "," arr_inits { $$ = $1; $1->n = $3; }
 	| arr_init
 
 arr
@@ -298,9 +308,21 @@ param_decl
 	: type { $$ = gen_var(NULL, $1, NULL, src_loc(@$));  }
 	| var_decl
 
+sign_decl
+	: type
+	| sign_var_decl
+
 decls
-	: param_decl "," decls { $$ = $1; $1->next = $3; }
+	: param_decl "," decls { $$ = $1; $1->n = $3; }
 	| param_decl
+
+sign_decls
+	: sign_decl "," sign_decls { $$ = $1; $1->n = $3; }
+	| sign_decl
+
+opt_decls
+	: decls
+	| {$$ = NULL;}
 
 defer
 	: "defer" body { $$ = gen_defer($2, src_loc(@$));  }
@@ -352,19 +374,20 @@ const_unop
 
 const_expr
 	: "(" const_expr ")" { $$ = $2; }
-	| INT { $$ = gen_int($1, src_loc(@$)); }
+	| INT { $$ = gen_const_int($1, src_loc(@$)); }
+	| CHAR { $$ = gen_const_char($1, src_loc(@$)); }
+	| BOOL { $$ = gen_const_bool($1, src_loc(@$)); }
 	| const_binop
 	| const_unop
 	| id
 
 /* TODO: concatenate multiple strings together? Or is that the lexer's job? */
 expr
-	: expr "." id { $$ = gen_dot($1, $3, src_loc(@$)); }
-	| "..." id { $$ = $2; }
-	| INT { $$ = gen_int($1, src_loc(@$)); }
-	| STRING {
-		$$ = gen_string(clone_string($1), src_loc(@$));
-	}
+	: expr "." ID { $$ = gen_dot($3, $1, src_loc(@$)); }
+	| INT { $$ = gen_const_int($1, src_loc(@$)); }
+	| CHAR { $$ = gen_const_char($1, src_loc(@$)); }
+	| BOOL { $$ = gen_const_bool($1, src_loc(@$)); }
+	| STRING {$$ = gen_const_str(strip($1), src_loc(@$));}
 	| "(" expr ")" { $$ = $2; }
 	/* special rule, user is allowed to define new variables in if
 	 * statements etc but it should stand out, which is why we require
@@ -381,10 +404,10 @@ expr
 	| "do" switch { $$ = $2; ast_set_flags($$, AST_FLAG_DOEXPR); }
 	| "do" "const" switch { $$ = $3; ast_set_flags($$, AST_FLAG_DOEXPR); }
 	| expr "(" opt_exprs ")" { $$ = gen_call($1, $3, src_loc(@$)); }
-	| expr "[" expr "]" { $$ = gen_arr_access($1, $3, src_loc(@$)); }
+	| expr "[" expr "]" { $$ = gen_arr($1, $3, src_loc(@$)); }
 	| "sizeof" expr { $$ = gen_sizeof($2, src_loc(@$)); }
 	| expr "as" type { $$ = gen_cast($1, $3, src_loc(@$));  }
-	| id "::" type { $$ = gen_fetch($1, $3, src_loc(@$)); }
+	| ID "::" type { $$ = gen_fetch($1, $3, src_loc(@$)); }
 	| macro_expand
 	| construct
 	| assign
@@ -404,13 +427,13 @@ do_while
 	}
 
 goto
-	: "goto" id { $$ = gen_goto(gen_label($2, src_loc(@$)), src_loc(@$));  }
+	: "goto" ID { $$ = gen_goto($[ID], NULL, src_loc(@$));  }
 
 statelet
-	: "return" exprs { $$ = gen_return($2, src_loc(@$));  }
-	| "return" { $$ = gen_return(NULL, src_loc(@$)); }
-	| "break" { $$ = gen_ctrl(AST_CTRL_BREAK, src_loc(@$)); }
-	| "continue" { $$ = gen_ctrl(AST_CTRL_CONTINUE, src_loc(@$)); }
+	: "return" exprs { $$ = gen_return($2, NULL, src_loc(@$));  }
+	| "return" { $$ = gen_return(NULL, NULL, src_loc(@$)); }
+	| "break" { $$ = gen_break(NULL, src_loc(@$)); }
+	| "continue" { $$ = gen_continue(NULL, src_loc(@$)); }
 	| trait
 	| import
 	| alias
@@ -420,7 +443,7 @@ statelet
 	| error {
 	    /* TODO: figure out how to destroy any and all possible ast nodes we
 	     * may have generated up until the error */
-	    $$ = gen_empty();
+	    $$ = gen_empty(src_loc(@$));
 	    parser->failed = true;
 	    /* If we're failing to parse a statement in a block, continue by trying to
 	     * parse the next statement in the block */
@@ -444,11 +467,11 @@ statement
 	| const
 	| enum
 	| macro
-	| ";" { $$ = gen_empty(); }
-	| id ":" { $$ = gen_label($1, src_loc(@$));  }
+	| ";" { $$ = gen_empty(src_loc(@$)); }
+	| ID ":" { $$ = gen_label($[ID], NULL, src_loc(@$));  }
 
 statements
-	: statement statements { $$ = $1; $1->next = $2; }
+	: statement statements { $$ = $1; $1->n = $2; }
 	| statement
 	| statelet
 
@@ -457,49 +480,49 @@ opt_statements
 	| {$$ = NULL;}
 
 body
-	: "{" opt_statements "}" { $$ = gen_block($2, src_loc(@$));  }
+	: "{" opt_statements "}" { $$ = gen_block($2, NULL, src_loc(@$));  }
 
 references
-	: id "," references { $$ = $1; $$->next = $3; }
+	: id "," references { $$ = $1; $$->n = $3; }
 	| "..." id { $$ = $2; ast_set_flags($$, AST_FLAG_VARIADIC); }
 	| id
 
 macro
-	: "define" id "(" references ")" body {
-		$$ = gen_macro_construct($2, $4, $6, src_loc(@$));
+	: "define" ID "(" references ")" body {
+		$$ = gen_macro_def($[ID], $[references], $[body], src_loc(@$));
 		ast_set_flags($6, AST_FLAG_UNHYGIENIC);
 	}
-	| "define" id "(" references "..." id ")" body {
+	| "define" ID "(" references "..." id ")" body {
 		ast_append($4, $6);
-		$$ = gen_macro_construct($2, $4, $8, src_loc(@$));
+		$$ = gen_macro_def($[ID], $4, $8, src_loc(@$));
 		ast_set_flags($$, AST_FLAG_VARIADIC);
 		ast_set_flags($8, AST_FLAG_UNHYGIENIC);
 	}
-	| "define" id "(" ")" body {
-		$$ = gen_macro_construct($2, NULL, $5, src_loc(@$));
+	| "define" ID "(" ")" body {
+		$$ = gen_macro_def($[ID], NULL, $5, src_loc(@$));
 		ast_set_flags($5, AST_FLAG_UNHYGIENIC);
 	}
 
 exprs
-	: expr "," exprs { $$ = $1; $1->next = $3; }
+	: expr "," exprs { $$ = $1; $1->n = $3; }
 	| expr
 
 construct_arg
-	: "." id "=" expr {
+	: "." ID "=" expr {
 		$$ = gen_var($2, NULL, $4, src_loc(@$));
 		ast_set_flags($$, AST_FLAG_MEMBER);
 	}
 
 construct_args
-	: construct_arg "," construct_args { $$ = $1; $1->next = $3; }
+	: construct_arg "," construct_args { $$ = $1; $1->n = $3; }
 	| construct_arg
 
 construct
-	: apply "{" construct_args "}" {
+	: APPLY "{" construct_args "}" {
 		/** @todo add type info? */
 		$$ = gen_init($3, src_loc(@$));
 	}
-	| apply "[" opt_types "]" "{" construct_args "}" {
+	| APPLY "[" opt_types "]" "{" construct_args "}" {
 		$$ = gen_init($6, src_loc(@$));
 	}
 
@@ -521,7 +544,7 @@ for_init
 	| var_init
 
 for_inits
-	: for_init "," for_inits { $$ = $1; $$->next = $3; }
+	: for_init "," for_inits { $$ = $1; $$->n = $3; }
 	| for_init
 
 opt_for_inits
@@ -543,7 +566,7 @@ case
 	}
 
 cases
-	: case cases { $$ = $1; $1->next = $2; }
+	: case cases { $$ = $1; $1->n = $2; }
 	| case
 
 switch
@@ -578,41 +601,43 @@ const
 	: "const" const_if { $$ = $2; ast_set_flags($$, AST_FLAG_CONST); }
 	| "const" const_for { $$ = $2; ast_set_flags($$, AST_FLAG_CONST); }
 
-func_sign
-	: "(" decls "=>" type ")" {
-		$$ = gen_type(AST_TYPE_SIGN, $2, $4, src_loc(@$));
-	}
-	| "(" decls ")" { $$ = gen_type(AST_TYPE_SIGN, $2, NULL, src_loc(@$)); }
-	| "(" decls "=>" ")" { $$ = gen_type(AST_TYPE_SIGN, $2, NULL, src_loc(@$)); }
-	| "(" "=>" type ")" { $$ = gen_type(AST_TYPE_SIGN, NULL, $3, src_loc(@$)); }
-	| "(" "=>" ")" { $$ = gen_type(AST_TYPE_SIGN, NULL, NULL, src_loc(@$)); }
-	| "(" ")" { $$ = gen_type(AST_TYPE_SIGN, NULL, NULL, src_loc(@$)); }
+opt_sign_decls
+	: sign_decls
+	| {$$ = NULL;}
 
 type
-	: id { $$ = gen_type(AST_TYPE_ID, $1, NULL, src_loc(@$)); }
-	| "^" func_sign {
+	: ID { $$ = tgen_id($1, src_loc(@$)); }
+	| "^" "(" opt_sign_decls "=>" opt_type ")" {
 		/* still not entirely sold on this signature, but it's not terrible I
 		 * guess */
-		$$ = gen_type(AST_TYPE_POINTER, $2, NULL, src_loc(@$));
+		$$ = tgen_callable($[opt_sign_decls], $[opt_type], src_loc(@$));
+	}
+	| "^" "(" opt_sign_decls ")" {
+		$$ = tgen_callable($[opt_sign_decls], NULL, src_loc(@$));
 	}
 	| "*" type {
-		$$ = gen_type(AST_TYPE_POINTER, $2, NULL, src_loc(@$));
+		$$ = tgen_ptr($2, src_loc(@$));
 	}
 	| "[" const_expr "]" type {
-		$$ = gen_type(AST_TYPE_ARR, $2, $4, src_loc(@$));
+		assert(0 && "arrays unimplemented");
+		abort();
 	}
 	| "const" type {
 		$$ = $2;
 	}
 	| "mut" type {
-		$$ = $2; ast_set_flags($$, AST_FLAG_MUTABLE);
+		$$ = $2; /* ignored for now */
 	}
-	| apply "[" opt_types "]" {
-		$$ = gen_type(AST_TYPE_CONSTRUCT, $1, $3, src_loc(@$));
+	| APPLY "[" opt_types "]" {
+		$$ = tgen_construct($[APPLY], $[opt_types], src_loc(@$));
 	}
 
+opt_type
+	: type
+	| {$$ = NULL;}
+
 types
-	: type "," types { $$ = $1; $$->next = $3; }
+	: type "," types { $$ = $1; $$->n = $3; }
 	| type
 
 opt_types
@@ -620,32 +645,56 @@ opt_types
 	| { $$ = NULL; }
 
 type_expand
-	: apply "[" opt_types "]" { $$ = gen_type_expand($1, $3, src_loc(@$)); }
+	: APPLY "[" opt_types "]" { $$ = gen_type_expand($1, $3, src_loc(@$)); }
 
 var_decl
-	: type id { $$ = gen_var($2, $1, NULL, src_loc(@$));  }
+	: type ID { $$ = gen_var($2, $1, NULL, src_loc(@$));  }
+
+sign_var_decl
+	: type ID { $$ = $1; free((void *)$[ID]);}
 
 var_init
-	: var_decl "=" expr { $$ = $1; $$->_var.init = $3; }
-	| "const" id "=" expr { $$ = gen_var($2, NULL, $4, src_loc(@$)); }
-	| "mut" id "=" expr {
+	: var_decl "=" expr { $$ = $1; var_init($$) = $3; }
+	| "const" ID "=" expr { $$ = gen_var($2, NULL, $4, src_loc(@$)); }
+	| "mut" ID "=" expr {
 		$$ = gen_var($2, NULL, $4, src_loc(@$));
 		ast_set_flags($$, AST_FLAG_MUTABLE);
 	}
 
 proc_decl
-	: id func_sign {
-		$$ = gen_proc($1, $2, NULL, src_loc(@$));
+	: ID "(" opt_decls "=>" opt_type ")" {
+		$$ = gen_proc($[ID],
+				$[opt_decls],
+				$[opt_type],
+				NULL,
+				src_loc(@$));
 	}
+	| ID "(" opt_decls ")" {
+		$$ = gen_proc($[ID], $[opt_decls], NULL, NULL, src_loc(@$));
+	}
+
 proc
-	: id func_sign body {
-		$$ = gen_proc($1, $2, $3, src_loc(@$));
-		ast_set_flags($$, $2->flags);
-		ast_set_flags($3, AST_FLAG_UNHYGIENIC);
+	: ID "(" opt_decls "=>" opt_type ")" body {
+		$$ = gen_proc($[ID],
+				$[opt_decls],
+				$[opt_type],
+				$[body],
+				src_loc(@$));
 	}
-	| "extern" id func_sign {
-		/* todo check that we don't have a variadic function */
-		$$ = gen_proc($2, $3, NULL, src_loc(@$));
+	| ID "(" opt_decls ")" body {
+		$$ = gen_proc($[ID], $[opt_decls], NULL, $[body], src_loc(@$));
+	}
+	| "extern" ID "(" opt_decls "=>" opt_type ")" {
+		$$ = gen_proc($[ID],
+				$[opt_decls],
+				$[opt_type],
+				NULL,
+				src_loc(@$));
+
+		ast_set_flags($$, AST_FLAG_EXTERN);
+	}
+	| "extern" ID "(" opt_decls ")" {
+		$$ = gen_proc($[ID], $[opt_decls], NULL, NULL, src_loc(@$));
 		ast_set_flags($$, AST_FLAG_EXTERN);
 	}
 
@@ -657,7 +706,7 @@ member
 	;
 
 members
-	: member members { $$ = $1; $1->next = $2; }
+	: member members { $$ = $1; $1->n = $2; }
 	| member
 
 opt_members
@@ -665,31 +714,31 @@ opt_members
 	| {$$ = NULL;}
 
 macro_expand
-	: apply "(" opt_exprs ")" {
+	: APPLY "(" opt_exprs ")" {
 		$$ = gen_macro_expand($1, $3, src_loc(@$));
 	}
 
 tagged_struct
-	: "typedef" id "[" opt_type_params "]" "{" opt_members "}" {
+	: "typedef" ID "[" opt_type_params "]" "{" opt_members "}" {
 		$$ = gen_struct($2, $4, $7, src_loc(@$));
 	}
-	| "typedef" id "{" opt_members "}" {
+	| "typedef" ID "{" opt_members "}" {
 		$$ = gen_struct($2, NULL, $4, src_loc(@$));
 	}
 
 alias
-	: "typedef" id type {
+	: "typedef" ID type {
 		$$ = gen_alias($2, $3, src_loc(@$));
 	}
 
 type_param
-	: id id {
-		struct ast_node *t = gen_type(AST_TYPE_ID, $1, NULL, src_loc(@1));
+	: ID ID {
+		struct type *t = tgen_id($1, src_loc(@1));
 		$$ = gen_var($2, t, NULL, src_loc(@$));
 	}
 
 type_params
-	: type_param "," type_params { $$ = $1; $1->next = $3; }
+	: type_param "," type_params { $$ = $1; $1->n = $3; }
 	| type_param
 
 opt_type_params
@@ -697,28 +746,28 @@ opt_type_params
 	| { $$ = NULL; }
 
 trait
-	: "define" id "[" opt_type_params "]" "{" opt_members "}" {
-		$$ = gen_trait($2, $4, $7, NULL, src_loc(@$));
+	: "define" ID "[" opt_type_params "]" "{" opt_members "}" {
+		$$ = gen_trait($2, $4, $7, src_loc(@$));
 	}
 
 enum_val
-	: id {
+	: ID {
 		$$ = gen_val($1, NULL, src_loc(@$));
 	}
-	| id "=" expr {
+	| ID "=" expr {
 		$$ = gen_val($1, $3, src_loc(@$));
 	}
 
 enums
-	: enum_val "," enums { $$ = $1; $1->next = $3; }
+	: enum_val "," enums { $$ = $1; $1->n = $3; }
 	| enum_val "," { $$ = $1; }
 	| enum_val { $$ = $1; }
 
 enum
-	: "enum" id ":" type "{" enums "}" {
+	: "enum" ID ":" type "{" enums "}" {
 		$$ = gen_enum($2, $4, $6, src_loc(@$));
 	}
-	| "enum" id "{" enums "}" {
+	| "enum" ID "{" enums "}" {
 		$$ = gen_enum($2, NULL, $4, src_loc(@$));
 		ast_set_flags($$, AST_FLAG_UNTYPED);
 	}
@@ -755,9 +804,9 @@ top
 	| "pub" import { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" alias { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" trait { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
-	| ";" { $$ = gen_empty(); }
+	| ";" { $$ = gen_empty(src_loc(@$)); }
 	| error {
-	    $$ = gen_empty();
+	    $$ = gen_empty(src_loc(@$));
 	    parser->failed = true;
 	    /* ignore any content inside a top level thing and just move onto
 	     * the next one */
@@ -770,7 +819,7 @@ top
 
 unit
 	: top { $$ = $1; }
-	| top unit { $$ = $1; $1->next = $2; }
+	| top unit { $$ = $1; $1->n = $2; }
 
 input
 	: unit { parser->tree = $1; }
@@ -832,7 +881,7 @@ static void yyerror(YYLTYPE *yylloc, void *lexer,
 	src_issue(issue, msg);
 }
 
-static long long match_escape(char c)
+static char match_escape(char c)
 {
 	switch (c) {
 	case '\'': return '\'';
@@ -849,13 +898,14 @@ static long long match_escape(char c)
 	return c;
 }
 
-static const char *clone_string(const char *str)
+static char *strip(const char *str)
 {
 	const size_t len = strlen(str) + 1;
 	char *buf = malloc(len);
 	if (!buf) {
 		/* should probably try to handle the error in some way... */
 		internal_error("failed allocating buffer for string clone");
+		free((void *)str);
 		return NULL;
 	}
 
@@ -871,6 +921,7 @@ static const char *clone_string(const char *str)
 	}
 
 	buf[j] = 0;
+	free((void *)str);
 	return buf;
 
 }

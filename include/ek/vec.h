@@ -35,4 +35,7 @@ void vec_append(struct vec *v, void *n);
 #define vect_pop(type, v) \
 	*(type *)vec_pop(&v)
 
+#define vec_uninit(v) \
+	(v.buf == NULL)
+
 #endif /* VEC_H */

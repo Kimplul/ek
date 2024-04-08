@@ -11,17 +11,17 @@ main()
 {
 	if 0 {
 		for i27 i = 0; i < 5; i = i + 1 {
-			putchar('0' + i);
+			putchar('0' + i as i9);
 		}
 	}
 	else if 1 {
 		for i27 i = 0; i < 5; i = i + 1 {
-			putchar('A' + i);
+			putchar('A' + i as i9);
 		}
 	}
 	else {
 		for i27 i = 0; i < 5; i = i + 1 {
-			putchar('K' + i);
+			putchar('K' + i as i9);
 		}
 	}
 
