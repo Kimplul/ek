@@ -1,0 +1,11 @@
+typedef i9 {}
+typedef i27 {}
+
+main()
+{
+	*i9 p = 0 as *i9;
+	*i9 a = p*&;
+	a = p*&*&;
+	a = p&*;
+	i9 b = p&**&*;
+}

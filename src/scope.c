@@ -53,8 +53,7 @@ void destroy_scope(struct scope *scope)
 		free((void *)scope->fctx.fname);
 	}
 
-	destroy_visible(scope->vars);
-	destroy_visible(scope->procs);
+	destroy_visible(scope->symbols);
 	destroy_visible(scope->macros);
 	destroy_visible(scope->types);
 
@@ -106,8 +105,8 @@ struct visible *create_var(struct scope *scope, char *id, struct ast *var)
 	if (!n)
 		return NULL;
 
-	n->next = scope->vars;
-	scope->vars = n;
+	n->next = scope->symbols;
+	scope->symbols = n;
 
 	return n;
 }
@@ -130,15 +129,15 @@ struct visible *create_proc(struct scope *scope, char *id, struct ast *proc)
 	if (!n)
 		return NULL;
 
-	n->next = scope->procs;
-	scope->procs = n;
+	n->next = scope->symbols;
+	scope->symbols = n;
 
 	return n;
 }
 
 int scope_add_var(struct scope *scope, struct ast *var)
 {
-	struct ast *exists = file_scope_find_var(scope, var_id(var));
+	struct ast *exists = file_scope_find_symbol(scope, var_id(var));
 	if (exists) {
 		semantic_error(scope->fctx, var, "var redefined");
 		semantic_info(scope->fctx, exists, "previously here");
@@ -192,7 +191,7 @@ int scope_add_macro(struct scope *scope, struct ast *macro)
 int scope_add_proc(struct scope *scope, struct ast *proc)
 {
 	assert(proc->k == AST_PROC_DEF);
-	struct ast *exists = file_scope_find_proc(scope, proc_id(proc));
+	struct ast *exists = file_scope_find_symbol(scope, proc_id(proc));
 	if (exists) {
 		semantic_error(scope->fctx, proc, "proc redefined");
 		semantic_info(scope->fctx, exists, "previously here");
@@ -284,27 +283,58 @@ struct ast *file_scope_find_macro(struct scope *scope, char *id)
 
 struct ast *scope_find_proc(struct scope *scope, char *id)
 {
-	return scope_find_visible(scope->procs, id);
+	struct ast *n = scope_find_visible(scope->symbols, id);
+	if (!n)
+		return NULL;
+
+	if (n->k != AST_PROC_DEF)
+		return NULL;
+
+	return n;
 }
 
 struct ast *file_scope_find_proc(struct scope *scope, char *id)
 {
+	struct ast *n = file_scope_find_symbol(scope, id);
+	if (!n)
+		return NULL;
+
+	if (n->k != AST_PROC_DEF)
+		return NULL;
+
+	return n;
+}
+
+struct ast *scope_find_symbol(struct scope *scope, char *id)
+{
+	return scope_find_visible(scope->symbols, id);
+}
+
+struct ast *file_scope_find_symbol(struct scope *scope, char *id)
+{
 	if (!scope)
 		return NULL;
 
-	struct ast *found = scope_find_proc(scope, id);
+	struct ast *found = scope_find_symbol(scope, id);
 	if (found)
 		return found;
 
 	if (!scope_flags(scope, SCOPE_FILE))
-		return file_scope_find_proc(scope->parent, id);
+		return file_scope_find_symbol(scope->parent, id);
 
 	return NULL;
 }
 
 struct ast *scope_find_var(struct scope *scope, char *id)
 {
-	return scope_find_visible(scope->vars, id);
+	struct ast *n = scope_find_visible(scope->symbols, id);
+	if (!n)
+		return NULL;
+
+	if (n->k != AST_VAR_DEF)
+		return NULL;
+
+	return n;
 }
 
 struct ast *file_scope_find_var(struct scope *scope, char *id)

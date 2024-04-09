@@ -1,0 +1,11 @@
+typedef i27 {
+	add(*i27 self, i27 other => i27)
+	{
+		return self* + other;
+	}
+}
+
+main()
+{
+	i27 a = 12.add(24);
+}

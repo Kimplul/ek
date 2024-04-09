@@ -88,8 +88,7 @@ struct scope {
 	 */
 	struct actual *actuals;
 
-	struct visible *vars;
-	struct visible *procs;
+	struct visible *symbols;
 	struct visible *macros;
 	struct visible *types;
 
@@ -261,6 +260,7 @@ int scope_resolve(struct scope *scope);
  * otherwise \c NULL.
  */
 struct ast *scope_find_var(struct scope *scope, char *id);
+struct ast *scope_find_symbol(struct scope *scope, char *id);
 
 /**
  * Find a type with ID in \p scope.
@@ -331,6 +331,7 @@ struct ast *scope_find_trait(struct scope *scope, char *id);
  * otherwise \c NULL.
  */
 struct ast *file_scope_find_var(struct scope *scope, char *id);
+struct ast *file_scope_find_symbol(struct scope *scope, char *id);
 
 /**
  * Find a type with ID visible to \p scope.

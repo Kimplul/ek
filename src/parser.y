@@ -520,10 +520,10 @@ construct_args
 construct
 	: APPLY "{" construct_args "}" {
 		/** @todo add type info? */
-		$$ = gen_init($3, src_loc(@$));
+		$$ = gen_init($1, NULL, $3, src_loc(@$));
 	}
 	| APPLY "[" opt_types "]" "{" construct_args "}" {
-		$$ = gen_init($6, src_loc(@$));
+		$$ = gen_init($1, $3, $6, src_loc(@$));
 	}
 
 if

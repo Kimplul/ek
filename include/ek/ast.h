@@ -594,9 +594,11 @@ static inline bool is_primitive(struct type *t)
 #define gen_const_bool(i, loc)\
 	gen_ast(AST_CONST_BOOL, NULL, NULL, NULL, NULL, NULL, NULL, i, loc)
 
-#define init_body(x) return_a0(x, AST_ASSIGN)
-#define gen_init(body, loc)\
-	gen1(AST_INIT, body, loc)
+#define init_args(x) return_t1(x, AST_INIT)
+#define init_body(x) return_a0(x, AST_INIT)
+#define init_id(x)   return_s(x, AST_INIT)
+#define gen_init(id, targs, body, loc)\
+	gen_str_type1(AST_INIT, id, targs, body, loc)
 
 #define assign_to(x) return_a0(x, AST_ASSIGN)
 #define assign_from(x) return_a1(x, AST_ASSIGN)
@@ -612,7 +614,7 @@ static inline bool is_primitive(struct type *t)
 
 /* types */
 #define callable_ptypes(x) return_t0(x, TYPE_CALLABLE)
-#define callable_rtype(x) return_t0(x, TYPE_CALLABLE)
+#define callable_rtype(x) return_t1(x, TYPE_CALLABLE)
 #define tgen_callable(ptypes, rtype, loc)\
 	tgen2(TYPE_CALLABLE, ptypes, rtype, loc)
 

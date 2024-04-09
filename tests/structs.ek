@@ -1,28 +1,18 @@
-typedef any {}
+typedef i27 {}
+typedef i9 {}
 
-struct basic_struct {
-	i64 a;
-	i64 b;
-	i64 c;
-}
+typedef int_pair {
+	i27 a;
+	i27 b;
 
-struct complex_struct (any A, any B, any C) {
-	A a;
-	B b;
-	C c;
+	sum(*int_pair self => i27)
+	{
+		return self*.a + self*.b;
+	}
 }
 
 main()
 {
-	/* infer types */
-	const simple_named = {.a = 1, .b = 2, .c = 3} as basic_struct;
-	const complex_named = {.a = 1, .b = 2, .c = 3} as complex_struct;
-
-	/* force types */
-	complex_struct![u32, u32, u32] force_named = {.a = 1, .b = 2, .c = 3};
-	mut force_inferred_named = {.a = 1, .b = 2, .c = 3} as
-		complex_struct![u32, u32, u32];
-
-	/* types should be inferred */
-	force_inferred_named = {.a = 2, .b = 3, .c = 4};
+	mut p = int_pair!{.a = 9, .b = 10};
+	i27 s = p.sum();
 }

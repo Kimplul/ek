@@ -273,8 +273,10 @@ static int lower_var(struct lower_state *s, struct ast *v,
 {
 	assert(v->k == AST_VAR_DEF);
 	struct vec input = retval_create();
-	if (lower_expr(s, var_init(v), &input))
+	if (lower_expr(s, var_init(v), &input)) {
+		retval_destroy(&input);
 		return -1;
+	}
 
 	/* if we have a struct, we should add the member name to the base name
 	 * */
@@ -847,16 +849,13 @@ int lower(struct scope *root)
 	if (!scope_flags(root, SCOPE_FILE))
 		return 0;
 
-	for (struct visible *v = root->vars; v; v = v->next) {
-		assert(v->node);
-		if (lower_global_var(v->node))
-			return -1;
-	}
-
-	for (struct visible *p = root->procs; p; p = p->next) {
+	foreach_visible(p, root->symbols) {
 		assert(p->node);
-		if (lower_proc(p->node))
+		struct ast *node = p->node;
+		if (node->k == AST_PROC_DEF && lower_proc(p->node))
 			return -1;
+
+		/** @todo variables, structs, etc. */
 	}
 
 	return 0;

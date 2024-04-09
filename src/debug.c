@@ -217,6 +217,11 @@ static void _type_str(FILE *fp, struct type *type)
 		return;
 
 	switch (type->k) {
+	case TYPE_VOID: {
+		fprintf(fp, "void");
+		break;
+	}
+
 	case TYPE_PTR:
 		fputc('*', fp);
 		_type_str(fp, ptr_base(type));

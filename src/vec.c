@@ -58,3 +58,8 @@ void vec_reset(struct vec *v)
 void vec_destroy(struct vec *v) {
 	free(v->buf);
 }
+
+void vec_sort(struct vec *v, vec_comp_t comp)
+{
+	qsort(v->buf, v->n, v->ns, comp);
+}
