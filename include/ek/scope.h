@@ -382,7 +382,7 @@ struct ast *file_scope_find_alias(struct scope *scope, char *id);
  */
 struct ast *file_scope_find_trait(struct scope *scope, char *id);
 
-#define foreach_visible(iter, init)\
+#define foreach_visible(iter, init) \
 	for (struct visible *iter = init; iter; iter = iter->next)
 
 #endif /* SCOPE_H */

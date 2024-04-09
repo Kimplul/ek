@@ -35,12 +35,12 @@ lint: $(OBJS:.o=.o.l)
 .PHONY: format
 format:
 	find src include tests -iname '*.[ch]' |\
-		xargs -n 10 -P 0 uncrustify -c uncrustify.conf --no-backup -F -
+		xargs uncrustify -c uncrustify.conf --no-backup -F -
 
 .PHONY: license
 license:
 	find src include tests -iname '*.[ch]' |\
-		xargs -n 10 -P 0 ./scripts/license
+		xargs ./scripts/license
 
 .PHONY: docs
 docs:

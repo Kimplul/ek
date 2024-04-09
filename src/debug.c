@@ -134,7 +134,7 @@ void semantic_error(struct file_ctx fctx, struct ast *node,
 }
 
 void type_error(struct file_ctx fctx, struct type *node,
-                    const char *fmt, ...)
+                const char *fmt, ...)
 {
 	va_list args;
 	va_start(args, fmt);
@@ -173,7 +173,7 @@ void semantic_info(struct file_ctx fctx, struct ast *node, const char *fmt,
 }
 
 void type_info(struct file_ctx fctx, struct type *node, const char *fmt,
-                   ...)
+               ...)
 {
 	va_list args;
 	va_start(args, fmt);

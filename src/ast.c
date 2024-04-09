@@ -96,14 +96,14 @@ static struct type *create_empty_type()
 }
 
 struct ast *gen_ast(enum ast_kind kind,
-		struct ast *a0,
-		struct ast *a1,
-		struct ast *a2,
-		struct ast *a3,
-		struct type *t2,
-		char *s,
-		long long v,
-		struct src_loc loc)
+                    struct ast *a0,
+                    struct ast *a1,
+                    struct ast *a2,
+                    struct ast *a3,
+                    struct type *t2,
+                    char *s,
+                    long long v,
+                    struct src_loc loc)
 {
 	struct ast *n = create_empty_ast();
 	n->k = kind;
@@ -119,12 +119,12 @@ struct ast *gen_ast(enum ast_kind kind,
 }
 
 struct type *tgen_type(enum type_kind kind,
-		struct type *t0,
-		struct type *t1,
-		struct ast *d,
-		struct ast *a,
-		char *id,
-		struct src_loc loc)
+                       struct type *t0,
+                       struct type *t1,
+                       struct ast *d,
+                       struct ast *a,
+                       char *id,
+                       struct src_loc loc)
 {
 	struct type *n = create_empty_type();
 	n->k = kind;
@@ -217,73 +217,73 @@ void ast_dump(int depth, struct ast *n)
 
 #define DUMP(x) case x: dump(depth, #x); break;
 	switch (n->k) {
-		DUMP(AST_FETCH);
-		DUMP(AST_INIT);
-		DUMP(AST_ASSIGN);
-		DUMP(AST_CALL);
-		DUMP(AST_ARR);
-		DUMP(AST_SIZEOF);
-		DUMP(AST_CAST);
-		DUMP(AST_DEFER);
-		DUMP(AST_MACRO_DEF);
-		DUMP(AST_MACRO_EXPAND);
-		DUMP(AST_TYPE_EXPAND);
-		DUMP(AST_PROC_DEF);
-		DUMP(AST_GOTO);
-		DUMP(AST_LABEL);
-		DUMP(AST_VAR_DEF);
-		DUMP(AST_FOR);
-		DUMP(AST_EMBED);
-		DUMP(AST_DOT);
-		DUMP(AST_WHILE);
-		DUMP(AST_DO_WHILE);
-		DUMP(AST_BREAK);
-		DUMP(AST_CONTINUE);
-		DUMP(AST_RETURN);
-		DUMP(AST_ALIAS_DEF);
-		DUMP(AST_TRAIT_DEF);
-		DUMP(AST_STRUCT_DEF);
-		DUMP(AST_IF);
-		DUMP(AST_BLOCK);
-		DUMP(AST_IMPORT);
-		DUMP(AST_ENUM_DEF);
-		DUMP(AST_VAL);
-		DUMP(AST_SWITCH);
-		DUMP(AST_CASE);
-		DUMP(AST_ID);
-		DUMP(AST_AS);
-		DUMP(AST_EMPTY);
-		DUMP(AST_ADD);
-		DUMP(AST_SUB);
-		DUMP(AST_MUL);
-		DUMP(AST_DIV);
-		DUMP(AST_REM);
-		DUMP(AST_LAND);
-		DUMP(AST_LOR);
-		DUMP(AST_LSHIFT);
-		DUMP(AST_RSHIFT);
-		DUMP(AST_ASSIGN_ADD);
-		DUMP(AST_ASSIGN_SUB);
-		DUMP(AST_ASSIGN_MUL);
-		DUMP(AST_ASSIGN_DIV);
-		DUMP(AST_ASSIGN_REM);
-		DUMP(AST_ASSIGN_LSHIFT);
-		DUMP(AST_ASSIGN_RSHIFT);
-		DUMP(AST_LT);
-		DUMP(AST_GT);
-		DUMP(AST_LE);
-		DUMP(AST_GE);
-		DUMP(AST_NE);
-		DUMP(AST_EQ);
-		DUMP(AST_NEG);
-		DUMP(AST_LNOT);
-		DUMP(AST_NOT);
-		DUMP(AST_REF);
-		DUMP(AST_DEREF);
-		DUMP(AST_CONST_INT);
-		DUMP(AST_CONST_CHAR);
-		DUMP(AST_CONST_BOOL);
-		DUMP(AST_CONST_STR);
+	DUMP(AST_FETCH);
+	DUMP(AST_INIT);
+	DUMP(AST_ASSIGN);
+	DUMP(AST_CALL);
+	DUMP(AST_ARR);
+	DUMP(AST_SIZEOF);
+	DUMP(AST_CAST);
+	DUMP(AST_DEFER);
+	DUMP(AST_MACRO_DEF);
+	DUMP(AST_MACRO_EXPAND);
+	DUMP(AST_TYPE_EXPAND);
+	DUMP(AST_PROC_DEF);
+	DUMP(AST_GOTO);
+	DUMP(AST_LABEL);
+	DUMP(AST_VAR_DEF);
+	DUMP(AST_FOR);
+	DUMP(AST_EMBED);
+	DUMP(AST_DOT);
+	DUMP(AST_WHILE);
+	DUMP(AST_DO_WHILE);
+	DUMP(AST_BREAK);
+	DUMP(AST_CONTINUE);
+	DUMP(AST_RETURN);
+	DUMP(AST_ALIAS_DEF);
+	DUMP(AST_TRAIT_DEF);
+	DUMP(AST_STRUCT_DEF);
+	DUMP(AST_IF);
+	DUMP(AST_BLOCK);
+	DUMP(AST_IMPORT);
+	DUMP(AST_ENUM_DEF);
+	DUMP(AST_VAL);
+	DUMP(AST_SWITCH);
+	DUMP(AST_CASE);
+	DUMP(AST_ID);
+	DUMP(AST_AS);
+	DUMP(AST_EMPTY);
+	DUMP(AST_ADD);
+	DUMP(AST_SUB);
+	DUMP(AST_MUL);
+	DUMP(AST_DIV);
+	DUMP(AST_REM);
+	DUMP(AST_LAND);
+	DUMP(AST_LOR);
+	DUMP(AST_LSHIFT);
+	DUMP(AST_RSHIFT);
+	DUMP(AST_ASSIGN_ADD);
+	DUMP(AST_ASSIGN_SUB);
+	DUMP(AST_ASSIGN_MUL);
+	DUMP(AST_ASSIGN_DIV);
+	DUMP(AST_ASSIGN_REM);
+	DUMP(AST_ASSIGN_LSHIFT);
+	DUMP(AST_ASSIGN_RSHIFT);
+	DUMP(AST_LT);
+	DUMP(AST_GT);
+	DUMP(AST_LE);
+	DUMP(AST_GE);
+	DUMP(AST_NE);
+	DUMP(AST_EQ);
+	DUMP(AST_NEG);
+	DUMP(AST_LNOT);
+	DUMP(AST_NOT);
+	DUMP(AST_REF);
+	DUMP(AST_DEREF);
+	DUMP(AST_CONST_INT);
+	DUMP(AST_CONST_CHAR);
+	DUMP(AST_CONST_BOOL);
+	DUMP(AST_CONST_STR);
 	}
 #undef DUMP
 
@@ -340,18 +340,18 @@ void type_dump(struct type *n)
 
 #define DUMP(x) case x: printf(#x); break;
 	switch (n->k) {
-		DUMP(TYPE_VOID);
-		DUMP(TYPE_BOOL);
-		DUMP(TYPE_I9);
-		DUMP(TYPE_I27);
-		DUMP(TYPE_STR);
-		DUMP(TYPE_PTR);
-		DUMP(TYPE_ID);
-		DUMP(TYPE_CONSTRUCT);
-		DUMP(TYPE_STRUCT);
-		DUMP(TYPE_ENUM);
-		DUMP(TYPE_CALLABLE);
-		DUMP(TYPE_TRAIT);
+	DUMP(TYPE_VOID);
+	DUMP(TYPE_BOOL);
+	DUMP(TYPE_I9);
+	DUMP(TYPE_I27);
+	DUMP(TYPE_STR);
+	DUMP(TYPE_PTR);
+	DUMP(TYPE_ID);
+	DUMP(TYPE_CONSTRUCT);
+	DUMP(TYPE_STRUCT);
+	DUMP(TYPE_ENUM);
+	DUMP(TYPE_CALLABLE);
+	DUMP(TYPE_TRAIT);
 	}
 }
 
@@ -435,7 +435,7 @@ struct ast *clone_ast_list(struct ast *root)
 		struct ast *new = clone_ast(n);
 
 		if (prev) prev->n = new;
-		else      new_root = new;
+		else new_root = new;
 
 		prev = new;
 		n = n->n;
@@ -451,7 +451,7 @@ struct type *clone_type_list(struct type *root)
 		struct type *new = clone_type(n);
 
 		if (prev) prev->n = new;
-		else      new_root = new;
+		else new_root = new;
 
 		prev = new;
 		n = n->n;
@@ -460,7 +460,8 @@ struct type *clone_type_list(struct type *root)
 	return new_root;
 }
 
-int type_visit(type_callback_t before, type_callback_t after, struct type *n, void *d)
+int type_visit(type_callback_t before, type_callback_t after, struct type *n,
+               void *d)
 {
 	int ret = 0;
 	if (!n)
@@ -481,7 +482,8 @@ int type_visit(type_callback_t before, type_callback_t after, struct type *n, vo
 	return ret;
 }
 
-int ast_visit(ast_callback_t before, ast_callback_t after, struct ast *n, void *d)
+int ast_visit(ast_callback_t before, ast_callback_t after, struct ast *n,
+              void *d)
 {
 	int ret = 0;
 	if (!n)
@@ -508,7 +510,8 @@ int ast_visit(ast_callback_t before, ast_callback_t after, struct ast *n, void *
 	return ret;
 }
 
-int ast_visit_list(ast_callback_t before, ast_callback_t after, struct ast *l, void *d)
+int ast_visit_list(ast_callback_t before, ast_callback_t after, struct ast *l,
+                   void *d)
 {
 	int ret = 0;
 	foreach_node(n, l) {
@@ -519,7 +522,8 @@ int ast_visit_list(ast_callback_t before, ast_callback_t after, struct ast *l, v
 	return ret;
 }
 
-int type_visit_list(type_callback_t before, type_callback_t after, struct type *l, void *d)
+int type_visit_list(type_callback_t before, type_callback_t after,
+                    struct type *l, void *d)
 {
 	int ret = 0;
 	foreach_type(n, l) {

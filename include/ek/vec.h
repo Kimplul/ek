@@ -29,7 +29,7 @@ void vec_sort(struct vec *v, vec_comp_t comp);
 #define vect_at(type, v, i) \
 	*(type *)vec_at(&v, i)
 
-#define vect_append(type, v, e)\
+#define vect_append(type, v, e) \
 	vec_append(&v, (type *)(e))
 
 #define vect_back(type, v) \

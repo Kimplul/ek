@@ -244,33 +244,33 @@ struct ast {
 };
 
 struct ast *gen_ast(enum ast_kind kind,
-		struct ast *a0,
-		struct ast *a1,
-		struct ast *a2,
-		struct ast *a3,
-		struct type *t1,
-		char *s,
-		long long v,
-		struct src_loc loc);
+                    struct ast *a0,
+                    struct ast *a1,
+                    struct ast *a2,
+                    struct ast *a3,
+                    struct type *t1,
+                    char *s,
+                    long long v,
+                    struct src_loc loc);
 
 struct type *tgen_type(enum type_kind kind,
-		struct type *t0,
-		struct type *t1,
-		struct ast *d,
-		struct ast *a,
-		char *id,
-		struct src_loc loc);
+                       struct type *t0,
+                       struct type *t1,
+                       struct ast *d,
+                       struct ast *a,
+                       char *id,
+                       struct src_loc loc);
 
-#define tgen_primitive(kind, id, def, loc)\
+#define tgen_primitive(kind, id, def, loc) \
 	tgen_type(kind, NULL, NULL, def, NULL, id, loc)
 
-#define tgen_id(id, loc)\
+#define tgen_id(id, loc) \
 	tgen_type(TYPE_ID, NULL, NULL, NULL, NULL, id, loc)
 
-#define tgen_struct(id, def, loc)\
+#define tgen_struct(id, def, loc) \
 	tgen_type(TYPE_STRUCT, NULL, NULL, def, NULL, id, loc)
 
-#define tgen_trait(id, def, loc)\
+#define tgen_trait(id, def, loc) \
 	tgen_type(TYPE_TRAIT, NULL, NULL, def, NULL, id, loc)
 
 static inline bool is_binop(struct ast *x)
@@ -364,9 +364,11 @@ static inline bool is_primitive(struct type *t)
 	return false;
 }
 
-#define gen_str_type1(k, s, t, a, loc) gen_ast(k, a, NULL, NULL, NULL, t, s, 0, loc)
+#define gen_str_type1(k, s, t, a, loc) gen_ast(k, a, NULL, NULL, NULL, t, s, 0, \
+					       loc)
 #define gen_str_type(k, s, t, loc) gen_str_type1(k, s, t, NULL, loc)
-#define gen_type(k, a, type, loc) gen_ast(k, a, NULL, NULL, NULL, type, NULL, 0, loc)
+#define gen_type(k, a, type, loc) gen_ast(k, a, NULL, NULL, NULL, type, NULL, 0, \
+					  loc)
 #define gen_str2(k, s, a, b, loc) gen_ast(k, a, b, NULL, NULL, NULL, s, 0, loc)
 #define gen_str1(k, s, a, loc) gen_str2(k, s, a, NULL, loc)
 #define gen_str(k, s, loc) gen_ast(k, NULL, NULL, NULL, NULL, NULL, s, 0, loc)
@@ -384,7 +386,7 @@ static inline bool is_primitive(struct type *t)
 
 /* kind of hacky but I guess it works, and allows us to check that the type is
  * correct every time */
-#define return_s(x, kind)  *({assert((x)->k == kind); &(x)->s;})
+#define return_s(x, kind) *({assert((x)->k == kind); &(x)->s;})
 #define return_a0(x, kind) *({assert((x)->k == kind); &(x)->a0;})
 #define return_a1(x, kind) *({assert((x)->k == kind); &(x)->a1;})
 #define return_a2(x, kind) *({assert((x)->k == kind); &(x)->a2;})
@@ -398,233 +400,233 @@ static inline bool is_primitive(struct type *t)
 #define if_cond(x) return_a0(x, AST_IF)
 #define if_body(x) return_a1(x, AST_IF)
 #define if_else(x) return_a2(x, AST_IF)
-#define gen_if(cond, body, else, loc)\
-	gen3(AST_IF, cond, body, else, loc)
+#define gen_if(cond, body, els, loc) \
+	gen3(AST_IF, cond, body, els, loc)
 
 #define fetch_id(x) return_s(x, AST_FETCH)
 #define fetch_type(x) return_t2(x, AST_FETCH)
-#define gen_fetch(id, type, loc)\
+#define gen_fetch(id, type, loc) \
 	gen_str_type(AST_FETCH, id, type, loc)
 
 #define label_id(x) return_s(x, AST_LABEL)
 #define label_defers(x) return_a0(x, AST_LABEL)
-#define gen_label(id, defers, loc)\
+#define gen_label(id, defers, loc) \
 	gen_str1(AST_LABEL, id, defers, loc)
 
 #define arr_base(x) return_a0(x, AST_ARR)
 #define arr_idx(x) return_a1(x, AST_ARR)
-#define gen_arr(base, idx, loc)\
+#define gen_arr(base, idx, loc) \
 	gen2(AST_ARR, base, idx, loc)
 
 #define goto_label(x) return_s(x, AST_GOTO)
 #define goto_defers(x) return_a0(x, AST_GOTO)
-#define gen_goto(label, defers, loc)\
+#define gen_goto(label, defers, loc) \
 	gen_str1(AST_GOTO, label, defers, loc)
 
 #define alias_id(x) return_s(x, AST_ALIAS_DEF)
 #define alias_type(x) return_t2(x, AST_ALIAS_DEF)
-#define gen_alias(id, type, loc)\
+#define gen_alias(id, type, loc) \
 	gen_str_type(AST_ALIAS_DEF, id, type, loc)
 
 #define trait_id(x) return_s(x, AST_TRAIT_DEF)
 #define trait_params(x) return_a0(x, AST_TRAIT_DEF)
 #define trait_raw_body(x) return_a1(x, AST_TRAIT_DEF)
 #define trait_body(x) return_a2(x, AST_TRAIT_DEF)
-#define gen_trait(id, params, body, loc)\
+#define gen_trait(id, params, body, loc) \
 	gen_str2(AST_TRAIT_DEF, id, params, body, loc)
 
 #define cast_expr(x) return_a0(x, AST_CAST)
 #define cast_type(x) return_t2(x, AST_CAST)
-#define gen_cast(expr, type, loc)\
+#define gen_cast(expr, type, loc) \
 	gen_type(AST_CAST, expr, type, loc)
 
 #define opassign_left(x) ({assert(is_opassign(x)); x->a0;})
 #define opassign_right(x) ({assert(is_opassign(x)); x->a1;})
-#define gen_opassign(op, left, right, loc)\
+#define gen_opassign(op, left, right, loc) \
 	gen2(op, left, right, loc)
 
 #define binop_left(x) ({assert(is_binop(x)); x->a0;})
 #define binop_right(x) ({assert(is_binop(x)); x->a1;})
-#define gen_binop(op, left, right, loc)\
+#define gen_binop(op, left, right, loc) \
 	gen2(op, left, right, loc)
 
 #define comparison_left(x) ({assert(is_comparison(x)); x->a0;})
 #define comparison_right(x) ({assert(is_comparison(x)); x->a1;})
-#define gen_comparison(op, left, right, loc)\
+#define gen_comparison(op, left, right, loc) \
 	gen2(op, left, right, loc)
 
 #define unop_expr(x) ({assert(is_unop(x)); x->a0;})
-#define gen_unop(op, expr, loc)\
+#define gen_unop(op, expr, loc) \
 	gen1(op, expr, loc)
 
 #define call_expr(x) return_a0(x, AST_CALL)
 #define call_args(x) return_a1(x, AST_CALL)
-#define gen_call(expr, args, loc)\
+#define gen_call(expr, args, loc) \
 	gen2(AST_CALL, expr, args, loc)
 
 #define defer_expr(x) return_a0(x, AST_DEFER)
-#define gen_defer(expr, loc)\
+#define gen_defer(expr, loc) \
 	gen1(AST_DEFER, expr, loc)
 
 #define macro_def_id(x) return_s(x, AST_MACRO_DEF)
 #define macro_def_params(x) return_a0(x, AST_MACRO_DEF)
 #define macro_def_body(x) return_a1(x, AST_MACRO_DEF)
-#define gen_macro_def(id, params, body, loc)\
+#define gen_macro_def(id, params, body, loc) \
 	gen_str2(AST_MACRO_DEF, id, params, body, loc)
 
 #define macro_expand_id(x) return_s(x, AST_MACRO_EXPAND)
 #define macro_expand_args(x) return_a0(x, AST_MACRO_EXPAND)
-#define gen_macro_expand(id, args, loc)\
+#define gen_macro_expand(id, args, loc) \
 	gen_str1(AST_MACRO_EXPAND, id, args, loc)
 
 #define type_expand_id(x) return_s(x, AST_TYPE_EXPAND)
 #define type_expand_args(x) return_t2(x, AST_TYPE_EXPAND)
-#define gen_type_expand(id, args, loc)\
+#define gen_type_expand(id, args, loc) \
 	gen_str_type(AST_TYPE_EXPAND, id, args, loc)
 
 #define proc_id(x) return_s(x, AST_PROC_DEF)
 #define proc_params(x) return_a0(x, AST_PROC_DEF)
 #define proc_rtype(x) return_t2(x, AST_PROC_DEF)
 #define proc_body(x) return_a1(x, AST_PROC_DEF)
-#define gen_proc(id, params, rtype, body, loc)\
+#define gen_proc(id, params, rtype, body, loc) \
 	gen_ast(AST_PROC_DEF, params, body, NULL, NULL, rtype, id, 0, loc)
 
 #define dot_id(x) return_s(x, AST_DOT)
 #define dot_expr(x) return_a0(x, AST_DOT)
-#define gen_dot(id, expr, loc)\
+#define gen_dot(id, expr, loc) \
 	gen_str1(AST_DOT, id, expr, loc)
 
 #define as_type(x) return_t2(x, AST_AS)
-#define gen_as(type, loc)\
+#define gen_as(type, loc) \
 	gen_type(NULL, type, loc)
 
 #define sizeof_expr(x) return_a0(x, AST_SIZEOF)
-#define gen_sizeof(expr, loc)\
+#define gen_sizeof(expr, loc) \
 	gen1(AST_SIZEOF, expr, loc)
 
 #define var_id(x) return_s(x, AST_VAR_DEF)
 #define var_type(x) return_t2(x, AST_VAR_DEF)
 #define var_init(x) return_a0(x, AST_VAR_DEF)
-#define gen_var(id, type, init, loc)\
+#define gen_var(id, type, init, loc) \
 	gen_ast(AST_VAR_DEF, init, NULL, NULL, NULL, type, id, 1, loc)
 
 #define for_pre(x) return_a0(x, AST_FOR)
 #define for_cond(x) return_a1(x, AST_FOR)
 #define for_post(x) return_a2(x, AST_FOR)
 #define for_body(x) return_a3(x, AST_FOR)
-#define gen_for(pre, cond, post, body, loc)\
+#define gen_for(pre, cond, post, body, loc) \
 	gen4(AST_FOR, pre, cond, post, body, loc)
 
 #define while_cond(x) return_a0(x, AST_WHILE)
 #define while_body(x) return_a1(x, AST_WHILE)
-#define gen_while(cond, body, loc)\
+#define gen_while(cond, body, loc) \
 	gen2(AST_WHILE, cond, body, loc)
 
 #define do_while_cond(x) return_a0(x, AST_DO_WHILE)
 #define do_while_body(x) return_a1(x, AST_DO_WHILE)
-#define gen_do_while(cond, body, loc)\
+#define gen_do_while(cond, body, loc) \
 	gen2(AST_DO_WHILE, cond, body, loc)
 
 #define continue_defers(x) return_a0(x, AST_CONTINUE)
-#define gen_continue(defers, loc)\
+#define gen_continue(defers, loc) \
 	gen1(AST_CONTINUE, defers, loc)
 
 #define break_defers(x) return_a0(x, AST_BREAK)
-#define gen_break(defers, loc)\
+#define gen_break(defers, loc) \
 	gen1(AST_BREAK, defers, loc)
 
 #define return_expr(x) return_a0(x, AST_RETURN)
 #define return_defers(x) return_a1(x, AST_RETURN)
-#define gen_return(expr, defers, loc)\
+#define gen_return(expr, defers, loc) \
 	gen2(AST_RETURN, expr, defers, loc)
 
 #define block_body(x) return_a0(x, AST_BLOCK)
 #define block_defers(x) return_a1(x, AST_BLOCK)
-#define gen_block(body, defers, loc)\
+#define gen_block(body, defers, loc) \
 	gen2(AST_BLOCK, body, defers, loc)
 
 #define import_file(x) return_s(x, AST_IMPORT)
-#define gen_import(f, loc)\
+#define gen_import(f, loc) \
 	gen_str(AST_IMPORT, f, loc)
 
 #define embed_file(x) return_s(x, AST_EMBED)
-#define gen_embed(f, loc)\
+#define gen_embed(f, loc) \
 	gen_str(AST_EMBED, f, loc)
 
 #define enum_id(x) return_s(x, AST_ENUM_DEF)
 #define enum_type(x) return_t2(x, AST_ENUM_DEF)
 #define enum_body(x) return_a0(x, AST_ENUM_DEF)
-#define gen_enum(id, type, body, loc)\
+#define gen_enum(id, type, body, loc) \
 	gen_ast(AST_ENUM_DEF, body, NULL, NULL, NULL, type, id, 0, loc)
 
 #define struct_id(x) return_s(x, AST_STRUCT_DEF)
 #define struct_params(x) return_a0(x, AST_STRUCT_DEF)
 #define struct_body(x) return_a1(x, AST_STRUCT_DEF)
-#define gen_struct(id, params, body, loc)\
+#define gen_struct(id, params, body, loc) \
 	gen_str2(AST_STRUCT_DEF, id, params, body, loc)
 
 #define val_id(x) return_s(x, AST_VAL)
 #define val_val(x) return_a0(x, AST_VAL)
-#define gen_val(id, val, loc)\
+#define gen_val(id, val, loc) \
 	gen_str1(AST_VAL, id, val, loc)
 
 #define switch_cond(x) return_a0(x, AST_SWITCH)
 #define switch_cases(x) return_a1(x, AST_SWITCH)
-#define gen_switch(cond, cases, loc)\
+#define gen_switch(cond, cases, loc) \
 	gen2(AST_SWITCH, cond, cases, loc)
 
 #define case_cond(x) return_a0(x, AST_CASE)
 #define case_body(x) return_a1(x, AST_CASE)
-#define gen_case(cond, body, loc)\
+#define gen_case(cond, body, loc) \
 	gen2(AST_CASE, cond, body, loc)
 
 #define str_val(x) return_s(x, AST_CONST_STR)
-#define gen_const_str(s, loc)\
+#define gen_const_str(s, loc) \
 	gen_ast(AST_CONST_STR, NULL, NULL, NULL, NULL, NULL, s, 0, loc)
 
 #define int_val(x) *({assert(x->k == AST_CONST_INT); &x->v;})
-#define gen_const_int(i, loc)\
+#define gen_const_int(i, loc) \
 	gen_ast(AST_CONST_INT, NULL, NULL, NULL, NULL, NULL, NULL, i, loc)
 
 #define char_val(x) *({assert(x->k == AST_CONST_CHAR); &x->v;})
-#define gen_const_char(i, loc)\
+#define gen_const_char(i, loc) \
 	gen_ast(AST_CONST_CHAR, NULL, NULL, NULL, NULL, NULL, NULL, i, loc)
 
 #define bool_val(x) *({assert(x->k == AST_CONST_CHAR); &x->v;})
-#define gen_const_bool(i, loc)\
+#define gen_const_bool(i, loc) \
 	gen_ast(AST_CONST_BOOL, NULL, NULL, NULL, NULL, NULL, NULL, i, loc)
 
 #define init_args(x) return_t1(x, AST_INIT)
 #define init_body(x) return_a0(x, AST_INIT)
-#define init_id(x)   return_s(x, AST_INIT)
-#define gen_init(id, targs, body, loc)\
+#define init_id(x) return_s(x, AST_INIT)
+#define gen_init(id, targs, body, loc) \
 	gen_str_type1(AST_INIT, id, targs, body, loc)
 
 #define assign_to(x) return_a0(x, AST_ASSIGN)
 #define assign_from(x) return_a1(x, AST_ASSIGN)
-#define gen_assign(from, to, loc)\
+#define gen_assign(from, to, loc) \
 	gen2(AST_ASSIGN, from, to, loc)
 
 #define id_str(x) return_s(x, AST_ID)
-#define gen_id(id, loc)\
+#define gen_id(id, loc) \
 	gen_str(AST_ID, id, loc)
 
-#define gen_empty(loc)\
+#define gen_empty(loc) \
 	gen1(AST_EMPTY, NULL, loc)
 
 /* types */
 #define callable_ptypes(x) return_t0(x, TYPE_CALLABLE)
 #define callable_rtype(x) return_t1(x, TYPE_CALLABLE)
-#define tgen_callable(ptypes, rtype, loc)\
+#define tgen_callable(ptypes, rtype, loc) \
 	tgen2(TYPE_CALLABLE, ptypes, rtype, loc)
 
 #define ptr_base(x) return_t0(x, TYPE_PTR)
-#define tgen_ptr(base, loc)\
+#define tgen_ptr(base, loc) \
 	tgen1(TYPE_PTR, base, loc)
 
 #define construct_id(x) return_t0(x, TYPE_CONSTRUCT)
 #define construct_atypes(x) return_t1(x, TYPE_CONSTRUCT)
-#define tgen_construct(id, atypes, loc)\
+#define tgen_construct(id, atypes, loc) \
 	tgen_str1(TYPE_CONSTRUCT, id, atypes, loc)
 
 struct ast *clone_ast(struct ast *n);
@@ -642,8 +644,8 @@ void type_dump(struct type *node);
 void ast_append(struct ast *list, struct ast *elem);
 void type_append(struct type *list, struct type *elem);
 
-struct ast * ast_prepend(struct ast *list, struct ast *elem);
-struct type * type_prepend(struct type *list, struct type *elem);
+struct ast *ast_prepend(struct ast *list, struct ast *elem);
+struct type *type_prepend(struct type *list, struct type *elem);
 
 void ast_set_flags(struct ast *node, enum ast_flags flags);
 void ast_clear_flags(struct ast *node, enum ast_flags flags);
@@ -651,11 +653,15 @@ unsigned ast_flags(struct ast *node, enum ast_flags flags);
 
 typedef int (*ast_callback_t)(struct ast *, void *);
 typedef int (*type_callback_t)(struct type *, void *);
-int ast_visit(ast_callback_t before, ast_callback_t after, struct ast *node, void *data);
-int ast_visit_list(ast_callback_t before, ast_callback_t after, struct ast *node, void *data);
+int ast_visit(ast_callback_t before, ast_callback_t after, struct ast *node,
+              void *data);
+int ast_visit_list(ast_callback_t before, ast_callback_t after,
+                   struct ast *node, void *data);
 
-int type_visit(type_callback_t before, type_callback_t after, struct type *node, void *data);
-int type_visit_list(type_callback_t before, type_callback_t after, struct type *node, void *data);
+int type_visit(type_callback_t before, type_callback_t after, struct type *node,
+               void *data);
+int type_visit_list(type_callback_t before, type_callback_t after,
+                    struct type *node, void *data);
 
 /**
  * Number of elements in AST list.

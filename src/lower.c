@@ -625,7 +625,8 @@ static int lower_binop(struct lower_state *s, struct ast *i,
 	return 0;
 }
 
-static int lower_comparison(struct lower_state *s, struct ast *i, struct vec *retval)
+static int lower_comparison(struct lower_state *s, struct ast *i,
+                            struct vec *retval)
 {
 	/* very similar to lower_binop, hmm */
 	struct vec l = retval_create();

@@ -46,15 +46,16 @@ static int actualize(struct act_state *state, struct scope *scope,
                      struct ast *node);
 
 static int actualize_list(struct act_state *state, struct scope *scope,
-                     struct ast *l);
+                          struct ast *l);
 
 static int actualize_type(struct act_state *state, struct scope *scope,
-                     struct type *node);
+                          struct type *node);
 
 static int actualize_type_list(struct act_state *state, struct scope *scope,
-                     struct type *node);
+                               struct type *node);
 
-static struct ast *actualized_scope_find_symbol(struct act_state *state, struct scope *scope, char *id)
+static struct ast *actualized_scope_find_symbol(struct act_state *state,
+                                                struct scope *scope, char *id)
 {
 	struct ast *exists = scope_find_symbol(scope, id);
 	if (!exists)
@@ -66,7 +67,8 @@ static struct ast *actualized_scope_find_symbol(struct act_state *state, struct 
 	return exists;
 }
 
-static struct ast *actualized_scope_find_type(struct act_state *state, struct scope *scope, char *id)
+static struct ast *actualized_scope_find_type(struct act_state *state,
+                                              struct scope *scope, char *id)
 {
 	struct ast *exists = scope_find_symbol(scope, id);
 	if (!exists)
@@ -78,7 +80,9 @@ static struct ast *actualized_scope_find_type(struct act_state *state, struct sc
 	return exists;
 }
 
-static struct ast *actualized_file_scope_find_symbol(struct act_state *state, struct scope *scope, char *id)
+static struct ast *actualized_file_scope_find_symbol(struct act_state *state,
+                                                     struct scope *scope,
+                                                     char *id)
 {
 	struct ast *exists = file_scope_find_symbol(scope, id);
 	if (!exists)
@@ -90,7 +94,9 @@ static struct ast *actualized_file_scope_find_symbol(struct act_state *state, st
 	return exists;
 }
 
-static struct ast *actualized_file_scope_find_type(struct act_state *state, struct scope *scope, char *id)
+static struct ast *actualized_file_scope_find_type(struct act_state *state,
+                                                   struct scope *scope,
+                                                   char *id)
 {
 	struct ast *exists = file_scope_find_type(scope, id);
 	if (!exists)
@@ -241,7 +247,7 @@ static int push_goto(struct act_state *state, struct ast *got)
 }
 
 static struct ast *clone_defers(struct act_state *state,
-                                     struct act_stack *to)
+                                struct act_stack *to)
 {
 	struct act_stack *from = state->defer_stack;
 
@@ -299,13 +305,14 @@ static void destroy_act_state(struct act_state *state)
 	clear_gotos(state, NULL);
 }
 
-static void type_mismatch(struct scope *scope, char *s, struct ast *node, struct type *a, struct type *b)
+static void type_mismatch(struct scope *scope, char *s, struct ast *node,
+                          struct type *a, struct type *b)
 {
 	char *left_type = type_str(a);
 	char *right_type = type_str(b);
 	semantic_error(scope->fctx, node,
-		       "%s: %s vs %s",
-		       s, left_type, right_type);
+	               "%s: %s vs %s",
+	               s, left_type, right_type);
 	free(left_type);
 	free(right_type);
 }
@@ -319,7 +326,7 @@ static int eval_const_if(struct scope *scope, struct ast *node)
 	       && ast_flags(node, AST_FLAG_CONST));
 
 	semantic_error(scope->fctx, node,
-		                "const if unimplemented");
+	               "const if unimplemented");
 	return -1;
 }
 
@@ -339,7 +346,7 @@ static int analyze_visibility(struct scope *scope, struct ast *node)
 		const char *file = import_file(node);
 		return process_file(&scope,
 		                    (int)ast_flags(node, AST_FLAG_PUBLIC),
-				    file);
+		                    file);
 	}
 
 	case AST_IF: {
@@ -449,7 +456,8 @@ static int analyze_proc(struct scope *scope, struct ast *node)
 	if (!rtype)
 		proc_rtype(node) = void_type();
 
-	struct type *callable = tgen_callable(NULL, proc_rtype(node), node->loc);
+	struct type *callable = tgen_callable(NULL, proc_rtype(node),
+	                                      node->loc);
 	foreach_node(p, params) {
 		/* we must manually 'start' the chain **/
 		if (!callable_ptypes(callable)) {
@@ -464,7 +472,7 @@ static int analyze_proc(struct scope *scope, struct ast *node)
 }
 
 static struct ast *analyze_type_expand(struct scope *scope,
-                                            struct ast *n)
+                                       struct ast *n)
 {
 	assert(n->k == AST_TYPE_EXPAND);
 	struct ast *trait = file_scope_find_type(scope, type_expand_id(n));
@@ -522,8 +530,8 @@ static int analyze_trait(struct scope *scope, struct ast *node)
 		ast_set_flags(node, AST_FLAG_GENERIC);
 
 	struct type *type = tgen_type(TYPE_TRAIT, NULL, NULL,
-			node, NULL, strdup(trait_id(node)),
-			node->loc);
+	                              node, NULL, strdup(trait_id(node)),
+	                              node->loc);
 
 	/* copy body */
 	node->a2 = clone_ast(trait_raw_body(node));
@@ -693,7 +701,7 @@ static int replace_id(struct ast *body, struct ast *id,
 }
 
 static int actualize_macro_def(struct act_state *state,
-                                     struct scope *scope, struct ast *n)
+                               struct scope *scope, struct ast *n)
 {
 	UNUSED(state);
 	/* macro bodies, arguments, etc aren't expanded upon until the macro is
@@ -758,14 +766,16 @@ static int actualize_macro_expand(struct act_state *state,
 
 	/* actualize the new content */
 	if (actualize(state, scope, macro_expand)) {
-		semantic_info(scope->fctx, macro_expand, "while expanding %s", id);
+		semantic_info(scope->fctx, macro_expand, "while expanding %s",
+		              id);
 		return -1;
 	}
 
 	return 0;
 }
 
-static int simplify_refderef(struct act_state *state, struct scope *scope, struct ast *n)
+static int simplify_refderef(struct act_state *state, struct scope *scope,
+                             struct ast *n)
 {
 	if (!is_unop(n))
 		return 0;
@@ -784,7 +794,8 @@ static int simplify_refderef(struct act_state *state, struct scope *scope, struc
 	return 0;
 }
 
-static int maybe_ufcs(struct act_state *state, struct scope *scope, struct ast *call)
+static int maybe_ufcs(struct act_state *state, struct scope *scope,
+                      struct ast *call)
 {
 	assert(call->k == AST_CALL);
 	struct ast *dot = call_expr(call);
@@ -823,7 +834,7 @@ static int actualize_call(struct act_state *state,
 	if (expr->t->k != TYPE_CALLABLE) {
 		char *tstr = type_str(expr->t);
 		semantic_error(scope->fctx, call, "not a callable type: %s",
-		              tstr);
+		               tstr);
 		free(tstr);
 		return -1;
 	}
@@ -841,7 +852,8 @@ static int actualize_call(struct act_state *state,
 		}
 
 		if (!types_match(p, arg->t)) {
-			type_mismatch(scope, "argument type mismatch", arg, p, arg->t);
+			type_mismatch(scope, "argument type mismatch", arg, p,
+			              arg->t);
 			return -1;
 		}
 
@@ -915,7 +927,8 @@ static int actualize_proc(struct act_state *state,
 		return -1;
 	}
 
-	struct type *callable = tgen_callable(NULL, proc_rtype(proc), proc->loc);
+	struct type *callable = tgen_callable(NULL, proc_rtype(proc),
+	                                      proc->loc);
 	foreach_node(p, proc_params(proc)) {
 		/* we must manually 'start' the chain **/
 		if (!callable_ptypes(callable)) {
@@ -989,7 +1002,8 @@ static int actualize_binop(struct act_state *state,
 		return -1;
 
 	if (!types_match(left->t, right->t)) {
-		type_mismatch(scope, "op type mismatch", binop, left->t, right->t);
+		type_mismatch(scope, "op type mismatch", binop, left->t,
+		              right->t);
 		return -1;
 	}
 
@@ -1068,7 +1082,8 @@ static int actualize_id(struct act_state *state,
 	 *	Either add in some syntax to distinguish procedure calls and
 	 *	pointer calls or make procs and vars share the same namespace.
 	 *	*/
-	struct ast *decl = actualized_file_scope_find_symbol(state, scope, id_str(id));
+	struct ast *decl = actualized_file_scope_find_symbol(state, scope,
+	                                                     id_str(id));
 	if (!decl) {
 		semantic_error(scope->fctx, id, "no such symbol");
 		return -1;
@@ -1097,7 +1112,8 @@ static int actualize_var(struct act_state *state,
 	if (init && type) {
 		/* make sure the asked type and the actualized types match */
 		if (!types_match(init->t, type)) {
-			type_mismatch(scope, "var type mismatch", var, init->t, type);
+			type_mismatch(scope, "var type mismatch", var, init->t,
+			              type);
 			return -1;
 		}
 	}
@@ -1122,7 +1138,8 @@ static int actualize_var(struct act_state *state,
 	return 0;
 }
 
-static int actualize_tid(struct act_state *state, struct scope *scope, struct type *t)
+static int actualize_tid(struct act_state *state, struct scope *scope,
+                         struct type *t)
 {
 	UNUSED(state);
 
@@ -1161,7 +1178,8 @@ static int actualize_tid(struct act_state *state, struct scope *scope, struct ty
 	return -1;
 }
 
-static int actualize_ptr(struct act_state *state, struct scope *scope, struct type *t)
+static int actualize_ptr(struct act_state *state, struct scope *scope,
+                         struct type *t)
 {
 	assert(ptr_base(t));
 	if (actualize_type(state, scope, ptr_base(t)))
@@ -1170,7 +1188,8 @@ static int actualize_ptr(struct act_state *state, struct scope *scope, struct ty
 	return 0;
 }
 
-static int actualize_callable(struct act_state *state, struct scope *scope, struct type *t)
+static int actualize_callable(struct act_state *state, struct scope *scope,
+                              struct type *t)
 {
 	struct type *ptypes = callable_ptypes(t);
 	struct type *rtype = callable_rtype(t);
@@ -1189,7 +1208,8 @@ static int actualize_callable(struct act_state *state, struct scope *scope, stru
 	return 0;
 }
 
-static int actualize_i27(struct act_state *state, struct scope *scope, struct type *t)
+static int actualize_i27(struct act_state *state, struct scope *scope,
+                         struct type *t)
 {
 	UNUSED(state);
 	/* not much to do */
@@ -1206,7 +1226,8 @@ static int actualize_i27(struct act_state *state, struct scope *scope, struct ty
 	return 0;
 }
 
-static int actualize_i9(struct act_state *state, struct scope *scope, struct type *t)
+static int actualize_i9(struct act_state *state, struct scope *scope,
+                        struct type *t)
 {
 	UNUSED(state);
 	/* not much to do */
@@ -1223,7 +1244,8 @@ static int actualize_i9(struct act_state *state, struct scope *scope, struct typ
 	return 0;
 }
 
-static int actualize_bool(struct act_state *state, struct scope *scope, struct type *t)
+static int actualize_bool(struct act_state *state, struct scope *scope,
+                          struct type *t)
 {
 	UNUSED(state);
 	/* not much to do */
@@ -1240,7 +1262,8 @@ static int actualize_bool(struct act_state *state, struct scope *scope, struct t
 	return 0;
 }
 
-static int actualize_tstruct(struct act_state *state, struct scope *scope, struct type *t)
+static int actualize_tstruct(struct act_state *state, struct scope *scope,
+                             struct type *t)
 {
 	UNUSED(state);
 	/* not much to do */
@@ -1259,7 +1282,7 @@ static int actualize_tstruct(struct act_state *state, struct scope *scope, struc
 
 static int actualize_type(struct act_state *state,
                           struct scope *scope,
-			  struct type *t)
+                          struct type *t)
 {
 	if (!t)
 		return 0;
@@ -1281,9 +1304,9 @@ static int actualize_type(struct act_state *state,
 
 	default:
 		type_info(scope->fctx, t,
-		              "unimplemented type");
+		          "unimplemented type");
 		type_info(scope->fctx, t,
-			"continuing with compilation to see what breaks");
+		          "continuing with compilation to see what breaks");
 		return 0;
 	}
 
@@ -1291,8 +1314,8 @@ static int actualize_type(struct act_state *state,
 }
 
 static int actualize_type_list(struct act_state *state,
-                          struct scope *scope,
-			  struct type *l)
+                               struct scope *scope,
+                               struct type *l)
 {
 	foreach_type(t, l) {
 		if (actualize_type(state, scope, t))
@@ -1357,8 +1380,8 @@ static size_t member_count(struct ast *exists)
 }
 
 static struct ast *lookup_member_idx(struct ast *body,
-                                          char *find,
-                                          size_t *idx)
+                                     char *find,
+                                     size_t *idx)
 {
 	/* micro-optimisation, likely way premature but speeds up selection
 	 * between lookup_struct_member_idx and *_name by a tiny amount */
@@ -1375,8 +1398,8 @@ static struct ast *lookup_member_idx(struct ast *body,
 }
 
 static struct ast *lookup_member_name(struct ast *body,
-                                           char *find,
-                                           size_t *idx)
+                                      char *find,
+                                      size_t *idx)
 {
 	size_t i = 0;
 	struct ast *m = body;
@@ -1395,7 +1418,7 @@ static struct ast *lookup_member_name(struct ast *body,
 }
 
 static struct ast *lookup_struct_member(struct ast *struc,
-                                             char *find, size_t *idx)
+                                        char *find, size_t *idx)
 {
 	if (find)
 		return lookup_member_name(struct_body(struc), find, idx);
@@ -1404,7 +1427,7 @@ static struct ast *lookup_struct_member(struct ast *struc,
 }
 
 static struct ast *lookup_enum_member(struct ast *enu,
-                                           char *find)
+                                      char *find)
 {
 	size_t i = 0;
 	struct ast *m = enum_body(enu);
@@ -1610,7 +1633,8 @@ static int actualize_return(struct act_state *state, struct scope *scope,
 	struct ast *cur_proc = state->cur_proc;
 	struct type *rtype = proc_rtype(cur_proc);
 	if (!types_match(node->t, rtype)) {
-		type_mismatch(scope, "return type mismatch", node, rtype, node->t);
+		type_mismatch(scope, "return type mismatch", node, rtype,
+		              node->t);
 		return -1;
 	}
 
@@ -1749,7 +1773,7 @@ static int actualize_unop(struct act_state *state,
 			char *tstr = type_str(type);
 			semantic_error(scope->fctx, expr,
 			               "not a pointer: %s",
-				       tstr);
+			               tstr);
 			free(tstr);
 			return -1;
 		}
@@ -1776,7 +1800,7 @@ static int actualize_unop(struct act_state *state,
 			char *tstr = type_str(expr->t);
 			semantic_error(scope->fctx, node,
 			               "'!' only implemented for primitive types: %s",
-				       tstr);
+			               tstr);
 			free(tstr);
 			return -1;
 		}
@@ -1952,18 +1976,18 @@ static int actualize_struct(struct act_state *state,
 	}
 
 	/*
-	foreach_node(n, struct_body(node)) {
-		switch (n->k) {
-		case AST_EMPTY: continue;
-		case AST_ID: continue;
-		case AST_PROC_DEF: if (!proc_body(n)) continue;
-		default:
-		}
+	   foreach_node(n, struct_body(node)) {
+	        switch (n->k) {
+	        case AST_EMPTY: continue;
+	        case AST_ID: continue;
+	        case AST_PROC_DEF: if (!proc_body(n)) continue;
+	        default:
+	        }
 
-		if (analyze_visibility(struct_scope, n))
-			return -1;
-	}
-	*/
+	        if (analyze_visibility(struct_scope, n))
+	                return -1;
+	   }
+	 */
 
 	foreach_node(n, struct_body(node)) {
 		struct act_state state = {0};
@@ -2026,7 +2050,8 @@ static int actualize_dot(struct act_state *state,
 	}
 	}
 
-	struct ast *exists = actualized_scope_find_symbol(state, def->scope, id);
+	struct ast *exists = actualized_scope_find_symbol(state, def->scope,
+	                                                  id);
 	if (exists) {
 		assert(exists->t);
 		set_type(node, exists->t);
@@ -2052,7 +2077,8 @@ static int actualize_init(struct act_state *state,
                           struct scope *scope, struct ast *node)
 {
 	assert(node->k == AST_INIT);
-	struct ast *def = actualized_file_scope_find_type(state, scope, init_id(node));
+	struct ast *def = actualized_file_scope_find_type(state, scope,
+	                                                  init_id(node));
 	if (!def) {
 		semantic_error(scope->fctx, node, "no such type");
 		return -1;
@@ -2085,14 +2111,15 @@ static int actualize_init(struct act_state *state,
 
 	if (vec_len(&init_args) != vec_len(&struct_members)) {
 		semantic_error(scope->fctx, node, "expected %zs args, got %zs",
-				vec_len(&struct_members),
-				vec_len(&init_args));
+		               vec_len(&struct_members),
+		               vec_len(&init_args));
 		goto err;
 	}
 
 	/* not insanely fast but good enough I suppose */
 	foreach_vec(ai, init_args) {
-		struct init_helper arg = vect_at(struct init_helper, init_args, ai);
+		struct init_helper arg = vect_at(struct init_helper, init_args,
+		                                 ai);
 
 		struct init_helper mem = {0};
 		foreach_vec(mi, struct_members) {
@@ -2101,12 +2128,14 @@ static int actualize_init(struct act_state *state,
 				goto ok;
 		}
 
-		semantic_error(scope->fctx, arg.n, "unknown argument %s", arg.id);
+		semantic_error(scope->fctx, arg.n, "unknown argument %s",
+		               arg.id);
 		goto err;
 
 ok:
 		if (!types_match(arg.n->t, mem.n->t)) {
-			type_mismatch(scope, "init type mismatch", arg.n, arg.n->t, mem.n->t);
+			type_mismatch(scope, "init type mismatch", arg.n,
+			              arg.n->t, mem.n->t);
 			goto err;
 		}
 	}
@@ -2135,7 +2164,8 @@ static int actualize_assign(struct act_state *state, struct scope *scope,
 		return -1;
 
 	if (!types_match(to->t, from->t)) {
-		type_mismatch(scope, "assign type mismatch", node, to->t, from->t);
+		type_mismatch(scope, "assign type mismatch", node, to->t,
+		              from->t);
 		return -1;
 	}
 
@@ -2274,7 +2304,8 @@ static int actualize_for(struct act_state *state, struct scope *scope,
 	return 0;
 }
 
-static int actualize_comparison(struct act_state *state, struct scope *scope, struct ast *node)
+static int actualize_comparison(struct act_state *state, struct scope *scope,
+                                struct ast *node)
 {
 	assert(is_comparison(node));
 	struct ast *left = comparison_left(node);
@@ -2297,7 +2328,8 @@ static int actualize_comparison(struct act_state *state, struct scope *scope, st
 	}
 
 	if (!types_match(left->t, right->t)) {
-		type_mismatch(scope, "comparison type mismatch", node, left->t, right->t);
+		type_mismatch(scope, "comparison type mismatch", node, left->t,
+		              right->t);
 		return -1;
 	}
 
@@ -2352,7 +2384,8 @@ static int actualize(struct act_state *state, struct scope *scope,
 	case AST_TRAIT_DEF: ret = actualize_trait(state, scope, node); break;
 	case AST_ALIAS_DEF: ret = actualize_alias(state, scope, node); break;
 	case AST_ENUM_DEF: ret = actualize_enum(state, scope, node); break;
-	case AST_MACRO_DEF: ret = actualize_macro_def(state, scope, node); break;
+	case AST_MACRO_DEF: ret = actualize_macro_def(state, scope, node);
+		break;
 	case AST_STRUCT_DEF: ret = actualize_struct(state, scope, node); break;
 	case AST_VAR_DEF: ret = actualize_var(state, scope, node); break;
 	case AST_CALL: ret = actualize_call(state, scope, node); break;
@@ -2371,7 +2404,8 @@ static int actualize(struct act_state *state, struct scope *scope,
 	case AST_FETCH: ret = actualize_fetch(state, scope, node); break;
 	case AST_IF: ret = actualize_if(state, scope, node); break;
 	case AST_FOR: ret = actualize_for(state, scope, node); break;
-	case AST_MACRO_EXPAND: ret = actualize_macro_expand(state, scope, node); break;
+	case AST_MACRO_EXPAND: ret = actualize_macro_expand(state, scope, node);
+		break;
 	default:
 		/* more like internal_error, maybe? */
 		semantic_error(scope->fctx, node,
@@ -2390,7 +2424,7 @@ out:
 }
 
 static int actualize_list(struct act_state *state, struct scope *scope,
-		struct ast *l)
+                          struct ast *l)
 {
 	foreach_node(n, l) {
 		if (actualize(state, scope, n))
