@@ -347,6 +347,8 @@ static void set_type(struct ast *node, struct type *type)
 	node->t = clone_type_list(type);
 }
 
+/* important to keep in mind that this does not maintain list state, must be
+ * done elsewhere */
 static void replace_type(struct type *t, struct type *r)
 {
 	/* free strings before they get overwritten */
@@ -836,9 +838,50 @@ static int actualize_macro_expand(struct act_state *state,
 	}
 
 	free(macro_expand_id(macro_expand));
-	*macro_expand = *body;
+	replace_ast(macro_expand, body);
 	/* actualize the new content */
 	return actualize(state, scope, macro_expand);
+}
+
+static int simplify_refderef(struct act_state *state, struct scope *scope, struct ast *n)
+{
+	if (!is_unop(n))
+		return 0;
+
+	struct ast *e = unop_expr(n);
+	if (n->k == AST_REF && e->k == AST_DEREF) {
+		replace_ast(n, unop_expr(e));
+		return simplify_refderef(state, scope, n);
+	}
+
+	if (n->k == AST_DEREF && e->k == AST_REF) {
+		replace_ast(n, unop_expr(e));
+		return simplify_refderef(state, scope, n);
+	}
+
+	return 0;
+}
+
+static int maybe_ufcs(struct act_state *state, struct scope *scope, struct ast *call)
+{
+	assert(call->k == AST_CALL);
+	struct ast *dot = call_expr(call);
+	if (dot->k != AST_DOT)
+		return 0;
+
+	struct ast *expr = dot_expr(dot);
+	call_expr(call) = gen_fetch(dot_id(dot), clone_type(expr->t), dot->loc);
+
+	/* hard core type */
+	struct ast *ref = gen_unop(AST_REF, expr, dot->loc);
+	ref->t = tgen_ptr(clone_type(expr->t), dot->loc);
+	ref->scope = scope;
+
+	if (simplify_refderef(state, scope, ref))
+		return -1;
+
+	ast_prepend(call_args(call), ref);
+	return 0;
 }
 
 static int actualize_call(struct act_state *state,
@@ -860,6 +903,9 @@ static int actualize_call(struct act_state *state,
 		free(tstr);
 		return -1;
 	}
+
+	if (maybe_ufcs(state, scope, call))
+		return -1;
 
 	struct type *callable = expr->t;
 	struct type *ptypes = callable_ptypes(callable);
@@ -935,13 +981,16 @@ static int actualize_proc(struct act_state *state,
 
 	/* actualize body */
 	new_state.cur_proc = proc;
-	if (actualize(&new_state, proc->scope, proc_body(proc)))
+	if (actualize(&new_state, proc->scope, proc_body(proc))) {
+		destroy_act_state(&new_state);
 		return -1;
+	}
 
 	if (!act_flags(&new_state, ACT_HAS_RETURN)) {
 		if (!is_void(proc_rtype(proc))) {
 			semantic_error(scope->fctx, proc,
 			               "no return with non-void return type");
+			destroy_act_state(&new_state);
 			return -1;
 		}
 
@@ -955,12 +1004,15 @@ static int actualize_proc(struct act_state *state,
 		/* TODO: something more sophisticated than this */
 		semantic_warn(scope->fctx, proc,
 		              "unable to determine explicit return for all branches");
+		destroy_act_state(&new_state);
 		return -1;
 	}
 
 	warn_unused_labels(&new_state, scope);
-	if (undefined_gotos(&new_state, scope))
+	if (undefined_gotos(&new_state, scope)) {
+		destroy_act_state(&new_state);
 		return -1;
+	}
 
 	/* if we're main, don't mangle the entry point */
 	char *id = proc_id(proc);
@@ -968,6 +1020,7 @@ static int actualize_proc(struct act_state *state,
 		ast_set_flags(proc, AST_FLAG_NOMANGLE);
 
 	/* we have successfully actualized the procedure */
+	destroy_act_state(&new_state);
 	return 0;
 }
 
@@ -1142,8 +1195,6 @@ static int actualize_tid(struct act_state *state, struct scope *scope, struct ty
 		return 0;
 	}
 
-	struct src_loc l = t->loc;
-
 	struct ast *def = file_scope_find_type(scope, t->id);
 	if (!def) {
 		type_error(scope->fctx, t, "no such type");
@@ -1200,6 +1251,7 @@ static int actualize_callable(struct act_state *state, struct scope *scope, stru
 
 static int actualize_i27(struct act_state *state, struct scope *scope, struct type *t)
 {
+	UNUSED(state);
 	/* not much to do */
 	if (t->d)
 		return 0;
@@ -1207,7 +1259,7 @@ static int actualize_i27(struct act_state *state, struct scope *scope, struct ty
 	struct ast *def = file_scope_find_type(scope, "i27");
 	if (!def) {
 		error("missing definition of type 'i27'");
-		return NULL;
+		return -1;
 	}
 
 	t->d = def;
@@ -1216,6 +1268,7 @@ static int actualize_i27(struct act_state *state, struct scope *scope, struct ty
 
 static int actualize_i9(struct act_state *state, struct scope *scope, struct type *t)
 {
+	UNUSED(state);
 	/* not much to do */
 	if (t->d)
 		return 0;
@@ -1223,7 +1276,7 @@ static int actualize_i9(struct act_state *state, struct scope *scope, struct typ
 	struct ast *def = file_scope_find_type(scope, "i9");
 	if (!def) {
 		error("missing definition of type 'i9'");
-		return NULL;
+		return -1;
 	}
 
 	t->d = def;
@@ -1232,6 +1285,7 @@ static int actualize_i9(struct act_state *state, struct scope *scope, struct typ
 
 static int actualize_bool(struct act_state *state, struct scope *scope, struct type *t)
 {
+	UNUSED(state);
 	/* not much to do */
 	if (t->d)
 		return 0;
@@ -1239,7 +1293,7 @@ static int actualize_bool(struct act_state *state, struct scope *scope, struct t
 	struct ast *def = file_scope_find_type(scope, "bool");
 	if (!def) {
 		error("missing definition of type 'bool'");
-		return NULL;
+		return -1;
 	}
 
 	t->d = def;
@@ -1693,6 +1747,7 @@ static void actualize_goto_defer(struct ast *got, struct ast *label)
 static int actualize_goto(struct act_state *state, struct scope *scope,
                           struct ast *node)
 {
+	UNUSED(scope);
 	assert(node->k == AST_GOTO);
 	push_goto(state, node);
 
@@ -1726,6 +1781,7 @@ static void actualize_goto_defers(struct act_state *state,
 static int actualize_label(struct act_state *state, struct scope *scope,
                            struct ast *node)
 {
+	UNUSED(scope);
 	assert(node->k == AST_LABEL);
 	struct ast *prev = find_label(state, label_id(node));
 	if (prev) {
@@ -1769,12 +1825,18 @@ static int actualize_unop(struct act_state *state,
 
 		set_type(node, ptr_base(type));
 		assert(node->t);
+		if (simplify_refderef(state, scope, node))
+			return -1;
+
 		break;
 	}
 
 	case AST_REF: {
 		/** @todo array pointer decay? */
 		node->t = tgen_ptr(clone_type(expr->t), node->loc);
+		if (simplify_refderef(state, scope, node))
+			return -1;
+
 		break;
 	}
 
@@ -1881,6 +1943,7 @@ static int replace_type_id(struct ast *nodes, char *id,
 static int actualize_trait(struct act_state *state, struct scope *scope,
                            struct ast *node)
 {
+	UNUSED(scope);
 	assert(node->k == AST_TRAIT_DEF);
 	foreach_node(n, trait_body(node)) {
 		/* there's really only prodcedure body actualization left I
@@ -1903,6 +1966,7 @@ static int actualize_trait(struct act_state *state, struct scope *scope,
 static int actualize_struct(struct act_state *state,
                             struct scope *scope, struct ast *node)
 {
+	UNUSED(scope);
 	assert(node->k == AST_STRUCT_DEF);
 	foreach_node(n, struct_body(node)) {
 		/* there's really only prodcedure body actualization left I
@@ -1922,35 +1986,9 @@ static int actualize_struct(struct act_state *state,
 	return 0;
 }
 
-/* could maybe be renamed, but essentially dot in copper works as either
- * -> or . in C, so allow structures or traits and single level pointers to
- *  structures or traits. */
-static int has_members(struct type *type)
-{
-	/* most likely */
-	if (type->k == TYPE_STRUCT)
-		return 1;
-
-	if (type->k == TYPE_TRAIT)
-		return 1;
-
-	if (type->k == TYPE_CONSTRUCT)
-		return 1;
-
-	return 0;
-}
-
 static int actualize_dot(struct act_state *state,
                          struct scope *scope, struct ast *node)
 {
-	/* TODO: handle enums as well, idea is something like
-	 * enum whatever {A_FLAG}
-	 * ...
-	 * whatever.A_FLAG
-	 *
-	 * possibly also if the expr is of type whatever then .A_FLAG just gets
-	 * the corresponding constant?
-	 **/
 	assert(node->k == AST_DOT);
 	struct ast *expr = dot_expr(node);
 	if (actualize(state, scope, expr))

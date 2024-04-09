@@ -640,6 +640,9 @@ void type_dump(struct type *node);
 void ast_append(struct ast *list, struct ast *elem);
 void type_append(struct type *list, struct type *elem);
 
+struct ast * ast_prepend(struct ast *list, struct ast *elem);
+struct type * type_prepend(struct type *list, struct type *elem);
+
 void ast_set_flags(struct ast *node, enum ast_flags flags);
 void ast_clear_flags(struct ast *node, enum ast_flags flags);
 unsigned ast_flags(struct ast *node, enum ast_flags flags);

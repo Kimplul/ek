@@ -73,12 +73,12 @@ static void _issue(struct src_issue issue, const char *fmt, va_list args)
 {
 	/* get start and end of current line in buffer */
 	const char *line_start = find_lineno(issue.fctx.fbuf,
-	                                     issue.loc.first_line);
+	                                     (size_t)issue.loc.first_line);
 	const char *line_end = strchr(line_start, '\n');
 	if (!line_end)
 		line_end = strchr(line_start, 0);
 
-	const int line_len = line_end - line_start;
+	const int line_len = (int)(line_end - line_start);
 
 	fprintf(stderr, "%s:%i:%i: %s: ", issue.fctx.fname,
 	        issue.loc.first_line,

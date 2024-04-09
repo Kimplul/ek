@@ -47,11 +47,11 @@ static char *read_file(const char *file, FILE *f)
 
 	fseek(f, 0, SEEK_SET);
 
-	char *buf = malloc(s + 1);
+	char *buf = malloc((size_t)(s + 1));
 	if (!buf)
 		return NULL;
 
-	fread(buf, s + 1, 1, f);
+	fread(buf, (size_t)(s + 1), 1, f);
 	/* remember terminating null */
 	buf[s] = 0;
 	return buf;

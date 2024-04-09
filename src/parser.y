@@ -283,7 +283,7 @@ binop
 unop
 	: "-" expr { $$ = gen_unop(AST_NEG, $2, src_loc(@$));  }
 	| "!" expr { $$ = gen_unop(AST_LNOT, $2, src_loc(@$));  }
-	| "&" expr { $$ = gen_unop(AST_REF, $2, src_loc(@$));  }
+	| expr "&" { $$ = gen_unop(AST_REF, $1, src_loc(@$));  }
 	| expr "*" { $$ = gen_unop(AST_DEREF, $1, src_loc(@$));  }
 
 arr_init

@@ -161,6 +161,12 @@ void ast_append(struct ast *list, struct ast *elem)
 	cur->n = elem;
 }
 
+struct ast *ast_prepend(struct ast *list, struct ast *elem)
+{
+	elem->n = list;
+	return elem;
+}
+
 void type_append(struct type *list, struct type *elem)
 {
 	struct type *cur = list;
@@ -170,48 +176,10 @@ void type_append(struct type *list, struct type *elem)
 	cur->n = elem;
 }
 
-static const char *binop_symbol(enum ast_kind op)
+struct type *type_prepend(struct type *list, struct type *elem)
 {
-	switch (op) {
-	case AST_ADD: return "+";
-	case AST_SUB: return "-";
-	case AST_MUL: return "*";
-	case AST_DIV: return "/";
-	case AST_REM: return "%";
-	case AST_LOR: return "||";
-	case AST_LAND: return "&&";
-	case AST_LSHIFT: return "<<";
-	case AST_RSHIFT: return ">>";
-	case AST_ASSIGN_ADD: return "+=";
-	case AST_ASSIGN_SUB: return "-=";
-	case AST_ASSIGN_MUL: return "*=";
-	case AST_ASSIGN_DIV: return "/=";
-	case AST_ASSIGN_REM: return "%=";
-	case AST_ASSIGN_LSHIFT: return "<<=";
-	case AST_ASSIGN_RSHIFT: return ">>=";
-	case AST_LT: return "<";
-	case AST_GT: return ">";
-	case AST_LE: return "<=";
-	case AST_GE: return ">=";
-	case AST_NE: return "!=";
-	case AST_EQ: return "==";
-	default:
-	}
-
-	return "UNKNOWN";
-}
-
-static const char *unop_symbol(enum ast_kind op)
-{
-	switch (op) {
-	case AST_NEG: return "-";
-	case AST_LNOT: return "!";
-	case AST_REF: return "&";
-	case AST_DEREF: return "*";
-	default:
-	}
-
-	return "UNKNOWN";
+	elem->n = list;
+	return elem;
 }
 
 static void dump(int depth, const char *fmt, ...)
@@ -225,37 +193,6 @@ static void dump(int depth, const char *fmt, ...)
 	vprintf(fmt, args);
 
 	va_end(args);
-}
-
-static void dump_flags(struct ast *node)
-{
-	if (node->scope)
-		printf(" %zu:", node->scope->number);
-
-	enum ast_flags flags = node->f;
-	if (flags & AST_FLAG_MUTABLE)
-		printf(" MUT");
-
-	if (flags & AST_FLAG_CONST)
-		printf(" CONST");
-
-	if (flags & AST_FLAG_EXTERN)
-		printf(" EXTERN");
-
-	if (flags & AST_FLAG_VARIADIC)
-		printf(" VARIADIC");
-
-	if (flags & AST_FLAG_DELAYED)
-		printf(" DELAYED");
-
-	if (flags & AST_FLAG_PUBLIC)
-		printf(" PUB");
-
-	if (flags & AST_FLAG_UNTYPED)
-		printf(" UNTYPED");
-
-	if (flags & AST_FLAG_FALLTHROUGH)
-		printf(" FALLTHROUGH");
 }
 
 const char *primitive_str(struct type *type)
