@@ -352,15 +352,19 @@ void ast_dump(int depth, struct ast *n)
 
 	depth++;
 
-	if (n->t)
-		type_dump_list(n->t);
+	if (n->t) {
+		printf(" ("); type_dump_list(n->t); printf(")");
+	}
+
+	if (n->t2)
+		type_dump_list(n->t2);
 
 	printf("\n");
 
 	if (n->s)
 		dump(depth, "%s\n", n->s);
 
-	if (n->k == AST_CONST_INT)
+	if (is_const(n))
 		dump(depth, "%lli\n", n->v);
 
 	if (n->a0)
@@ -374,10 +378,6 @@ void ast_dump(int depth, struct ast *n)
 
 	if (n->a3)
 		ast_dump_list(depth, n->a3);
-
-	if (n->t2) {
-		type_dump_list(n->t2); printf("\n");
-	}
 }
 
 void ast_dump_list(int depth, struct ast *root)
