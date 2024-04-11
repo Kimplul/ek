@@ -220,6 +220,7 @@ struct type {
 	/* next */
 	struct type *n;
 
+	long long size;
 	struct src_loc loc;
 	struct scope *scope;
 };
@@ -260,6 +261,10 @@ struct type *tgen_type(enum type_kind kind,
                        struct ast *a,
                        char *id,
                        struct src_loc loc);
+
+size_t align3k(size_t o);
+size_t type_size(struct type *t);
+size_t type_offsetof(struct type *t, char *m);
 
 #define tgen_primitive(kind, id, def, loc) \
 	tgen_type(kind, NULL, NULL, def, NULL, id, loc)
@@ -364,17 +369,17 @@ static inline bool is_primitive(struct type *t)
 	return false;
 }
 
-#define gen_str_type1(k, s, t, a, loc) gen_ast(k, a, NULL, NULL, NULL, t, s, 0, \
+#define gen_str_type1(k, s, t, a, loc) gen_ast(k, a, NULL, NULL, NULL, t, s, -1, \
 					       loc)
 #define gen_str_type(k, s, t, loc) gen_str_type1(k, s, t, NULL, loc)
-#define gen_type(k, a, type, loc) gen_ast(k, a, NULL, NULL, NULL, type, NULL, 0, \
+#define gen_type(k, a, type, loc) gen_ast(k, a, NULL, NULL, NULL, type, NULL, -1, \
 					  loc)
-#define gen_str2(k, s, a, b, loc) gen_ast(k, a, b, NULL, NULL, NULL, s, 0, loc)
+#define gen_str2(k, s, a, b, loc) gen_ast(k, a, b, NULL, NULL, NULL, s, -1, loc)
 #define gen_str1(k, s, a, loc) gen_str2(k, s, a, NULL, loc)
-#define gen_str(k, s, loc) gen_ast(k, NULL, NULL, NULL, NULL, NULL, s, 0, loc)
+#define gen_str(k, s, loc) gen_ast(k, NULL, NULL, NULL, NULL, NULL, s, -1, loc)
 
 
-#define gen4(k, a, b, c, d, loc) gen_ast(k, a, b, c, d, NULL, NULL, 0, loc)
+#define gen4(k, a, b, c, d, loc) gen_ast(k, a, b, c, d, NULL, NULL, -1, loc)
 #define gen3(k, a, b, c, loc) gen4(k, a, b, c, NULL, loc)
 #define gen2(k, a, b, loc) gen3(k, a, b, NULL, loc)
 #define gen1(k, a, loc) gen2(k, a, NULL, loc)

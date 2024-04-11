@@ -25,3 +25,36 @@ OPTIMIZATIONS:
 actualized procs immediately instead of keeping them around in memory
 + Simplify IDs to just char arrays, would save on memory
 + Types can just be types, they maybe don't need to be full on AST nodes
+
+LOWERING:
+
+Structure handling in lowering could probably be as follows:
+
+Imagine
+struct something {
+	i27 a;
+	other_struct b;
+};
+
+main ()
+{
+	// something s = {...};
+	i27 s_def = alloc $STRUCT_SIZE;
+	// i27 a = s.a;
+	i27 member_a = struct_def + 0;
+	i27 a << struct_def 0;
+
+	// other_struct c = s.b;
+	i27 c_def = alloc $OTHER_STRUCT_SIZE;
+	i27 member_b = struct_def + 3;
+	c_def blit member_b, $OTHER_STRUCT_SIZE; // has to be added to qbt,
+						 // might need to be handled
+						 // like store with constant as
+						 // 'return'. Or can c_def be
+						 // considered an output value
+						 // for blit?
+
+	/* calls just dump all registers down I guess, as do returns. No
+	 * implicit conversion to pointer and passed as first argument, ufcs
+	 * does that for us. */
+}

@@ -91,6 +91,7 @@ static struct type *create_empty_type()
 	struct type *n = calloc(1, sizeof(struct type));
 	/* just to be safe */
 	n->k = TYPE_VOID;
+	n->size = -1;
 	vect_append(struct ast *, types, &n);
 	return n;
 }
@@ -379,6 +380,11 @@ struct ast *clone_ast(struct ast *n)
 	new->v = n->v;
 	new->f = n->f;
 
+	/* unsure if this should be a separate step maybe? Generally this is
+	 * unwanted, but I might run into exceptions and then it's more
+	 * difficult to rebuild the init/actual state... */
+	ast_clear_flags(new, AST_FLAG_INIT | AST_FLAG_ACTUAL);
+
 	if (n->t)
 		new->t = clone_type_list(n->t);
 
@@ -657,4 +663,68 @@ int equiv_type_lists(struct type *t1, struct type *t2)
 	} while (t1 && t2);
 
 	return 1;
+}
+
+size_t align3k(size_t o)
+{
+	size_t rem = o % 3;
+	if (rem)
+		o += rem;
+
+	return o;
+}
+
+static size_t struct_size(struct type *t)
+{
+	if (t->size != -1)
+		return t->size;
+
+	size_t size = 0;
+	foreach_node(n, struct_body(t->d)) {
+		if (n->k != AST_VAR_DEF)
+			continue;
+
+		size_t sz = type_size(n->t);
+		if (sz > 2)
+			size = align3k(size);
+
+		size += sz;
+	}
+
+	t->size = size;
+	return size;
+}
+
+size_t type_size(struct type *t)
+{
+	switch (t->k) {
+	case TYPE_I9: return 1;
+	case TYPE_I27: return 3;
+	case TYPE_PTR: return 3;
+	case TYPE_STRUCT: return struct_size(t);
+	default:
+	}
+
+	assert(0 && "unhandled type to get size of");
+	abort();
+}
+
+size_t type_offsetof(struct type *t, char *m)
+{
+	assert(t->k == TYPE_STRUCT);
+
+	size_t offset = 0;
+	foreach_node(n, struct_body(t->d)) {
+		if (n->k != AST_VAR_DEF)
+			continue;
+
+		if (same_id(var_id(n), m))
+			break;
+
+		size_t sz = type_size(n->t);
+		if (sz > 2)
+			offset = align3k(offset);
+	}
+
+	return offset;
 }

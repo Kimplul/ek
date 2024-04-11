@@ -706,8 +706,8 @@ member
 	;
 
 members
-	: member members { $$ = $1; $1->n = $2; }
-	| member
+	: member members { $$ = $1; $1->n = $2; ast_set_flags($$, AST_FLAG_MEMBER); }
+	| member { $$ = $1; ast_set_flags($$, AST_FLAG_MEMBER); }
 
 opt_members
 	: members
