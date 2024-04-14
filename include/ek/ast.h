@@ -372,7 +372,8 @@ static inline bool is_primitive(struct type *t)
 #define gen_str_type1(k, s, t, a, loc) gen_ast(k, a, NULL, NULL, NULL, t, s, -1, \
 					       loc)
 #define gen_str_type(k, s, t, loc) gen_str_type1(k, s, t, NULL, loc)
-#define gen_type(k, a, type, loc) gen_ast(k, a, NULL, NULL, NULL, type, NULL, -1, \
+#define gen_type(k, a, type, loc) gen_ast(k, a, NULL, NULL, NULL, type, NULL, \
+					  -1,                                 \
 					  loc)
 #define gen_str2(k, s, a, b, loc) gen_ast(k, a, b, NULL, NULL, NULL, s, -1, loc)
 #define gen_str1(k, s, a, loc) gen_str2(k, s, a, NULL, loc)

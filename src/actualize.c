@@ -486,7 +486,8 @@ static struct ast *analyze_type_expand(struct scope *scope,
 {
 	assert(n->k == AST_TYPE_EXPAND);
 	struct act_state state = {0};
-	struct ast *trait = actualized_file_scope_find_type(&state, scope, type_expand_id(n));
+	struct ast *trait = actualized_file_scope_find_type(&state, scope,
+	                                                    type_expand_id(n));
 	if (!trait) {
 		semantic_error(scope->fctx, n, "no such type");
 		return NULL;
@@ -2293,7 +2294,7 @@ static int actualize_assign(struct act_state *state, struct scope *scope,
 }
 
 static int actualize_enum_fetch(struct act_state *state, struct scope *scope,
-		struct ast *fetch)
+                                struct ast *fetch)
 {
 	char *id = fetch_id(fetch);
 	struct type *type = fetch_type(fetch);
@@ -2324,10 +2325,11 @@ static int actualize_fetch(struct act_state *state, struct scope *scope,
 	if (type->k == TYPE_ENUM)
 		return actualize_enum_fetch(state, scope, fetch);
 
-	if (type->k != TYPE_STRUCT && type->k != TYPE_TRAIT && !is_primitive(type)) {
+	if (type->k != TYPE_STRUCT && type->k != TYPE_TRAIT &&
+	    !is_primitive(type)) {
 		char *tstr = type_str(type);
 		semantic_error(scope->fctx, fetch,
-				"illegal fetch type %s", tstr);
+		               "illegal fetch type %s", tstr);
 		free(tstr);
 		return -1;
 	}
@@ -2338,7 +2340,7 @@ static int actualize_fetch(struct act_state *state, struct scope *scope,
 	struct ast *member = scope_find_proc(def->scope, fetch_id(fetch));
 	if (!member) {
 		semantic_error(scope->fctx, fetch,
-				"no such proc");
+		               "no such proc");
 		return -1;
 	}
 
@@ -2541,7 +2543,8 @@ static int actualize(struct act_state *state, struct scope *scope,
 	case AST_FOR: ret = actualize_for(state, scope, node); break;
 	case AST_MACRO_EXPAND: ret = actualize_macro_expand(state, scope, node);
 		break;
-	case AST_MACRO_DEF: ret = actualize_macro_def(state, scope, node); break;
+	case AST_MACRO_DEF: ret = actualize_macro_def(state, scope, node);
+		break;
 	default:
 		/* more like internal_error, maybe? */
 		semantic_error(scope->fctx, node,

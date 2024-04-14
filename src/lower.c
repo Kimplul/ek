@@ -209,8 +209,10 @@ static char *mangle(struct ast *id)
 	return mangle_idx(id, 0);
 }
 
-typedef int (*visit_struct_t)(struct lower_state *s, struct ast *n, size_t o, void *d);
-static ssize_t visit_struct(struct lower_state *s, struct ast *def, size_t base, visit_struct_t cb, void *data)
+typedef int (*visit_struct_t)(struct lower_state *s, struct ast *n, size_t o,
+                              void *d);
+static ssize_t visit_struct(struct lower_state *s, struct ast *def, size_t base,
+                            visit_struct_t cb, void *data)
 {
 	size_t offset = (size_t)base;
 	foreach_node(n, struct_body(def)) {
@@ -296,7 +298,8 @@ struct struct_param_helper {
 	struct vec *fixups;
 };
 
-static int collect_struct_param(struct lower_state *s, struct ast *n, size_t offset, struct struct_param_helper *h)
+static int collect_struct_param(struct lower_state *s, struct ast *n,
+                                size_t offset, struct struct_param_helper *h)
 {
 	UNUSED(s);
 	size_t size = type_size(n->t);
@@ -305,7 +308,7 @@ static int collect_struct_param(struct lower_state *s, struct ast *n, size_t off
 	char *type = size == 1 ? "i9" : "i27";
 	char *pname = build_str("%s_%zd", h->name, offset);
 
-	printf("%s, ", pname);
+	printf("%s %s, ", type, pname);
 	char *f = build_str("%s %s << %s %zd;\n", type, h->name, pname, offset);
 	vect_append(char *, *h->fixups, &f);
 
@@ -327,7 +330,7 @@ static int lower_param(struct lower_state *s, struct ast *p, struct vec *fixups)
 
 	char *name = NULL;
 	if (var_id(p)) name = mangle(p);
-	else           name = build_str("tmp%zd", s->uniq++);
+	else name = build_str("tmp%zd", s->uniq++);
 
 	/* alloc param struct */
 	size_t size = type_size(p->t);
@@ -335,12 +338,14 @@ static int lower_param(struct lower_state *s, struct ast *p, struct vec *fixups)
 	vect_append(char *, *fixups, &alloc);
 
 	struct struct_param_helper h = {name, fixups};
-	int ret = visit_struct(s, p->t->d, 0, (visit_struct_t)collect_struct_param, &h) < 0;
+	int ret = visit_struct(s, p->t->d, 0,
+	                       (visit_struct_t)collect_struct_param, &h) < 0;
 	free(name);
 	return ret;
 }
 
-static int lower_params(struct lower_state *s, struct ast *params, struct vec *fixups)
+static int lower_params(struct lower_state *s, struct ast *params,
+                        struct vec *fixups)
 {
 	/** @todo fix structs, struct arguments must be stored to some
 	 * structures on the stack */
@@ -381,7 +386,8 @@ static void do_const_store(struct lower_state *s, struct retval *from,
 	printf("%s >> %s (%zi);\n", from->s, retval_type_str(*from), addr);
 }
 
-static void do_store(struct lower_state *s, struct retval *from, struct retval *to, struct retval *off)
+static void do_store(struct lower_state *s, struct retval *from,
+                     struct retval *to, struct retval *off)
 {
 	struct retval t = *to;
 	struct retval o = build_retval(CONST_I27, "0");
@@ -402,8 +408,8 @@ static void do_store(struct lower_state *s, struct retval *from, struct retval *
 	assert(retval_is_const(o));
 
 	int64_t addr = strtoll(o.s, 0, 0);
-		/* doesn't really take into account possible padding etc, should
-		 * probably fix at some point */
+	/* doesn't really take into account possible padding etc, should
+	 * probably fix at some point */
 	printf("%s >> %s %s %zi;\n", from->s, retval_type_str(t), t.s, addr);
 }
 
@@ -515,7 +521,8 @@ struct struct_return_helper {
 	struct vec *locs;
 };
 
-static int lower_struct_return(struct lower_state *s, struct ast *n, size_t o, struct struct_return_helper *h)
+static int lower_struct_return(struct lower_state *s, struct ast *n, size_t o,
+                               struct struct_return_helper *h)
 {
 	UNUSED(s);
 	size_t size = type_size(n->t);
@@ -550,7 +557,8 @@ static int lower_return(struct lower_state *s, struct ast *r,
 	assert(r->t->k == TYPE_STRUCT);
 	struct vec locs = vec_create(sizeof(char *));
 	struct struct_return_helper h = {name, &locs};
-	if (visit_struct(s, r->t->d, 0, (visit_struct_t)lower_struct_return, &h) < 0)
+	if (visit_struct(s, r->t->d, 0, (visit_struct_t)lower_struct_return,
+	                 &h) < 0)
 		return -1;
 
 	printf("=> (");
@@ -740,7 +748,8 @@ static int lower_comparison(struct lower_state *s, struct ast *i,
 	return 0;
 }
 
-static int lower_simple_arg(struct lower_state *s, struct ast *c, struct vec *retval)
+static int lower_simple_arg(struct lower_state *s, struct ast *c,
+                            struct vec *retval)
 {
 	struct retval arg = retval_create();
 	if (lower_expr(s, c, &arg)) {
@@ -757,7 +766,8 @@ struct struct_arg_helper {
 	struct vec *args;
 };
 
-static int collect_struct_arg(struct lower_state *s, struct ast *n, size_t offset, struct struct_arg_helper *h)
+static int collect_struct_arg(struct lower_state *s, struct ast *n,
+                              size_t offset, struct struct_arg_helper *h)
 {
 	size_t size = type_size(n->t);
 	assert(size == 1 || size == 3);
@@ -771,7 +781,8 @@ static int collect_struct_arg(struct lower_state *s, struct ast *n, size_t offse
 	return 0;
 }
 
-static int lower_struct_arg(struct lower_state *s, struct ast *c, struct vec *args)
+static int lower_struct_arg(struct lower_state *s, struct ast *c,
+                            struct vec *args)
 {
 	struct retval arg = retval_create();
 	if (lower_expr(s, c, &arg)) {
@@ -782,7 +793,8 @@ static int lower_struct_arg(struct lower_state *s, struct ast *c, struct vec *ar
 	struct ast *def = c->t->d;
 	char *name = arg.s;
 	struct struct_arg_helper h = {name, args};
-	int ret = visit_struct(s, def, 0, (visit_struct_t)collect_struct_arg, &h) < 0;
+	int ret = visit_struct(s, def, 0, (visit_struct_t)collect_struct_arg,
+	                       &h) < 0;
 	retval_destroy(&arg);
 	return ret;
 }
@@ -792,7 +804,8 @@ struct struct_retval_helper {
 	struct vec *stores;
 };
 
-static int collect_struct_retval(struct lower_state *s, struct ast *n, size_t offset, struct struct_retval_helper *h)
+static int collect_struct_retval(struct lower_state *s, struct ast *n,
+                                 size_t offset, struct struct_retval_helper *h)
 {
 	size_t size = type_size(n->t);
 	assert(size == 1 || size == 3);
@@ -801,20 +814,23 @@ static int collect_struct_retval(struct lower_state *s, struct ast *n, size_t of
 	char *tmp = build_str("callret_%zd", s->uniq++);
 	printf("%s, ", tmp);
 
-	char *store = build_str("%s >> %s %s %zd;\n", tmp, type, h->rbuf, offset);
+	char *store = build_str("%s >> %s %s %zd;\n", tmp, type, h->rbuf,
+	                        offset);
 	vect_append(char *, *h->stores, &store);
 	free(tmp);
 	return 0;
 }
 
-static void lower_struct_retval(struct lower_state *s, struct type *rtype, char *rbuf, struct retval *retval)
+static void lower_struct_retval(struct lower_state *s, struct type *rtype,
+                                char *rbuf, struct retval *retval)
 {
 	struct ast *def = rtype->d;
 	struct vec stores = vec_create(sizeof(char *));
 
 	printf("(");
 	struct struct_retval_helper h = {rbuf, &stores};
-	if (visit_struct(s, def, 0, (visit_struct_t)collect_struct_retval, &h) < 0) {
+	if (visit_struct(s, def, 0, (visit_struct_t)collect_struct_retval,
+	                 &h) < 0) {
 		vec_destroy(&stores);
 		return;
 	}
@@ -830,7 +846,8 @@ static void lower_struct_retval(struct lower_state *s, struct type *rtype, char 
 	*retval = build_retval(REG_I27, rbuf);
 }
 
-static void lower_simple_retval(struct lower_state *s, struct type *rtype, struct retval *retval)
+static void lower_simple_retval(struct lower_state *s, struct type *rtype,
+                                struct retval *retval)
 {
 	char *name = build_str("(rv_%zd);\n", s->uniq++);
 	*retval = build_retval(is_small_type(rtype) ? REG_I9 : REG_I27, name);
@@ -898,7 +915,7 @@ static int lower_call(struct lower_state *s, struct ast *c,
 }
 
 static int lower_init(struct lower_state *s, struct ast *init,
-		struct retval *retval)
+                      struct retval *retval)
 {
 	assert(init->k == AST_INIT);
 	char *name = build_str("init_%zi", s->uniq++);
@@ -926,7 +943,7 @@ static int lower_init(struct lower_state *s, struct ast *init,
 		if (n->t->k == TYPE_STRUCT)
 			printf("%soff <<* %zi %s;\n", name, size, val.s);
 		else
-			printf("%s >> %s %soff;\n", val.s, type, name);
+			printf("%s >> %s %soff 0;\n", val.s, type, name);
 
 		retval_destroy(&val);
 	}
@@ -935,7 +952,8 @@ static int lower_init(struct lower_state *s, struct ast *init,
 	return 0;
 }
 
-static int lower_fetch(struct lower_state *s, struct ast *f, struct retval *retval)
+static int lower_fetch(struct lower_state *s, struct ast *f,
+                       struct retval *retval)
 {
 	UNUSED(s);
 	/* at this point all fetches should exclusively be about fetching a
@@ -947,23 +965,30 @@ static int lower_fetch(struct lower_state *s, struct ast *f, struct retval *retv
 	return 0;
 }
 
-static int lower_ref(struct lower_state *s, struct ast *r, struct retval *retval)
+static int lower_ref(struct lower_state *s, struct ast *r,
+                     struct retval *retval)
 {
 	assert(r->k == AST_REF);
-	if (lower_expr(s, unop_expr(r), retval))
+	struct retval input = retval_create();
+	if (lower_expr(s, unop_expr(r), &input))
 		return -1;
 
 	/* structs are internally references anyway */
-	if (r->t->k == TYPE_STRUCT)
+	if (unop_expr(r)->t->k == TYPE_STRUCT) {
+		*retval = input;
 		return 0;
+	}
 
-	char *ref = build_str("&%s", retval->s);
-	free(retval->s);
-	retval->s = ref;
+	char *ref = build_str("ref%lli", (long long)s->uniq++);
+	printf("i27 %s = %s;\n", ref, input.s);
+
+	*retval = build_retval(REG_I27, ref);
+	retval_destroy(&input);
 	return 0;
 }
 
-static int lower_deref(struct lower_state *s, struct ast *d, struct retval *retval)
+static int lower_deref(struct lower_state *s, struct ast *d,
+                       struct retval *retval)
 {
 	assert(d->k == AST_DEREF);
 	struct ast *expr = unop_expr(d);
@@ -974,14 +999,17 @@ static int lower_deref(struct lower_state *s, struct ast *d, struct retval *retv
 	}
 
 	assert(expr->t->k == TYPE_PTR);
-	char *name = build_str("deref_%zd", s->uniq++);
 
 	/* structs are internally handled as pointers so don't do anything */
-	if (d->t->k != TYPE_STRUCT) {
-		char *base = input.s;
-		char *type = is_small_type(expr->t) ? "i9" : "i27";
-		printf("%s %s = << %s 0;\n", type, name, base);
+	if (d->t->k == TYPE_STRUCT) {
+		*retval = input;
+		return 0;
 	}
+
+	char *base = input.s;
+	char *name = build_str("deref_%zd", s->uniq++);
+	char *type = is_small_type(expr->t) ? "i9" : "i27";
+	printf("%s %s = << %s 0;\n", type, name, base);
 
 	retval_destroy(&input);
 
@@ -989,7 +1017,8 @@ static int lower_deref(struct lower_state *s, struct ast *d, struct retval *retv
 	return 0;
 }
 
-static int lower_dot(struct lower_state *s, struct ast *d, struct retval *retval)
+static int lower_dot(struct lower_state *s, struct ast *d,
+                     struct retval *retval)
 {
 	assert(d->k == AST_DOT);
 	assert((dot_expr(d))->t->k == TYPE_STRUCT);
@@ -1022,7 +1051,8 @@ static int lower_dot(struct lower_state *s, struct ast *d, struct retval *retval
 	return 0;
 }
 
-static int lower_expr(struct lower_state *s, struct ast *e, struct retval *retval)
+static int lower_expr(struct lower_state *s, struct ast *e,
+                      struct retval *retval)
 {
 	if (!e)
 		return 0;
@@ -1081,19 +1111,21 @@ static int lower_block(struct lower_state *s, struct ast *block)
 	}
 
 	assert(deallocs_top <= vec_len(&s->dealloc));
+	s->deallocs = deallocs_parent;
 
-	/* heh, if this block contains a return, the deallocs get placed after
-	 * the return. In the case of stack freeing, that's fine, but I'll have
-	 * to be careful if I do something more fancy in the future. Qbt should
-	 * be able to detect unreachable code, so this is not exactly an issue. */
 	while (vec_len(&s->dealloc) > deallocs_top) {
 		/* perform all deallocs that were queued within this block */
 		char *dealloc = vect_pop(char *, s->dealloc);
-		printf("%s", dealloc);
+
+		/* slight hack, top block doesn't need to care about freeing
+		* anything as it must return, this sidesteps the case where qbt
+		* requires that a return be the last thing in a procedure */
+		if (s->deallocs)
+			printf("%s", dealloc);
+
 		free(dealloc);
 	}
 
-	s->deallocs = deallocs_parent;
 	return 0;
 }
 
