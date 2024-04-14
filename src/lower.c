@@ -309,7 +309,7 @@ static int collect_struct_param(struct lower_state *s, struct ast *n,
 	char *pname = build_str("%s_%zd", h->name, offset);
 
 	printf("%s %s, ", type, pname);
-	char *f = build_str("%s %s << %s %zd;\n", type, h->name, pname, offset);
+	char *f = build_str("%s >> %s %s %zd;\n", pname, type, h->name, offset);
 	vect_append(char *, *h->fixups, &f);
 
 	free(pname);
