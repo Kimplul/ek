@@ -448,6 +448,46 @@ static int lower_const(struct lower_state *s, struct ast *c,
 	return 0;
 }
 
+static int lower_deref_assign(struct lower_state *s, struct ast *d, struct retval *retval)
+{
+	struct ast *base = unop_expr(d);
+	struct retval loc = retval_create();
+
+	if (lower_expr(s, base, &loc)) {
+		retval_destroy(&loc);
+		return -1;
+	}
+
+	do_store(s, retval, &loc, NULL);
+	return 0;
+}
+
+static int lower_dot_assign(struct lower_state *s, struct ast *d, struct retval *retval)
+{
+	struct ast *base = dot_expr(d);
+	struct retval loc = retval_create();
+
+	if (lower_expr(s, base, &loc)) {
+		retval_destroy(&loc);
+		return -1;
+	}
+
+	size_t offset = type_offsetof(base->t, dot_id(d));
+	if (d->t->k == TYPE_STRUCT) {
+		size_t size = type_size(base->t);
+		printf("i27 %s%s = %s + %zd;\n", retval->s, dot_id(d), retval->s, offset);
+		printf("%s%s <<* %zd %s;\n", retval->s, dot_id(d), size, loc.s);
+	}
+	else {
+		struct retval r = build_retval(CONST_I27, build_str("%zd", offset));
+		do_store(s, retval, &loc, &r);
+		retval_destroy(&r);
+	}
+
+	retval_destroy(&loc);
+	return 0;
+}
+
 static int lower_assign(struct lower_state *s, struct ast *a,
                         struct retval *retval)
 {
@@ -456,42 +496,22 @@ static int lower_assign(struct lower_state *s, struct ast *a,
 		return -1;
 
 	struct retval loc = retval_create();
-	struct retval off = retval_create();
 
 	struct ast *to = assign_to(a);
-	struct ast *base = to;
-	if (to->k == AST_DEREF)
-		base = unop_expr(to);
-	else if (to->k == AST_ARR) {
-		base = arr_base(to);
-		if (lower_expr(s, arr_idx(to), &off)) {
-			retval_destroy(&loc);
-			retval_destroy(&off);
-			return -1;
-		}
+	if (to->k == AST_DEREF) {
+		return lower_deref_assign(s, to, retval);
+	}
+	else if (to->k == AST_DOT) {
+		return lower_dot_assign(s, to, retval);
 	}
 
-	if (lower_expr(s, base, &loc)) {
+	if (lower_expr(s, to, &loc)) {
 		retval_destroy(&loc);
-		retval_destroy(&off);
 		return -1;
 	}
 
-	if (to->k == AST_DEREF) {
-		do_store(s, retval, &loc, NULL);
-	}
-	else if (to->k == AST_ARR) {
-		do_store(s, retval, &loc, &off);
-	}
-	else {
-		printf("i27 %s = %s;\n", loc.s, retval->s);
-	}
-
-	retval_destroy(&loc);
-	retval_destroy(&off);
+	printf("i27 %s = %s;\n", loc.s, retval->s);
 	return 0;
-#undef IS_DEREF
-#undef IS_ARR
 }
 
 static int lower_id(struct lower_state *s, struct ast *id,
