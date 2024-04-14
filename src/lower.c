@@ -210,6 +210,38 @@ static char *mangle(struct ast *id)
 	return mangle_idx(id, 0);
 }
 
+typedef int (*visit_struct_t)(struct lower_state *s, struct ast *n, size_t o, void *d);
+static ssize_t visit_struct(struct lower_state *s, struct ast *def, size_t base, visit_struct_t cb, void *data)
+{
+	size_t offset = (size_t)base;
+	foreach_node(n, struct_body(def)) {
+		if (n->k != AST_VAR_DEF)
+			continue;
+
+		struct type *t = n->t;
+		if (t->k == TYPE_STRUCT) {
+			ssize_t r = visit_struct(s, t->d, offset, cb, data);
+			if (r < 0)
+				return -1;
+
+			offset += (size_t)r;
+			continue;
+		}
+
+		if (cb(s, n, offset, data))
+			return -1;
+
+		size_t size = type_size(t);
+		if (size > 2)
+			offset = align3k(offset);
+
+		offset += size;
+	}
+
+	assert((offset - base) == type_size(def->t));
+	return (ssize_t)offset;
+}
+
 static int lower_expr(struct lower_state *s, struct ast *e,
                       struct vec *retval);
 static int lower_statement(struct lower_state *s, struct ast *n);
@@ -250,32 +282,69 @@ static int lower_global_var(struct ast *n)
 	return 0;
 }
 
-static int lower_param(struct lower_state *s, struct ast *p)
+static int lower_simple_param(struct lower_state *s, struct ast *p)
 {
-	UNUSED(s);
-	assert(p->k == AST_VAR_DEF);
-	struct type *type = var_type(p);
-	if (!is_primitive(type)) {
-		semantic_error(p->scope->fctx, p,
-		               "only primitive params currently implemented");
-		return -1;
-	}
-
-	assert(var_init(p) == NULL);
-
-	char *t = is_small_type(type) ? "i9" : "i27";
+	char *t = is_small_type(p->t) ? "i9" : "i27";
 	printf("%s ", t);
 	output_ast_id(p);
 	printf(", ");
 	return 0;
 }
 
-static int lower_params(struct lower_state *s, struct ast *params)
+struct struct_param_helper {
+	char *name;
+	struct vec *fixups;
+};
+
+static int collect_struct_param(struct lower_state *s, struct ast *n, size_t offset, struct struct_param_helper *h)
+{
+	size_t size = type_size(n->t);
+	assert(size == 1 || size == 3);
+
+	char *type = size == 1 ? "i9" : "i27";
+	char *pname = build_str("%s_%zd", h->name, offset);
+
+	printf("%s, ", pname);
+	char *f = build_str("%s %s << %s %zd;\n", type, h->name, pname, offset);
+	vect_append(char *, *h->fixups, &f);
+
+	free(pname);
+	return 0;
+}
+
+static int lower_param(struct lower_state *s, struct ast *p, struct vec *fixups)
+{
+	UNUSED(s);
+	assert(p->k == AST_VAR_DEF);
+	assert(var_init(p) == NULL);
+
+	if (is_primitive(p->t) || p->t->k == TYPE_PTR) {
+		return lower_simple_param(s, p);
+	}
+
+	assert(p->t->k == TYPE_STRUCT);
+
+	char *name = NULL;
+	if (var_id(p)) name = mangle(p);
+	else           name = build_str("tmp%zd", s->uniq++);
+
+	/* alloc param struct */
+	size_t size = type_size(p->t);
+	char *alloc = build_str("i27 %s = ^ %zd;\n", name, size);
+	vect_append(char *, *fixups, &alloc);
+
+	struct struct_param_helper h = {name, fixups};
+	int ret = visit_struct(s, p->t->d, 0, (visit_struct_t)collect_struct_param, &h) < 0;
+	free(name);
+	return ret;
+}
+
+static int lower_params(struct lower_state *s, struct ast *params, struct vec *fixups)
 {
 	/** @todo fix structs, struct arguments must be stored to some
 	 * structures on the stack */
 	foreach_node(p, params) {
-		if (lower_param(s, p))
+		if (lower_param(s, p, fixups))
 			return -1;
 	}
 
@@ -471,22 +540,56 @@ static int lower_id(struct lower_state *s, struct ast *id,
 	return 0;
 }
 
+struct struct_return_helper {
+	char *name;
+	struct vec *locs;
+};
+
+static int lower_struct_return(struct lower_state *s, struct ast *n, size_t o, struct struct_return_helper *h)
+{
+	size_t size = type_size(n->t);
+	assert(size == 1 || size == 3);
+
+	char *type = size == 1 ? "i9" : "i27";
+	char *rname = build_str("%s_%zd", h->name, o);
+	vect_append(char *, *h->locs, &rname);
+	printf("%s %s << %s %zd;\n", type, rname, h->name, o);
+	return 0;
+}
+
 static int lower_return(struct lower_state *s, struct ast *r,
                         struct vec *retval)
 {
 	assert(r->k == AST_RETURN);
+	if (!return_expr(r)) {
+		printf("=> ();\n");
+		return 0;
+	}
+
 	/** @todo defers, should they be handled here or in ast? */
 	if (lower_expr(s, return_expr(r), retval))
 		return -1;
 
-	printf("=> ( ");
-
-	foreach_retval(ri, *retval) {
-		struct retval r = retval_at(*retval, ri);
-		printf("%s, ", r.s);
+	char *name = (retval_at(*retval, 0)).s;
+	if (is_primitive(r->t) || r->t->k == TYPE_PTR) {
+		printf("=> (%s);\n", name);
+		return 0;
 	}
 
-	printf(" );\n");
+	assert(r->t->k == TYPE_STRUCT);
+	struct vec locs = vec_create(sizeof(char *));
+	struct struct_return_helper h = {name, &locs};
+	if (visit_struct(s, r->t->d, 0, (visit_struct_t)lower_struct_return, &h) < 0)
+		return -1;
+
+	printf("=> (");
+	foreach_vec(li, locs) {
+		char *l = vect_at(char *, locs, li);
+		printf("%s, ", l);
+		free(l);
+	}
+	vec_destroy(&locs);
+	printf(");\n");
 	return 0;
 }
 
@@ -679,7 +782,7 @@ static int lower_comparison(struct lower_state *s, struct ast *i,
 	return 0;
 }
 
-static int collect_primitive_arg(struct lower_state *s, struct ast *c, struct vec *retval)
+static int lower_simple_arg(struct lower_state *s, struct ast *c, struct vec *retval)
 {
 	struct vec arg = retval_create();
 	if (lower_expr(s, c, &arg)) {
@@ -697,35 +800,26 @@ static int collect_primitive_arg(struct lower_state *s, struct ast *c, struct ve
 	return 0;
 }
 
-static size_t collect_struct_tmps(struct lower_state *s, struct ast *def, char *name, size_t base, struct vec *retval)
+struct struct_arg_helper {
+	char *name;
+	struct vec *retval;
+};
+
+static int collect_struct_arg(struct lower_state *s, struct ast *n, size_t offset, struct struct_arg_helper *h)
 {
-	size_t offset = base;
-	foreach_node(n, struct_body(def)) {
-		if (n->k != AST_VAR_DEF)
-			continue;
+	size_t size = type_size(n->t);
+	assert(size == 1 || size == 3);
 
-		if (n->t->k == TYPE_STRUCT) {
-			offset += collect_struct_tmps(s, n->t->d, name, offset, retval);
-			continue;
-		}
+	char *type = size == 1 ? "i9" : "i27";
+	char *tmp = build_str("callstruct_%zd", s->uniq++);
+	printf("%s %s << %s %zd;\n", type, tmp, h->name, offset);
 
-		size_t sz = type_size(n->t);
-		assert(sz == 1 || sz == 3);
-
-		char *type = sz == 1 ? "i9" : "i27";
-		char *tmp = build_str("callstruct_%zd", s->uniq++);
-		printf("%s %s << %s %zd;\n", type, tmp, name, offset);
-
-		struct retval r = build_retval(sz == 1 ? REG_I9 : REG_I27, tmp);
-		vec_append(retval, &r);
-		offset += sz;
-	}
-
-	assert((offset - base) == type_size(def->t));
-	return offset;
+	struct retval r = build_retval(size == 1 ? REG_I9 : REG_I27, tmp);
+	vect_append(char *, *h->retval, &r);
+	return 0;
 }
 
-static int collect_struct_arg(struct lower_state *s, struct ast *c, struct vec *retval)
+static int lower_struct_arg(struct lower_state *s, struct ast *c, struct vec *retval)
 {
 	struct vec arg = retval_create();
 	if (lower_expr(s, c, &arg)) {
@@ -734,46 +828,44 @@ static int collect_struct_arg(struct lower_state *s, struct ast *c, struct vec *
 	}
 
 	struct ast *def = c->t->d;
-	collect_struct_tmps(s, def, (retval_at(arg, 0)).s, 0, retval);
+	char *name = (retval_at(arg, 0)).s;
+	struct struct_arg_helper h = {name, retval};
+	int ret = visit_struct(s, def, 0, (visit_struct_t)collect_struct_arg, &h) < 0;
 	retval_destroy(&arg);
+	return ret;
+}
+
+struct struct_retval_helper {
+	char *rbuf;
+	struct vec *stores;
+};
+
+static int collect_struct_retval(struct lower_state *s, struct ast *n, size_t offset, struct struct_retval_helper *h)
+{
+	size_t size = type_size(n->t);
+	assert(size == 1 || size == 3);
+
+	char *type = size == 1 ? "i9" : "i27";
+	char *tmp = build_str("callret_%zd", s->uniq++);
+	printf("%s, ", tmp);
+
+	char *store = build_str("%s >> %s %s %zd;\n", tmp, type, h->rbuf, offset);
+	vect_append(char *, *h->stores, &store);
+	free(tmp);
 	return 0;
 }
 
-static size_t collect_struct_retvals(struct lower_state *s, struct ast *def, char *rbuf, size_t base, struct vec *stores)
-{
-	size_t offset = base;
-	foreach_node(n, struct_body(def)) {
-		if (n->k != AST_VAR_DEF)
-			continue;
-
-		if (n->t->k == TYPE_STRUCT) {
-			offset += collect_struct_retvals(s, n->t->d, rbuf, offset, stores);
-			continue;
-		}
-
-		size_t sz = type_size(n->t);
-		assert(sz == 1 || sz == 3);
-
-		char *type = sz == 1 ? "i9" : "i27";
-		char *tmp = build_str("callret_%zd", s->uniq++);
-		printf("%s, ", tmp);
-
-		char *store = build_str("%s >> %s %s %zd;\n", tmp, type, rbuf, offset);
-		vec_append(stores, &store);
-		offset += sz;
-	}
-
-	assert(offset - base == type_size(def->t));
-	return offset;
-}
-
-static void collect_struct_rets(struct lower_state *s, struct type *rtype, char *rbuf, struct vec *retval)
+static void lower_struct_retval(struct lower_state *s, struct type *rtype, char *rbuf, struct vec *retval)
 {
 	struct ast *def = rtype->d;
 	struct vec stores = vec_create(sizeof(char *));
 
 	printf("(");
-	collect_struct_retvals(s, def, rbuf, 0, &stores);
+	struct struct_retval_helper h = {rbuf, &stores};
+	if (visit_struct(s, def, 0, (visit_struct_t)collect_struct_retval, &h) < 0) {
+		vec_destroy(&stores);
+		return;
+	}
 	printf(");\n");
 
 	foreach_vec(si, stores) {
@@ -781,13 +873,13 @@ static void collect_struct_rets(struct lower_state *s, struct type *rtype, char 
 		printf("%s", store);
 		free(store);
 	}
-
 	vec_destroy(&stores);
+
 	struct retval r = build_retval(REG_I27, rbuf);
 	vec_append(retval, &r);
 }
 
-static void collect_primitive_rets(struct lower_state *s, struct type *rtype, struct vec *retval)
+static void lower_simple_retval(struct lower_state *s, struct type *rtype, struct vec *retval)
 {
 
 	char *name = build_str("(rv_%zd);\n", s->uniq++);
@@ -817,7 +909,7 @@ static int lower_call(struct lower_state *s, struct ast *c,
 	struct vec args = retval_create();
 	foreach_node(a, call_args(c)) {
 		if (a->t->k == TYPE_STRUCT) {
-			if (collect_struct_arg(s, a, &args)) {
+			if (lower_struct_arg(s, a, &args)) {
 				retval_destroy(&args);
 				return -1;
 			}
@@ -825,7 +917,7 @@ static int lower_call(struct lower_state *s, struct ast *c,
 			continue;
 		}
 
-		if (collect_primitive_arg(s, a, &args)) {
+		if (lower_simple_arg(s, a, &args)) {
 			retval_destroy(&args);
 			return -1;
 		}
@@ -844,10 +936,10 @@ static int lower_call(struct lower_state *s, struct ast *c,
 	printf(") => ");
 
 	if (rtype->k == TYPE_STRUCT) {
-		collect_struct_rets(s, rtype, rbuf, retval);
+		lower_struct_retval(s, rtype, rbuf, retval);
 	}
 	else if (rtype->k != TYPE_VOID) {
-		collect_primitive_rets(s, rtype, retval);
+		lower_simple_retval(s, rtype, retval);
 	}
 	else {
 		printf("();\n");
@@ -870,37 +962,30 @@ static int lower_init(struct lower_state *s, struct ast *init,
 	char *dealloc = build_str("^^ %zi;\n", size);
 	add_dealloc(s, dealloc);
 
-	size_t offset = 0;
 	foreach_node(n, init_body(init)) {
-		size_t sz = type_size(n->t);
-
-		/* 2 is a special case where a struct consists of two i9s */
-		if (sz > 2)
-			offset = align3k(offset);
-
 		struct vec val = retval_create();
 		if (lower_expr(s, var_init(n), &val)) {
 			retval_destroy(&val);
 			return -1;
 		}
 
+		size_t size = type_size(n->t);
+		size_t offset = type_offsetof(init->t, var_id(n));
 		printf("i27 %soff = %s + %zi;\n", name, name, offset);
 
 		char *type = is_small_type(n->t) ? "i9" : "i27";
 		struct retval r = retval_at(val, 0);
 		if (n->t->k == TYPE_STRUCT)
-			printf("%soff <<* %zi %s;\n", name, sz, r.s);
+			printf("%soff <<* %zi %s;\n", name, size, r.s);
 		else
 			printf("%s >> %s %soff;\n", r.s, type, name);
 
-		offset += sz;
 		retval_destroy(&val);
 	}
 
 	struct retval r = build_retval(REG_I27, name);
 	vec_reset(retval);
 	vect_append(struct retval, *retval, &r);
-	assert(offset == size);
 
 	return 0;
 }
@@ -983,7 +1068,7 @@ static int lower_dot(struct lower_state *s, struct ast *d, struct vec *retval)
 	}
 	else {
 		char *t = is_small_type(type) ? "i9" : "i27";
-		printf("%s << %s %s %zd;\n", name, t, base, off);
+		printf("%s %s << %s %zd;\n", t, name, base, off);
 		r = build_retval(is_small_type(type) ? REG_I9 : REG_I27, name);
 	}
 
@@ -1093,6 +1178,10 @@ static int lower_proc(struct ast *n)
 	if (n->uses == 0 && !ast_flags(n, AST_FLAG_NOMANGLE))
 		return 0;
 
+	/* we're just a prototype, no need to do anything */
+	if (!proc_body(n))
+		return 0;
+
 	struct lower_state state = create_state();
 
 	/* name */
@@ -1101,7 +1190,8 @@ static int lower_proc(struct ast *n)
 	/* args */
 	printf("(");
 
-	if (lower_params(&state, proc_params(n))) {
+	struct vec fixups = vec_create(sizeof(char *));
+	if (lower_params(&state, proc_params(n), &fixups)) {
 		destroy_state(&state);
 		return -1;
 	}
@@ -1111,6 +1201,14 @@ static int lower_proc(struct ast *n)
 
 	/* body */
 	printf("{\n");
+
+	foreach_vec(fi, fixups) {
+		char *f = vect_at(char *, fixups, fi);
+		printf("%s", f);
+		free(f);
+	}
+
+	vec_destroy(&fixups);
 
 	if (lower_block(&state, proc_body(n))) {
 		destroy_state(&state);

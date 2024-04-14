@@ -677,7 +677,7 @@ size_t align3k(size_t o)
 static size_t struct_size(struct type *t)
 {
 	if (t->size != -1)
-		return t->size;
+		return (size_t)t->size;
 
 	size_t size = 0;
 	foreach_node(n, struct_body(t->d)) {
@@ -691,7 +691,7 @@ static size_t struct_size(struct type *t)
 		size += sz;
 	}
 
-	t->size = size;
+	t->size = (ssize_t)size;
 	return size;
 }
 
@@ -721,9 +721,11 @@ size_t type_offsetof(struct type *t, char *m)
 		if (same_id(var_id(n), m))
 			break;
 
-		size_t sz = type_size(n->t);
-		if (sz > 2)
+		size_t size = type_size(n->t);
+		if (size > 2)
 			offset = align3k(offset);
+
+		offset += size;
 	}
 
 	return offset;
