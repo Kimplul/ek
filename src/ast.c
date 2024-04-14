@@ -691,6 +691,7 @@ static size_t struct_size(struct type *t)
 		size += sz;
 	}
 
+	size = align3k(size);
 	t->size = (ssize_t)size;
 	return size;
 }
