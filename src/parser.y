@@ -691,11 +691,11 @@ proc
 				NULL,
 				src_loc(@$));
 
-		ast_set_flags($$, AST_FLAG_EXTERN);
+		ast_set_flags($$, AST_FLAG_EXTERN | AST_FLAG_NOMANGLE);
 	}
 	| "extern" ID "(" opt_decls ")" {
 		$$ = gen_proc($[ID], $[opt_decls], NULL, NULL, src_loc(@$));
-		ast_set_flags($$, AST_FLAG_EXTERN);
+		ast_set_flags($$, AST_FLAG_EXTERN | AST_FLAG_NOMANGLE);
 	}
 
 member

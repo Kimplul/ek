@@ -1,0 +1,29 @@
+typedef i27 {}
+typedef i9 {}
+
+typedef int_pair {
+	i27 a;
+	i27 b;
+}
+
+extern _putchar(i9 c);
+
+add_int_pair_self(*int_pair a, *int_pair b)
+{
+	a*.a = a*.a + b*.a;
+	a*.b = a*.b + b*.b;
+}
+
+main()
+{
+	mut a = int_pair!{.a = 1, .b = 2};
+	mut b = int_pair!{.a = 3, .b = 4};
+
+	add_int_pair_self(a&, b&);
+
+	_putchar('0' + a.a as i9);
+	_putchar('0' + a.b as i9);
+	_putchar('0' + b.a as i9);
+	_putchar('0' + b.b as i9);
+	_putchar('\n');
+}

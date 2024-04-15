@@ -16,7 +16,7 @@ main()
 		putchar('1');
 	}
 	else {
-		putchar('1');
+		putchar('2');
 	}
 
 	putchar('\n');

@@ -193,14 +193,14 @@ static char *mangle_idx(struct ast *id, size_t idx)
 	assert(id->scope);
 	assert(id->s);
 
-	const char *name = id->s;
+	char *name = id->s;
 	/* oh wait, I need to do a variable lookup on the ID, not use the ID's
 	 * scope number, duh */
-	size_t number = get_scope_number(id);
-
-	if (ast_flags(id, AST_FLAG_NOMANGLE))
+	struct ast *def = file_scope_find_symbol(id->scope, name);
+	if (ast_flags(def, AST_FLAG_NOMANGLE))
 		return strdup(name);
 
+	size_t number = get_scope_number(def);
 	return build_str("%s_s%zif%zi", name, number, idx);
 }
 
@@ -410,7 +410,7 @@ static void do_store(struct lower_state *s, struct retval *from,
 	int64_t addr = strtoll(o.s, 0, 0);
 	/* doesn't really take into account possible padding etc, should
 	 * probably fix at some point */
-	printf("%s >> %s %s %zi;\n", from->s, retval_type_str(t), t.s, addr);
+	printf("%s >> %s %s %zi;\n", from->s, retval_type_str(*from), t.s, addr);
 }
 
 static int lower_cast(struct lower_state *s, struct ast *e,

@@ -6,17 +6,11 @@ typedef int_pair {
 	i27 b;
 }
 
-extern putchar(i9 c);
+extern _putchar(i9 c);
 
 add_int_pair(int_pair a, int_pair b => int_pair)
 {
 	return int_pair!{.a = a.a + b.a, .b = a.b + b.b};
-}
-
-add_int_pair_self(*int_pair a, *int_pair b)
-{
-	a*.a = a*.a + b*.a;
-	a*.b = a*.b + b*.b;
 }
 
 main()
@@ -25,13 +19,7 @@ main()
 	mut b = int_pair!{.a = 3, .b = 4};
 
 	mut n = add_int_pair(a, b);
-	putchar('0' + n.a as i9);
-	putchar('0' + n.b as i9);
-
-	add_int_pair_self(a&, b&);
-
-	putchar('0' + a.a as i9);
-	putchar('0' + a.b as i9);
-	putchar('0' + b.a as i9);
-	putchar('0' + b.b as i9);
+	_putchar('0' + n.a as i9);
+	_putchar('0' + n.b as i9);
+	_putchar('\n');
 }
