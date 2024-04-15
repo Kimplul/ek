@@ -2167,6 +2167,7 @@ static int actualize_dot(struct act_state *state,
 	                                                  id);
 	if (exists) {
 		assert(exists->t);
+		exists->uses++;
 		set_type(node, exists->t);
 		return 0;
 	}
@@ -2234,18 +2235,15 @@ static int actualize_init(struct act_state *state,
 		struct init_helper arg = vect_at(struct init_helper, init_args,
 		                                 ai);
 
-		struct init_helper mem = {0};
-		foreach_vec(mi, struct_members) {
-			mem = vect_at(struct init_helper, struct_members, mi);
-			if (same_id(mem.id, arg.id))
-				goto ok;
+		struct init_helper mem = vect_at(struct init_helper, struct_members,
+				ai);
+
+		/* not the best error message but works for now */
+		if (!same_id(arg.id, mem.id)) {
+			semantic_error(scope->fctx, node, "malformed init");
+			goto err;
 		}
 
-		semantic_error(scope->fctx, arg.n, "unknown argument %s",
-		               arg.id);
-		goto err;
-
-ok:
 		if (!types_match(arg.n->t, mem.n->t)) {
 			type_mismatch(scope, "init type mismatch", arg.n,
 			              arg.n->t, mem.n->t);
@@ -2344,6 +2342,7 @@ static int actualize_fetch(struct act_state *state, struct scope *scope,
 		return -1;
 	}
 
+	member->uses++;
 	set_type(fetch, member->t);
 	return 0;
 }

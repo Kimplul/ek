@@ -166,10 +166,8 @@ enum ast_flags {
 	AST_FLAG_CONST = (1 << 1),
 	/** External definition. Disables generic support. */
 	AST_FLAG_EXTERN = (1 << 2),
-	/** Variadic procedures and macros. */
+	/** Variadic macros. */
 	AST_FLAG_VARIADIC = (1 << 3),
-	/** Delayed execution. Mainly \c do loops. */
-	AST_FLAG_DELAYED = (1 << 4),
 	/** Public node, should be propagated to parent scopes. */
 	AST_FLAG_PUBLIC = (1 << 5),
 	/**
@@ -188,12 +186,11 @@ enum ast_flags {
 	AST_FLAG_INIT = (1 << 10),
 	/** Whether a struct/union initialization is index or name based. */
 	AST_FLAG_MEMBER = (1 << 11),
-	/** AST node has several owners, requires special destruction handling. */
-	AST_FLAG_SHARED = (1 << 12),
 	/** Struct/union is generic. */
 	AST_FLAG_GENERIC = (1 << 13),
 	AST_FLAG_NOMANGLE = (1 << 14),
 	AST_FLAG_DOEXPR = (1 << 15),
+	AST_FLAG_LOWERED = (1 << 16),
 };
 
 struct ast;

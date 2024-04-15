@@ -1,0 +1,17 @@
+typedef i27 {}
+typedef i9 {}
+
+typedef a {
+	i27 a;
+	i27 b;
+}
+
+typedef b {
+	a a;
+	i27 b;
+}
+
+main()
+{
+	mut p = b!{.a = a!{.a = 1, .b = 2}, .b = 3};
+}

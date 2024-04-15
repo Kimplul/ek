@@ -173,40 +173,19 @@ char *build_str(const char *fmt, ...) {
 	return buf;
 }
 
-static size_t get_scope_number(struct ast *id)
+static char *mangle_scope(struct ast *id, struct scope *s)
 {
-	/** @todo this mirrors what's in actualize.c:actualize_id, same comments
-	 * apply */
-	struct ast *def = file_scope_find_var(id->scope, id->s);
-	if (def)
-		return def->scope->number;
-
-	def = file_scope_find_proc(id->scope, id->s);
-	if (def)
-		return def->scope->number;
-
-	return 0;
-}
-
-static char *mangle_idx(struct ast *id, size_t idx)
-{
-	assert(id->scope);
-	assert(id->s);
-
-	char *name = id->s;
-	/* oh wait, I need to do a variable lookup on the ID, not use the ID's
-	 * scope number, duh */
-	struct ast *def = file_scope_find_symbol(id->scope, name);
-	if (ast_flags(def, AST_FLAG_NOMANGLE))
-		return strdup(name);
-
-	size_t number = get_scope_number(def);
-	return build_str("%s_s%zif%zi", name, number, idx);
+	return build_str("%s_s%zi", id->s, s->number);
 }
 
 static char *mangle(struct ast *id)
 {
-	return mangle_idx(id, 0);
+	char *name = id->s;
+	struct ast *def = file_scope_find_symbol(id->scope, name);
+	if (ast_flags(def, AST_FLAG_NOMANGLE))
+		return strdup(name);
+
+	return mangle_scope(id, def->scope);
 }
 
 typedef int (*visit_struct_t)(struct lower_state *s, struct ast *n, size_t o,
@@ -869,7 +848,8 @@ static void lower_struct_retval(struct lower_state *s, struct type *rtype,
 static void lower_simple_retval(struct lower_state *s, struct type *rtype,
                                 struct retval *retval)
 {
-	char *name = build_str("(rv_%zd);\n", s->uniq++);
+	char *name = build_str("rv_%zd", s->uniq++);
+	printf("(%s);\n", name);
 	*retval = build_retval(is_small_type(rtype) ? REG_I9 : REG_I27, name);
 }
 
@@ -980,8 +960,17 @@ static int lower_fetch(struct lower_state *s, struct ast *f,
 	 * specific function from a struct */
 	assert(f->k == AST_FETCH);
 	assert(f->t->k == TYPE_CALLABLE);
-	char *name = mangle(f);
-	*retval = build_retval(REG_I27, name);
+
+	struct ast *def = (fetch_type(f))->d;
+	assert(def);
+
+	struct ast *proc = scope_find_proc(def->scope, fetch_id(f));
+	assert(proc);
+
+	char *name = mangle(proc);
+	char *fetch = build_str("&%s", name);
+	*retval = build_retval(REG_I27, fetch);
+	free(name);
 	return 0;
 }
 
@@ -1178,6 +1167,9 @@ static int lower_proc(struct ast *n)
 	if (!proc_body(n))
 		return 0;
 
+	if (ast_flags(n, AST_FLAG_LOWERED))
+		return 0;
+
 	struct lower_state state = create_state();
 
 	/* name */
@@ -1213,6 +1205,21 @@ static int lower_proc(struct ast *n)
 
 	printf("}\n");
 	destroy_state(&state);
+	ast_set_flags(n, AST_FLAG_LOWERED);
+	return 0;
+}
+
+static int lower_struct(struct ast *s)
+{
+	if (ast_flags(s, AST_FLAG_LOWERED))
+		return 0;
+
+	foreach_node(n, struct_body(s)) {
+		if (n->k == AST_PROC_DEF && lower_proc(n))
+			return -1;
+	}
+
+	ast_set_flags(s, AST_FLAG_LOWERED);
 	return 0;
 }
 
@@ -1234,8 +1241,13 @@ int lower(struct scope *root)
 		struct ast *node = p->node;
 		if (node->k == AST_PROC_DEF && lower_proc(p->node))
 			return -1;
+	}
 
-		/** @todo variables, structs, etc. */
+	foreach_visible(p, root->types) {
+		assert(p->node);
+		struct ast *node = p->node;
+		if (node->k == AST_STRUCT_DEF && lower_struct(p->node))
+			return -1;
 	}
 
 	return 0;

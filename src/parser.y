@@ -421,10 +421,7 @@ while
 	: "while" expr body { $$ = gen_while($2, $3, src_loc(@$));  }
 
 do_while
-	: "do" body "while" expr ";" {
-		$$ = gen_while($2, $4, src_loc(@$));
-		ast_set_flags($$, AST_FLAG_DELAYED);
-	}
+	: "do" body "while" expr ";" { $$ = gen_do_while($2, $4, src_loc(@$)); }
 
 goto
 	: "goto" ID { $$ = gen_goto($[ID], NULL, src_loc(@$));  }

@@ -11,8 +11,12 @@ typedef int_pair {
 	}
 }
 
+extern _putchar(i9 c);
+
 main()
 {
-	mut p = int_pair!{.a = 9, .b = 10};
+	mut p = int_pair!{.a = 1, .b = 2};
 	i27 s = p.sum();
+	_putchar('0' + s as i9);
+	_putchar('\n');
 }
