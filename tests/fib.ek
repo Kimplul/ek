@@ -1,0 +1,20 @@
+typedef bool {}
+typedef i27 {}
+typedef i9 {}
+
+extern _putchar(i9 c);
+
+fib(i27 n => i27)
+{
+	if n < 2 {
+		return 1;
+	}
+
+	return fib(n - 1) + fib(n - 2);
+}
+
+main()
+{
+	_putchar('0' + fib(35) as i9);
+	_putchar('\n');
+}
