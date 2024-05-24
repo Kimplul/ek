@@ -136,7 +136,7 @@
 %nterm <node> embed param_decl members
 %nterm <node> top_if const_if const_for defer goto assign
 %nterm <node> construct construct_args construct_arg
-%nterm <node> statelet apply
+%nterm <node> statelet
 
 %nterm <type> types type opt_type
 
@@ -235,11 +235,6 @@ static char *strip(const char *s);
 %%
 id
 	: ID {$$ = gen_id($1, src_loc(@$));}
-
-apply
-	: APPLY {
-		$$ = gen_id($1, src_loc(@$));
-	}
 
 var
 	: var_decl
