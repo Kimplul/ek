@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: copyleft-next-0.3.1 */
+
 #ifndef EK_LOWER_H
 #define EK_LOWER_H
 

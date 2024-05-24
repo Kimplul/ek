@@ -2235,8 +2235,9 @@ static int actualize_init(struct act_state *state,
 		struct init_helper arg = vect_at(struct init_helper, init_args,
 		                                 ai);
 
-		struct init_helper mem = vect_at(struct init_helper, struct_members,
-				ai);
+		struct init_helper mem = vect_at(struct init_helper,
+		                                 struct_members,
+		                                 ai);
 
 		/* not the best error message but works for now */
 		if (!same_id(arg.id, mem.id)) {

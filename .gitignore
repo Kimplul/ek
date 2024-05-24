@@ -5,5 +5,5 @@ gen
 ek
 *.t
 *.log
-!gen/.gitkeep
+!gen/source.mk
 !include/ek

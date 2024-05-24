@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: copyleft-next-0.3.1 */
+
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -389,7 +391,8 @@ static void do_store(struct lower_state *s, struct retval *from,
 	int64_t addr = strtoll(o.s, 0, 0);
 	/* doesn't really take into account possible padding etc, should
 	 * probably fix at some point */
-	printf("%s >> %s %s %zi;\n", from->s, retval_type_str(*from), t.s, addr);
+	printf("%s >> %s %s %zi;\n", from->s, retval_type_str(*from), t.s,
+	       addr);
 }
 
 static int lower_cast(struct lower_state *s, struct ast *e,
@@ -427,7 +430,8 @@ static int lower_const(struct lower_state *s, struct ast *c,
 	return 0;
 }
 
-static int lower_deref_assign(struct lower_state *s, struct ast *d, struct retval *retval)
+static int lower_deref_assign(struct lower_state *s, struct ast *d,
+                              struct retval *retval)
 {
 	struct ast *base = unop_expr(d);
 	struct retval loc = retval_create();
@@ -441,7 +445,8 @@ static int lower_deref_assign(struct lower_state *s, struct ast *d, struct retva
 	return 0;
 }
 
-static int lower_dot_assign(struct lower_state *s, struct ast *d, struct retval *retval)
+static int lower_dot_assign(struct lower_state *s, struct ast *d,
+                            struct retval *retval)
 {
 	struct ast *base = dot_expr(d);
 	struct retval loc = retval_create();
@@ -454,11 +459,13 @@ static int lower_dot_assign(struct lower_state *s, struct ast *d, struct retval 
 	size_t offset = type_offsetof(base->t, dot_id(d));
 	if (d->t->k == TYPE_STRUCT) {
 		size_t size = type_size(base->t);
-		printf("i27 %s%s = %s + %zd;\n", retval->s, dot_id(d), retval->s, offset);
+		printf("i27 %s%s = %s + %zd;\n", retval->s, dot_id(d),
+		       retval->s, offset);
 		printf("%s%s <<* %zd %s;\n", retval->s, dot_id(d), size, loc.s);
 	}
 	else {
-		struct retval r = build_retval(CONST_I27, build_str("%zd", offset));
+		struct retval r = build_retval(CONST_I27,
+		                               build_str("%zd", offset));
 		do_store(s, retval, &loc, &r);
 		retval_destroy(&r);
 	}
