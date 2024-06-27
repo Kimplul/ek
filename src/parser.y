@@ -895,10 +895,10 @@ top
 
 unit
 	: top { $$ = $1; }
-	| top unit { $$ = $1; $1->n = $2; }
+	| unit top { $$ = $2; $2->n = $1; }
 
 input
-	: unit { parser->tree = $1; }
+	: unit { parser->tree = reverse_ast_list($1); }
 	| /* empty */
 
 %%
