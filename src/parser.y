@@ -154,8 +154,18 @@
 
 /* optional stuff */
 %nterm <node> opt_exprs proc_decl member opt_members
-%nterm <node> opt_statements
 %nterm <type> opt_types opt_sign_decls sign_decls sign_decl sign_var_decl
+
+/* reverse lists */
+%nterm <type> rev_sign_decls;
+%nterm <node> rev_construct_args;
+%nterm <node> rev_statements;
+%nterm <node> rev_references;
+%nterm <node> rev_arr_inits;
+%nterm <node> rev_for_inits;
+%nterm <node> rev_cases;
+%nterm <node> rev_exprs;
+%nterm <node> rev_decls;
 
 %{
 
@@ -229,6 +239,9 @@ static char match_escape(char c);
  */
 static char *strip(const char *s);
 
+static struct ast *reverse_ast_list(struct ast *root);
+static struct type *reverse_type_list(struct type *root);
+
 %}
 
 %start input;
@@ -292,9 +305,12 @@ arr_init
 	}
 	| expr
 
-arr_inits
-	: arr_init "," arr_inits { $$ = $1; $1->n = $3; }
+rev_arr_inits
+	: rev_arr_inits "," arr_init { $$ = $3; $1->n = $1; }
 	| arr_init
+
+arr_inits
+	: rev_arr_inits { $$ = reverse_ast_list($1); }
 
 arr
 	: "!" "[" arr_inits "]" { $$ = $3; }
@@ -307,13 +323,19 @@ sign_decl
 	: type
 	| sign_var_decl
 
-decls
-	: param_decl "," decls { $$ = $1; $1->n = $3; }
+rev_decls
+	: decls "," param_decl { $$ = $3; $1->n = $1; }
 	| param_decl
 
-sign_decls
-	: sign_decl "," sign_decls { $$ = $1; $1->n = $3; }
+decls
+	: rev_decls { $$ = reverse_ast_list($1); }
+
+rev_sign_decls
+	: rev_sign_decls "," sign_decl { $$ = $3; $1->n = $1; }
 	| sign_decl
+
+sign_decls
+	: rev_sign_decls { $$ = reverse_type_list($1); }
 
 opt_decls
 	: decls
@@ -447,7 +469,7 @@ statelet
 	}
 
 statement
-	: statelet ";"
+	: statelet
 	| switch
 	| while
 	| do_while
@@ -459,25 +481,25 @@ statement
 	| const
 	| enum
 	| macro
-	| ";" { $$ = gen_empty(src_loc(@$)); }
 	| ID ":" { $$ = gen_label($[ID], NULL, src_loc(@$));  }
+	| { $$ = gen_empty(src_loc(@$)); }
+
+rev_statements
+	: rev_statements ";" statement { $$ = $3; $3->n = $1; }
+	| statement
 
 statements
-	: statement statements { $$ = $1; $1->n = $2; }
-	| statement
-	| statelet
-
-opt_statements
-	: statements
-	| {$$ = NULL;}
+	: rev_statements { $$ = reverse_ast_list($1); }
 
 body
-	: "{" opt_statements "}" { $$ = gen_block($2, NULL, src_loc(@$));  }
+	: "{" statements "}" { $$ = gen_block($2, NULL, src_loc(@$));  }
+
+rev_references
+	: rev_references "," id { $$ = $3; $$->n = $1; }
+	| id
 
 references
-	: id "," references { $$ = $1; $$->n = $3; }
-	| "..." id { $$ = $2; ast_set_flags($$, AST_FLAG_VARIADIC); }
-	| id
+	: rev_references { $$ = reverse_ast_list($1); }
 
 macro
 	: "define" ID "(" references ")" body {
@@ -495,9 +517,12 @@ macro
 		ast_set_flags($5, AST_FLAG_UNHYGIENIC);
 	}
 
-exprs
-	: expr "," exprs { $$ = $1; $1->n = $3; }
+rev_exprs
+	: exprs "," expr { $$ = $3; $3->n = $1; }
 	| expr
+
+exprs
+	: rev_exprs { $$ = reverse_ast_list($1); }
 
 construct_arg
 	: "." ID "=" expr {
@@ -505,9 +530,12 @@ construct_arg
 		ast_set_flags($$, AST_FLAG_MEMBER);
 	}
 
-construct_args
-	: construct_arg "," construct_args { $$ = $1; $1->n = $3; }
+rev_construct_args
+	: rev_construct_args "," construct_arg { $$ = $3; $3->n = $1; }
 	| construct_arg
+
+construct_args
+	: rev_construct_args { $$ = reverse_ast_list($1); }
 
 construct
 	: APPLY "{" construct_args "}" {
@@ -535,9 +563,12 @@ for_init
 	: expr
 	| var_init
 
-for_inits
-	: for_init "," for_inits { $$ = $1; $$->n = $3; }
+rev_for_inits
+	: rev_for_inits "," for_init { $$ = $3; $$->n = $1; }
 	| for_init
+
+for_inits
+	: rev_for_inits { $$ = reverse_ast_list($1); }
 
 opt_for_inits
 	: for_inits
@@ -557,9 +588,12 @@ case
 		$$ = gen_case(NULL, $3, src_loc(@$));
 	}
 
-cases
-	: case cases { $$ = $1; $1->n = $2; }
+rev_cases
+	: rev_cases case { $$ = $2; $1->n = $1; }
 	| case
+
+cases
+	: rev_cases { $$ = reverse_ast_list($1); }
 
 switch
 	: "switch" expr "{" cases "}" { $$ = gen_switch($2, $4, src_loc(@$)); }
@@ -916,6 +950,32 @@ static char *strip(const char *str)
 	free((void *)str);
 	return buf;
 
+}
+
+static struct ast *reverse_ast_list(struct ast *root)
+{
+	struct ast *new_root = NULL;
+	while (root) {
+		struct ast *next = root->n;
+		root->n = new_root;
+		new_root = root;
+		root = next;
+	}
+
+	return new_root;
+}
+
+static struct type *reverse_type_list(struct type *root)
+{
+	struct type *new_root = NULL;
+	while (root) {
+		struct type *next = root->n;
+		root->n = new_root;
+		new_root = root;
+		root = next;
+	}
+
+	return new_root;
 }
 
 struct parser *create_parser()
