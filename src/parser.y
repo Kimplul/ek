@@ -469,7 +469,7 @@ statelet
 	}
 
 statement
-	: statelet
+	: statelet ";"
 	| switch
 	| while
 	| do_while
@@ -482,10 +482,9 @@ statement
 	| enum
 	| macro
 	| ID ":" { $$ = gen_label($[ID], NULL, src_loc(@$));  }
-	| { $$ = gen_empty(src_loc(@$)); }
 
 rev_statements
-	: rev_statements ";" statement { $$ = $3; $3->n = $1; }
+	: rev_statements statement { $$ = $2; $2->n = $1; }
 	| statement
 
 statements
@@ -493,6 +492,7 @@ statements
 
 body
 	: "{" statements "}" { $$ = gen_block($2, NULL, src_loc(@$));  }
+	| "{" "}" { $$ = gen_block(gen_empty(src_loc(@$)), NULL, src_loc(@$)); }
 
 rev_references
 	: rev_references "," id { $$ = $3; $$->n = $1; }
