@@ -329,6 +329,7 @@ rev_decls
 
 decls
 	: rev_decls { $$ = reverse_ast_list($1); }
+	| rev_decls "," { $$ = reverse_ast_list($1); }
 
 rev_sign_decls
 	: rev_sign_decls "," sign_decl { $$ = $3; $1->n = $1; }
@@ -336,6 +337,7 @@ rev_sign_decls
 
 sign_decls
 	: rev_sign_decls { $$ = reverse_type_list($1); }
+	| rev_sign_decls "," { $$ = reverse_type_list($1); }
 
 opt_decls
 	: decls
@@ -489,6 +491,7 @@ rev_statements
 
 statements
 	: rev_statements { $$ = reverse_ast_list($1); }
+	| rev_statements ";" { $$ = reverse_ast_list($1); }
 
 body
 	: "{" statements "}" { $$ = gen_block($2, NULL, src_loc(@$));  }
@@ -500,6 +503,7 @@ rev_references
 
 references
 	: rev_references { $$ = reverse_ast_list($1); }
+	| rev_references "," { $$ = reverse_ast_list($1); }
 
 macro
 	: "define" ID "(" references ")" body {
@@ -518,11 +522,12 @@ macro
 	}
 
 rev_exprs
-	: exprs "," expr { $$ = $3; $3->n = $1; }
+	: rev_exprs "," expr { $$ = $3; $$->n = $1; }
 	| expr
 
 exprs
 	: rev_exprs { $$ = reverse_ast_list($1); }
+	| rev_exprs "," { $$ = reverse_ast_list($1); }
 
 construct_arg
 	: "." ID "=" expr {
@@ -536,6 +541,7 @@ rev_construct_args
 
 construct_args
 	: rev_construct_args { $$ = reverse_ast_list($1); }
+	| rev_construct_args "," { $$ = reverse_ast_list($1); }
 
 construct
 	: APPLY "{" construct_args "}" {
@@ -569,6 +575,7 @@ rev_for_inits
 
 for_inits
 	: rev_for_inits { $$ = reverse_ast_list($1); }
+	| rev_for_inits "," { $$ = reverse_ast_list($1); }
 
 opt_for_inits
 	: for_inits
