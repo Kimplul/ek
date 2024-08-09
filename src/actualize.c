@@ -42,6 +42,8 @@ struct act_state {
 static int replace_type_id(struct ast *nodes, char *id,
                            struct type *replacement);
 
+static int clear_scope(struct ast *nodes);
+
 static int actualize(struct act_state *state, struct scope *scope,
                      struct ast *node);
 
@@ -56,19 +58,6 @@ static int actualize_type_list(struct act_state *state, struct scope *scope,
 
 static struct ast *actualized_scope_find_symbol(struct act_state *state,
                                                 struct scope *scope, char *id)
-{
-	struct ast *exists = scope_find_symbol(scope, id);
-	if (!exists)
-		return NULL;
-
-	if (!exists->t && actualize(state, exists->scope, exists))
-		return NULL;
-
-	return exists;
-}
-
-static struct ast *actualized_scope_find_type(struct act_state *state,
-                                              struct scope *scope, char *id)
 {
 	struct ast *exists = scope_find_symbol(scope, id);
 	if (!exists)
@@ -447,40 +436,6 @@ static void replace_ast(struct ast *n, struct ast *t)
 	t->scope = scope;
 }
 
-static int analyze_proc(struct scope *scope, struct ast *node)
-{
-	struct scope *proc_scope = create_scope();
-	scope_add_scope(scope, proc_scope);
-	node->scope = proc_scope;
-
-	struct ast *params = proc_params(node);
-	struct act_state state = {0};
-	if (actualize_list(&state, proc_scope, params))
-		return -1;
-
-	struct type *rtype = proc_rtype(node);
-
-	if (actualize_type_list(&state, proc_scope, rtype))
-		return -1;
-
-	if (!rtype)
-		proc_rtype(node) = void_type();
-
-	struct type *callable = tgen_callable(NULL, proc_rtype(node),
-	                                      node->loc);
-	foreach_node(p, params) {
-		/* we must manually 'start' the chain **/
-		if (!callable_ptypes(callable)) {
-			callable_ptypes(callable) = clone_type(p->t);
-			continue;
-		}
-
-		type_append(callable_ptypes(callable), p->t);
-	}
-
-	return set_type(node, callable);
-}
-
 static struct ast *analyze_type_expand(struct scope *scope,
                                        struct ast *n)
 {
@@ -522,107 +477,6 @@ static int implements_trait(struct ast *body, char *id)
 	}
 
 	return 0;
-}
-
-/* quite a lot of overlap with analyze_struct, kind of ugly I guess */
-static int analyze_trait(struct scope *scope, struct ast *node)
-{
-	assert(node->k == AST_TRAIT_DEF);
-	struct ast *params = trait_params(node);
-	struct scope *trait_scope = create_scope();
-	if (!trait_scope)
-		return -1;
-
-	scope_add_scope(node->scope, trait_scope);
-	node->scope = trait_scope;
-	/** @todo should probably add in aliases for the traits in scope? */
-	if (params)
-		ast_set_flags(node, AST_FLAG_GENERIC);
-
-	struct type *type = tgen_type(TYPE_TRAIT, NULL, NULL,
-	                              node, NULL, strdup(trait_id(node)),
-	                              node->loc);
-
-	/* copy body */
-	node->a2 = clone_ast(trait_raw_body(node));
-
-	/* do type expansions */
-	foreach_node(n, trait_body(node)) {
-		if (n->k != AST_TYPE_EXPAND)
-			continue;
-
-		/* don't re-expand already implemented traits */
-		if (implements_trait(trait_body(node), type_expand_id(n))) {
-			/* not sure about this, but at least we don't have stray
-			 * type expands everywhere */
-			n->k = AST_EMPTY;
-			continue;
-		}
-
-		if (same_id(trait_id(node), type_expand_id(n))) {
-			semantic_error(scope->fctx, n,
-			               "recursive trait implementations not allowed");
-			return -1;
-		}
-
-		struct ast *body = analyze_type_expand(scope, n);
-		if (!body) {
-			n->k = AST_EMPTY;
-			continue;
-		}
-
-		replace_type_id(body, type_expand_id(n), type);
-		ast_last(body)->n = n->n;
-		n->n = body;
-	}
-
-	/* add all procedure definitions to scope */
-	foreach_node(n, trait_body(node)) {
-		/* kind of a hack but these shouldn't be shown to
-		 * analyze_visibility  */
-		switch (n->k) {
-		case AST_EMPTY: continue;
-		case AST_ID: continue;
-		/* prototypes are added later */
-		case AST_PROC_DEF: if (!proc_body(n)) continue;
-		default:
-		}
-
-		if (analyze_visibility(trait_scope, n))
-			return -1;
-	}
-
-	/** @todo I should really check that there's just one prototype and one
-	 * implementation of that prototype, not sure what the best approach
-	 * would be. Add a prototypes -list to scopes? */
-
-	/* add all prototypes that don't have matching definition to scope */
-	foreach_node(n, trait_body(node)) {
-		if (n->k != AST_PROC_DEF)
-			continue;
-
-		if (proc_body(n))
-			continue;
-
-		/* prototypes are checked only if there's no implementation */
-		if (scope_find_proc(trait_scope, proc_id(n)))
-			continue;
-
-		if (analyze_visibility(trait_scope, n))
-			return -1;
-	}
-
-	foreach_node(n, trait_body(node)) {
-		if (n->k != AST_PROC_DEF)
-			continue;
-
-		if (analyze_proc(trait_scope, n))
-			return -1;
-	}
-
-	node->t = tgen_trait(strdup(struct_id(node)), node, node->loc);
-
-	return node->t == NULL;
 }
 
 static int analyze(struct scope *scope, struct ast *tree)
@@ -671,13 +525,23 @@ int types_match(struct type *a, struct type *b)
 	if (a->k != b->k)
 		return 0;
 
+	if (is_void(a) && is_void(b))
+		return 1;
+
 	if (a->k == TYPE_STRUCT)
 		return structs_match(a, b);
 
 	if (a->k == TYPE_PTR)
 		return types_match(ptr_base(a), ptr_base(b));
 
-	return 1;
+	if (a->k == TYPE_CALLABLE)
+		return types_match(callable_rtype(a), callable_rtype(b))
+			&& types_match(callable_ptypes(a), callable_ptypes(b));
+
+	if (is_primitive(a) && is_primitive(b))
+		return 1;
+
+	return 0;
 }
 
 static int _replace_id(struct ast *node, void *data)
@@ -1300,6 +1164,24 @@ static int actualize_tstruct(struct act_state *state, struct scope *scope,
 	return 0;
 }
 
+static int actualize_ttrait(struct act_state *state, struct scope *scope,
+                             struct type *t)
+{
+	UNUSED(state);
+	/* not much to do */
+	if (t->d)
+		return 0;
+
+	struct ast *def = file_scope_find_type(scope, t->id);
+	if (!def) {
+		error("missing definition of type %s", t->id);
+		return -1;
+	}
+
+	t->d = def;
+	return 0;
+}
+
 static int actualize_type(struct act_state *state,
                           struct scope *scope,
                           struct type *t)
@@ -1320,6 +1202,7 @@ static int actualize_type(struct act_state *state,
 	case TYPE_PTR: return actualize_ptr(state, scope, t);
 	case TYPE_CALLABLE: return actualize_callable(state, scope, t);
 	case TYPE_STRUCT: return actualize_tstruct(state, scope, t);
+	case TYPE_TRAIT: return actualize_ttrait(state, scope, t);
 	case TYPE_VOID: return 0; /* void is by default actualized */
 
 	default:
@@ -1385,67 +1268,6 @@ static int pointer_conversion(struct type *a, struct type *b)
 	return 0;
 }
 
-static size_t member_count(struct ast *exists)
-{
-	assert(exists->k == AST_STRUCT_DEF);
-	struct ast *body = struct_body(exists);
-
-	size_t count = 0;
-	foreach_node(n, body) {
-		if (n->k == AST_VAR_DEF)
-			count++;
-	}
-
-	return count;
-}
-
-static struct ast *lookup_member_idx(struct ast *body,
-                                     char *find,
-                                     size_t *idx)
-{
-	/* micro-optimisation, likely way premature but speeds up selection
-	 * between lookup_struct_member_idx and *_name by a tiny amount */
-	(void)(find);
-	assert(idx);
-	size_t i = *idx;
-	struct ast *m = body;
-	while (i != 0 && m) {
-		m = m->n;
-		i--;
-	}
-
-	return m;
-}
-
-static struct ast *lookup_member_name(struct ast *body,
-                                      char *find,
-                                      size_t *idx)
-{
-	size_t i = 0;
-	struct ast *m = body;
-	while (m) {
-		assert(m->k == AST_VAR_DEF);
-		if (same_id(find, var_id(m)))
-			break;
-		m = m->n;
-		i++;
-	}
-
-	if (idx)
-		*idx = i;
-
-	return m;
-}
-
-static struct ast *lookup_struct_member(struct ast *struc,
-                                        char *find, size_t *idx)
-{
-	if (find)
-		return lookup_member_name(struct_body(struc), find, idx);
-
-	return lookup_member_idx(struct_body(struc), find, idx);
-}
-
 static struct ast *lookup_enum_member(struct ast *enu,
                                       char *find)
 {
@@ -1460,75 +1282,6 @@ static struct ast *lookup_enum_member(struct ast *enu,
 	}
 
 	return m;
-}
-
-static int init_struct(struct act_state *state, struct scope *scope,
-                       struct ast *exists, struct ast *init)
-{
-	size_t i = 0;
-	size_t mcount = member_count(exists);
-
-	int ret = 0;
-	char *initd = calloc(sizeof(char), mcount);
-	if (!initd) {
-		internal_error("failed allocating initd array");
-		return -1;
-	}
-
-	struct ast *args = init_body(init);
-	while (args) {
-		if (i >= mcount) {
-			semantic_error(scope->fctx, args,
-			               "excessive elements in initializer");
-			ret = -1;
-			break;
-		}
-
-		if (initd[i]) {
-			semantic_error(scope->fctx, args,
-			               "overwriting already initialized elements");
-			ret = -1;
-			break;
-		}
-
-		if ((ret = actualize(state, scope, args)))
-			break;
-
-		char *find = NULL;
-		if (ast_flags(args, AST_FLAG_MEMBER))
-			find = var_id(args);
-
-		struct ast *member =
-			lookup_struct_member(exists, find, &i);
-
-		if (!member) {
-			char *sstr = type_str(exists->t);
-			semantic_error(scope->fctx, args,
-			               "no such member in %s",
-			               sstr);
-			free(sstr);
-			ret = -1;
-			break;
-		}
-
-		if (!types_match(args->t, member->t)) {
-			char *astr = type_str(args->t);
-			char *mstr = type_str(member->t);
-			semantic_error(scope->fctx, args,
-			               "%s does not match %s", astr, mstr);
-			free(astr);
-			free(mstr);
-			ret = -1;
-			break;
-		}
-
-		initd[i] = 1;
-		args = args->n;
-		i++;
-	}
-
-	free(initd);
-	return ret;
 }
 
 static int actualize_cast(struct act_state *state,
@@ -1871,7 +1624,8 @@ static int _replace_type_id(struct type *type, void *data)
 
 	switch (type->k) {
 	case TYPE_ID: {
-		replace_type(type, clone_type(replacement));
+		if (same_id(id, type->id))
+			replace_type(type, clone_type(replacement));
 		break;
 	}
 
@@ -1906,6 +1660,12 @@ static int _replace_ast_type_id(struct ast *node, void *data)
 	if (!node)
 		return 0;
 
+	/* handle t2 first since it's generally likely to be shorter */
+	int ret = type_visit_list(_replace_type_id, NULL, node->t2, data);
+	if (ret)
+		return ret;
+
+	/* now we can (potentially) do a tailcall */
 	return type_visit_list(_replace_type_id, NULL, node->t, data);
 }
 
@@ -1913,7 +1673,22 @@ static int replace_type_id(struct ast *nodes, char *id,
                            struct type *replacement)
 {
 	struct replace_data pair = {id, replacement};
-	return ast_visit(_replace_ast_type_id, NULL, nodes, &pair);
+	return ast_visit_list(_replace_ast_type_id, NULL, nodes, &pair);
+}
+
+static int _clear_scope(struct ast *node, void *data)
+{
+	UNUSED(data);
+	if (!node)
+		return 0;
+
+	node->scope = NULL;
+	return 0;
+}
+
+static int clear_scope(struct ast *nodes)
+{
+	return ast_visit(_clear_scope, NULL, nodes, NULL);
 }
 
 
@@ -1921,6 +1696,7 @@ static int replace_type_id(struct ast *nodes, char *id,
 static int actualize_trait(struct act_state *state, struct scope *scope,
                            struct ast *node)
 {
+	UNUSED(state);
 	assert(node->k == AST_TRAIT_DEF);
 	struct ast *params = trait_params(node);
 	struct scope *trait_scope = create_scope();
@@ -1934,7 +1710,8 @@ static int actualize_trait(struct act_state *state, struct scope *scope,
 	if (params)
 		ast_set_flags(node, AST_FLAG_GENERIC);
 
-	node->t = tgen_trait(trait_id(node), node, node->loc);
+	char *id = trait_id(node);
+	node->t = tgen_trait(strdup(id), node, node->loc);
 
 	/* copy body */
 	node->a2 = clone_ast(trait_raw_body(node));
@@ -1965,6 +1742,8 @@ static int actualize_trait(struct act_state *state, struct scope *scope,
 		}
 
 		replace_type_id(body, type_expand_id(n), node->t);
+		clear_scope(body);
+
 		ast_last(body)->n = n->n;
 		n->n = body;
 	}
@@ -2013,6 +1792,7 @@ static int actualize_trait(struct act_state *state, struct scope *scope,
 static int actualize_struct(struct act_state *state,
                             struct scope *scope, struct ast *node)
 {
+	UNUSED(state);
 	assert(node->k == AST_STRUCT_DEF);
 	struct ast *params = struct_params(node);
 	struct scope *struct_scope = create_scope();
@@ -2058,6 +1838,8 @@ static int actualize_struct(struct act_state *state,
 		}
 
 		replace_type_id(body, type_expand_id(n), node->t);
+		clear_scope(body);
+
 		ast_block_last(body)->n = n->n;
 		n->n = body;
 	}
@@ -2295,6 +2077,7 @@ static int actualize_assign(struct act_state *state, struct scope *scope,
 static int actualize_enum_fetch(struct act_state *state, struct scope *scope,
                                 struct ast *fetch)
 {
+	UNUSED(state);
 	char *id = fetch_id(fetch);
 	struct type *type = fetch_type(fetch);
 	struct ast *def = type->d;

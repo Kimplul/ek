@@ -269,7 +269,10 @@ static int lower_simple_param(struct lower_state *s, struct ast *p)
 	UNUSED(s);
 	char *t = is_small_type(p->t) ? "i9" : "i27";
 	printf("%s ", t);
-	output_ast_id(p);
+
+	if (var_id(p)) output_ast_id(p);
+	else printf("tmp%zd", s->uniq++);
+
 	printf(", ");
 	return 0;
 }

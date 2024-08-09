@@ -5,3 +5,15 @@ define b[] {
 define a[] {
 	a(*a a);
 }
+
+typedef c {
+	b![];
+
+	a(*c) {}
+}
+
+main()
+{
+	c c;
+	c.a();
+}

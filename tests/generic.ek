@@ -1,0 +1,7 @@
+typedef i27 {}
+typedef a[any T] {}
+
+main()
+{
+	a![i27] a;
+}

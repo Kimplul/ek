@@ -291,11 +291,16 @@ void ast_dump(int depth, struct ast *n)
 	depth++;
 
 	if (n->t) {
-		printf(" ("); type_dump_list(n->t); printf(")");
+		printf(" (");
+		type_dump_list(n->t);
+		printf(")");
 	}
 
 	if (n->t2)
 		type_dump_list(n->t2);
+
+	if (n->scope)
+		printf(" {%llu}", (unsigned long long)n->scope->number);
 
 	printf("\n");
 
@@ -354,6 +359,12 @@ void type_dump(struct type *n)
 	DUMP(TYPE_CALLABLE);
 	DUMP(TYPE_TRAIT);
 	}
+
+	if (n->t1)
+		type_dump_list(n->t1);
+
+	if (n->t0)
+		type_dump_list(n->t0);
 }
 
 void type_dump_list(struct type *root)

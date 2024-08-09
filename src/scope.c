@@ -137,7 +137,7 @@ struct visible *create_proc(struct scope *scope, char *id, struct ast *proc)
 
 int scope_add_var(struct scope *scope, struct ast *var)
 {
-	struct ast *exists = file_scope_find_symbol(scope, var_id(var));
+	struct ast *exists = scope_find_symbol(scope, var_id(var));
 	if (exists) {
 		semantic_error(scope->fctx, var, "var redefined");
 		semantic_info(scope->fctx, exists, "previously here");
