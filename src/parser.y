@@ -324,7 +324,7 @@ sign_decl
 	| sign_var_decl
 
 rev_decls
-	: decls "," param_decl { $$ = $3; $1->n = $1; }
+	: rev_decls "," param_decl { $$ = $3; $$->n = $1; }
 	| param_decl
 
 decls

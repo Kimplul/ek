@@ -1,0 +1,11 @@
+typedef i27 {}
+
+add(i27 a, i27 b => i27)
+{
+	return a + b;
+}
+
+main()
+{
+	add(20 as i27, 40 as i27);
+}
