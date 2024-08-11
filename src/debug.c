@@ -146,6 +146,19 @@ void type_error(struct file_ctx fctx, struct type *node,
 	va_end(args);
 }
 
+void loc_error(struct file_ctx fctx, struct src_loc loc,
+		const char *fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+	struct src_issue issue;
+	issue.level = SRC_ERROR;
+	issue.loc = loc;
+	issue.fctx = fctx;
+	_issue(issue, fmt, args);
+	va_end(args);
+}
+
 void semantic_warn(struct file_ctx fctx, struct ast *node, const char *fmt,
                    ...)
 {

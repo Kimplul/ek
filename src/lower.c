@@ -345,6 +345,8 @@ static int lower_var(struct lower_state *s, struct ast *v,
                      struct retval *retval)
 {
 	assert(v->k == AST_VAR_DEF);
+	assert(var_init(v));
+
 	struct retval input = retval_create();
 	if (lower_expr(s, var_init(v), &input)) {
 		retval_destroy(&input);

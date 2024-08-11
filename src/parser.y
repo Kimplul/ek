@@ -155,6 +155,7 @@
 /* optional stuff */
 %nterm <node> opt_exprs proc_decl member opt_members
 %nterm <type> opt_types opt_sign_decls sign_decls sign_decl sign_var_decl
+%nterm <node> opt_construct_args
 %nterm <node> opt_behaviours behaviours behaviour
 
 /* reverse lists */
@@ -512,7 +513,7 @@ macro
 		ast_set_flags($6, AST_FLAG_UNHYGIENIC);
 	}
 	| "define" ID "(" references "..." id ")" body {
-		ast_append($4, $6);
+		ast_append(&$4, $6);
 		$$ = gen_macro_def($[ID], $4, $8, src_loc(@$));
 		ast_set_flags($$, AST_FLAG_VARIADIC);
 		ast_set_flags($8, AST_FLAG_UNHYGIENIC);
@@ -544,12 +545,16 @@ construct_args
 	: rev_construct_args { $$ = reverse_ast_list($1); }
 	| rev_construct_args "," { $$ = reverse_ast_list($1); }
 
+opt_construct_args
+	: construct_args
+	| { $$ = NULL; }
+
 construct
-	: APPLY "{" construct_args "}" {
+	: APPLY "{" opt_construct_args "}" {
 		/** @todo add type info? */
 		$$ = gen_init($1, NULL, $3, src_loc(@$));
 	}
-	| APPLY "[" opt_types "]" "{" construct_args "}" {
+	| APPLY "[" opt_types "]" "{" opt_construct_args "}" {
 		$$ = gen_init($1, $3, $6, src_loc(@$));
 	}
 

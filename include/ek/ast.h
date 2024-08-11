@@ -398,6 +398,7 @@ static inline bool is_primitive(struct type *t)
 #define return_a2(x, kind) *({assert((x)->k == kind); &(x)->a2;})
 #define return_a3(x, kind) *({assert((x)->k == kind); &(x)->a3;})
 
+#define return_id(x, kind) *({assert((x)->k == kind); &(x)->id;})
 #define return_t0(x, kind) *({assert((x)->k == kind); &(x)->t0;})
 #define return_t1(x, kind) *({assert((x)->k == kind); &(x)->t1;})
 /* note that this one is in ast, the other two are in type */
@@ -609,7 +610,7 @@ static inline bool is_primitive(struct type *t)
 #define gen_const_bool(i, loc) \
 	gen_ast(AST_CONST_BOOL, NULL, NULL, NULL, NULL, NULL, NULL, i, loc)
 
-#define init_args(x) return_t1(x, AST_INIT)
+#define init_args(x) return_t2(x, AST_INIT)
 #define init_body(x) return_a0(x, AST_INIT)
 #define init_id(x) return_s(x, AST_INIT)
 #define gen_init(id, targs, body, loc) \
@@ -637,10 +638,13 @@ static inline bool is_primitive(struct type *t)
 #define tgen_ptr(base, loc) \
 	tgen1(TYPE_PTR, base, loc)
 
-#define construct_id(x) return_t0(x, TYPE_CONSTRUCT)
-#define construct_atypes(x) return_t1(x, TYPE_CONSTRUCT)
+#define construct_id(x) return_id(x, TYPE_CONSTRUCT)
+#define construct_atypes(x) return_t0(x, TYPE_CONSTRUCT)
 #define tgen_construct(id, atypes, loc) \
 	tgen_str1(TYPE_CONSTRUCT, id, atypes, loc)
+
+#define tstruct_params(x) return_t0(x, TYPE_STRUCT)
+#define ttrait_params(x) return_t0(x, TYPE_TRAIT)
 
 struct ast *clone_ast(struct ast *n);
 struct ast *clone_ast_list(struct ast *l);
@@ -654,8 +658,8 @@ void ast_dump(int depth, struct ast *node);
 void type_dump_list(struct type *root);
 void type_dump(struct type *node);
 
-void ast_append(struct ast *list, struct ast *elem);
-void type_append(struct type *list, struct type *elem);
+void ast_append(struct ast **list, struct ast *elem);
+void type_append(struct type **list, struct type *elem);
 
 struct ast *ast_prepend(struct ast *list, struct ast *elem);
 struct type *type_prepend(struct type *list, struct type *elem);

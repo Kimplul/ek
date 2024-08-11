@@ -27,6 +27,8 @@
  */
 int types_match(struct type *a, struct type *b);
 
+int type_lists_match(struct type *a, struct type *b);
+
 /**
  * Analyze raw AST, assumed to be file scope.
  * The analysis phase collects top level objects, types, procedures, etc.

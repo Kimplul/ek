@@ -106,6 +106,7 @@ void semantic_warn(struct file_ctx ctx, struct ast *node, const char *fmt,
 void semantic_error(struct file_ctx ctx, struct ast *node, const char *fmt,
                     ...);
 void type_error(struct file_ctx ctx, struct type *type, const char *fmt, ...);
+void loc_error(struct file_ctx ctx, struct src_loc loc, const char *fmt, ...);
 
 /**
  * Print internal error.

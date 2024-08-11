@@ -153,9 +153,14 @@ unsigned ast_flags(struct ast *node, enum ast_flags flags)
 	return node->f & flags;
 }
 
-void ast_append(struct ast *list, struct ast *elem)
+void ast_append(struct ast **list, struct ast *elem)
 {
-	struct ast *cur = list;
+	struct ast *cur = *list;
+	if (!cur) {
+		*list = elem;
+		return;
+	}
+
 	while (cur->n)
 		cur = cur->n;
 
@@ -168,9 +173,14 @@ struct ast *ast_prepend(struct ast *list, struct ast *elem)
 	return elem;
 }
 
-void type_append(struct type *list, struct type *elem)
+void type_append(struct type **list, struct type *elem)
 {
-	struct type *cur = list;
+	struct type *cur = *list;
+	if (!cur) {
+		*list = elem;
+		return;
+	}
+
 	while (cur->n)
 		cur = cur->n;
 
@@ -681,7 +691,7 @@ size_t align3k(size_t o)
 {
 	size_t rem = o % 3;
 	if (rem)
-		o += rem;
+		o += 3 - rem;
 
 	return o;
 }

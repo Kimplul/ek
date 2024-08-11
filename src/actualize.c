@@ -465,7 +465,7 @@ static struct ast *analyze_type_expand(struct scope *scope,
 	return body;
 }
 
-static int implements_trait(struct ast *body, char *id)
+static int has_trait(struct ast *body, char *id)
 {
 	foreach_node(n, body) {
 		/* traits don't currently take generic parameters I guess? */
@@ -509,8 +509,18 @@ int analyze_root(struct scope *scope, struct ast *tree)
 
 static int structs_match(struct type *a, struct type *b)
 {
-	/* dunno, let's go with this for now */
-	return a->d == b->d;
+	if (a->d != b->d)
+		return 0;
+
+	return type_lists_match(tstruct_params(a), tstruct_params(b));
+}
+
+static int traits_match(struct type *a, struct type *b)
+{
+	if (a->d != b->d)
+		return 0;
+
+	return type_lists_match(ttrait_params(a), ttrait_params(b));
 }
 
 int types_match(struct type *a, struct type *b)
@@ -528,6 +538,9 @@ int types_match(struct type *a, struct type *b)
 	if (is_void(a) && is_void(b))
 		return 1;
 
+	if (a->k == TYPE_TRAIT)
+		return traits_match(a, b);
+
 	if (a->k == TYPE_STRUCT)
 		return structs_match(a, b);
 
@@ -542,6 +555,20 @@ int types_match(struct type *a, struct type *b)
 		return 1;
 
 	return 0;
+}
+
+int type_lists_match(struct type *a, struct type *b)
+{
+	while (a && b) {
+		if (!types_match(a, b))
+			return 0;
+
+		a = a->n;
+		b = b->n;
+	}
+
+	/* if we succesfully checked all types, lists match */
+	return a == NULL && b == NULL;
 }
 
 static int _replace_id(struct ast *node, void *data)
@@ -578,6 +605,180 @@ static int replace_id(struct ast *body, struct ast *id,
 {
 	struct ast *pair[2] = {id, expr};
 	return ast_visit(_replace_id, NULL, body, pair);
+}
+
+static int implements(struct type *trait, struct type *type)
+{
+	assert(type->d);
+	struct ast *def = type->d;
+
+	assert(trait->d);
+	struct ast *trait_def = trait->d;
+	assert(trait_def->k == AST_TRAIT_DEF);
+
+	/* empty traits are implemented implicitly */
+	if (!trait_body(trait_def))
+		return 1;
+
+	foreach_node(n, def) {
+		if (n->k != AST_TYPE_EXPAND)
+			continue;
+
+		if (!same_id(type_expand_id(n), trait_id(trait_def)))
+			continue;
+
+		assert(n->t);
+		if (n->t->d != trait_def)
+			continue;
+
+		return 1;
+	}
+
+	/** @todo look up possible continuations for type */
+	return 0;
+}
+
+static int should_implement_list(struct scope *scope, struct ast *params, struct src_loc loc, struct type *types)
+{
+	while (params && types) {
+		assert(params->k == AST_VAR_DEF);
+		struct type *t = var_type(params);
+		if (!implements(t, types)) {
+			char *type1 = type_str(types);
+			char *type2 = type_str(t);
+			type_error(scope->fctx, types,
+					"%s does not implement %s",
+					type1,
+					type2);
+			free(type1);
+			free(type2);
+			return 0;
+		}
+
+		params = params->n;
+		types = types->n;
+	}
+
+	if (params == NULL && types == NULL)
+		return 1;
+
+	if (params != NULL) {
+		loc_error(scope->fctx, loc,
+				"too few type params");
+		return 0;
+	}
+
+	if (types != NULL) {
+		loc_error(scope->fctx, loc,
+				"too many type params");
+		return 0;
+	}
+
+	return 0;
+}
+
+static int _reset(struct ast *node, void *data)
+{
+	UNUSED(data);
+	ast_clear_flags(node, AST_FLAG_INIT | AST_FLAG_ACTUAL);
+	/* clear type info */
+	node->t = NULL;
+	return 0;
+}
+
+static int reset(struct ast *body)
+{
+	return ast_visit(_reset, NULL, body, NULL);
+}
+
+static int expand_type(struct ast *expd, struct ast *params, struct type *types)
+{
+	/* we're getting expanded so remove our params to avoid redefining them
+	 * later */
+	if (expd->k == AST_STRUCT_DEF)
+		struct_params(expd) = NULL;
+	else
+		trait_params(expd) = NULL;
+
+	assert(expd->scope->parent);
+	struct scope *p = expd->scope->parent;
+
+	reset(expd);
+	
+	foreach_node(n, params) {
+		struct ast *p = clone_ast(n);
+		var_type(p) = clone_type(types);
+
+		if (expd->k == AST_STRUCT_DEF)
+			ast_append(&struct_params(expd), p);
+		else
+			ast_append(&trait_params(expd), p);
+
+		types = types->n;
+	}
+
+	/* if our trait system works, would theoretically already know that this
+	 * will succeed (and I guess we wouldn't need to actualize anything) but
+	 * this seems like the simplest solution for now */
+	struct act_state state = {0};
+	int ret = actualize(&state, p, expd);
+	assert(ret == 0);
+	return ret;
+}
+
+static struct ast *maybe_expand_struct(struct scope *scope, struct ast *def, struct src_loc loc, struct type *args)
+{
+	assert(def->k == AST_STRUCT_DEF);
+	if (struct_params(def) == NULL) {
+		if (args == NULL)
+			return def;
+
+		loc_error(scope->fctx, loc,
+				"passing types to non-generic struct %s",
+				struct_id(def));
+		return NULL;
+	}
+
+	struct ast *exists = file_scope_find_expd_struct(scope, def, args);
+	if (exists)
+		return exists;
+
+	if (!should_implement_list(scope, struct_params(def), loc, args))
+		return NULL;
+
+	struct ast *expd = clone_ast(def);
+	if (expand_type(expd, struct_params(def), args))
+		return NULL;
+
+	scope_add_expd_struct(scope, def, args, expd);
+	return expd;
+}
+
+static struct ast *maybe_expand_trait(struct scope *scope, struct ast *def, struct src_loc loc, struct type *args)
+{
+	assert(def->k == AST_TRAIT_DEF);
+	if (trait_params(def) == NULL) {
+		if (args != NULL) {
+			loc_error(scope->fctx, loc,
+					"passing types to non-generic trait %s",
+					trait_id(def));
+			return NULL;
+		}
+
+		return def;
+	}
+
+	loc_error(scope->fctx, loc, "unimplemented trait expansion");
+	return NULL;
+}
+
+static struct ast *maybe_expand_type(struct scope *scope, struct ast *def, struct src_loc loc, struct type *args)
+{
+	assert(def->k == AST_STRUCT_DEF || def->k == AST_TRAIT_DEF);
+	if (def->k == AST_STRUCT_DEF)
+		return maybe_expand_struct(scope, def, loc, args);
+	else
+		return maybe_expand_trait(scope, def, loc, args);
 }
 
 static int actualize_macro_def(struct act_state *state,
@@ -822,7 +1023,7 @@ static int actualize_proc_sign(struct scope *scope, struct ast *proc)
 			continue;
 		}
 
-		type_append(callable_ptypes(callable), p->t);
+		type_append(&callable_ptypes(callable), p->t);
 	}
 
 	set_type(proc, callable);
@@ -860,7 +1061,7 @@ static int actualize_proc(struct act_state *state,
 		struct ast *body = proc_body(proc);
 		struct ast *r = gen_return(NULL, NULL, NULL_LOC());
 		r->scope = body->scope;
-		ast_append(block_body(body), r);
+		ast_append(&block_body(body), r);
 	}
 	else if (ast_block_last(proc_body(proc))->k != AST_RETURN) {
 		/* TODO: something more sophisticated than this */
@@ -1005,8 +1206,11 @@ static int actualize_var(struct act_state *state,
 	if (init && actualize_list(state, scope, init))
 		return -1;
 
-	if (type && actualize_type_list(state, scope, type))
-		return -1;
+	if (type) {
+		type = clone_type(type);
+		if (actualize_type_list(state, scope, type))
+			return -1;
+	}
 
 	if (init && type) {
 		/* make sure the asked type and the actualized types match */
@@ -1182,6 +1386,29 @@ static int actualize_ttrait(struct act_state *state, struct scope *scope,
 	return 0;
 }
 
+static int actualize_tconstruct(struct act_state *state,
+		struct scope *scope,
+		struct type *t)
+{
+	assert(t->k == TYPE_CONSTRUCT);
+	struct ast *d = file_scope_find_type(scope, construct_id(t));
+	if (!d) {
+		type_error(scope->fctx, t, "no such type");
+		return -1;
+	}
+
+	if (actualize_type_list(state, scope, construct_atypes(t)))
+		return -1;
+
+	d = maybe_expand_type(scope, d, t->loc, construct_atypes(t));
+	if (!d)
+		return -1;
+
+	replace_type(t, d->t);
+	t->d = d;
+	return 0;
+}
+
 static int actualize_type(struct act_state *state,
                           struct scope *scope,
                           struct type *t)
@@ -1203,6 +1430,7 @@ static int actualize_type(struct act_state *state,
 	case TYPE_CALLABLE: return actualize_callable(state, scope, t);
 	case TYPE_STRUCT: return actualize_tstruct(state, scope, t);
 	case TYPE_TRAIT: return actualize_ttrait(state, scope, t);
+	case TYPE_CONSTRUCT: return actualize_tconstruct(state, scope, t);
 	case TYPE_VOID: return 0; /* void is by default actualized */
 
 	default:
@@ -1367,6 +1595,7 @@ static int actualize_alias(struct act_state *state, struct scope *scope,
 		return -1;
 	}
 
+	alias->t = alias_type(alias);
 	ast_set_flags(alias, AST_FLAG_ACTUAL);
 	return 0;
 }
@@ -1722,7 +1951,7 @@ static int actualize_trait(struct act_state *state, struct scope *scope,
 			continue;
 
 		/* don't re-expand already implemented traits */
-		if (implements_trait(trait_body(node), type_expand_id(n))) {
+		if (has_trait(trait_body(node), type_expand_id(n))) {
 			/* not sure about this, but at least we don't have stray
 			 * type expands everywhere */
 			n->k = AST_EMPTY;
@@ -1815,12 +2044,30 @@ static int actualize_struct(struct act_state *state,
 	else
 		node->t = tgen_struct(id, node, node->loc);
 
+	/* iterate over types and make aliases to them */
+	foreach_node(n, struct_params(node)) {
+		char *id = var_id(n);
+		struct type *type = var_type(n);
+		struct act_state type_state = {0};
+		if (actualize_type(&type_state, scope, type))
+			return -1;
+
+		type_append(&tstruct_params(node->t), type);
+
+		struct ast *alias = gen_alias(strdup(id), clone_type(type), n->loc);
+		if (analyze_visibility(struct_scope, alias))
+			return -1;
+
+		struct act_state state = {0};
+		if (actualize(&state, struct_scope, alias))
+			return -1;
+	}
 
 	foreach_node(n, struct_body(node)) {
 		if (n->k != AST_TYPE_EXPAND)
 			continue;
 
-		if (implements_trait(struct_body(node), type_expand_id(n))) {
+		if (has_trait(struct_body(node), type_expand_id(n))) {
 			n->k = AST_EMPTY;
 			continue;
 		}
@@ -1969,6 +2216,7 @@ static int init_sort(const struct init_helper *a, const struct init_helper *b)
 	return strcmp(a->id, b->id);
 }
 
+
 static int actualize_init(struct act_state *state,
                           struct scope *scope, struct ast *node)
 {
@@ -1979,6 +2227,13 @@ static int actualize_init(struct act_state *state,
 		semantic_error(scope->fctx, node, "no such type");
 		return -1;
 	}
+
+	if (actualize_type_list(state, scope, init_args(node)))
+		return -1;
+
+	def = maybe_expand_type(scope, def, node->loc, init_args(node));
+	if (!def)
+		return -1;
 
 	struct vec init_args = vec_create(sizeof(struct init_helper));
 	struct vec struct_members = vec_create(sizeof(struct init_helper));

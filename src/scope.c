@@ -32,13 +32,22 @@ struct scope *create_scope()
 	return scope;
 }
 
-void destroy_visible(struct visible *visible)
+static void destroy_visible(struct visible *visible)
 {
 	struct visible *prev = visible, *cur;
 	if (prev)
 		do {
 			cur = prev->next;
-			/* destroy AST nodes globally somewhere? */
+			free(prev);
+		} while ((prev = cur));
+}
+
+static void destroy_expanded(struct expanded *expanded)
+{
+	struct expanded *prev = expanded, *cur;
+	if (prev)
+		do {
+			cur = prev->next;
 			free(prev);
 		} while ((prev = cur));
 }
@@ -56,6 +65,8 @@ void destroy_scope(struct scope *scope)
 	destroy_visible(scope->symbols);
 	destroy_visible(scope->macros);
 	destroy_visible(scope->types);
+
+	destroy_expanded(scope->expanded);
 
 	struct scope *prev = scope->children, *cur;
 	if (prev)
@@ -82,6 +93,9 @@ unsigned scope_flags(struct scope *scope, enum scope_flags flags)
 static struct visible *create_visible(char *id, struct ast *node)
 {
 	struct visible *visible = calloc(1, sizeof(struct visible));
+	if (!visible)
+		return NULL;
+
 	visible->id = id;
 	visible->node = node;
 	return visible;
@@ -95,6 +109,22 @@ struct visible *create_type(struct scope *scope, char *id, struct ast *type)
 
 	n->next = scope->types;
 	scope->types = n;
+
+	return n;
+}
+
+struct expanded *create_expanded(struct scope *scope, struct ast *def, struct type *types, struct ast *expd)
+{
+	struct expanded *n = calloc(1, sizeof(struct expanded));
+	if (!n)
+		return NULL;
+
+	n->node = def;
+	n->types = types;
+	n->expd = expd;
+
+	n->next = scope->expanded;
+	scope->expanded = n;
 
 	return n;
 }
@@ -227,6 +257,19 @@ int scope_add_trait(struct scope *scope, struct ast *trait)
 	return 0;
 }
 
+int scope_add_expd_struct(struct scope *scope, struct ast *def, struct type *types, struct ast *expd)
+{
+	assert(def->k == AST_STRUCT_DEF);
+	assert(file_scope_find_expd_struct(scope, def, types) == NULL);
+
+	create_expanded(scope, def, types, expd);
+	if (scope->parent &&
+			scope_flags(scope, SCOPE_FILE) && ast_flags(def, AST_FLAG_PUBLIC))
+		return scope_add_expd_struct(scope->parent, def, types, expd);
+
+	return 0;
+}
+
 static struct ast *scope_find_visible(struct visible *v, char *id)
 {
 	if (!v)
@@ -236,6 +279,22 @@ static struct ast *scope_find_visible(struct visible *v, char *id)
 		struct ast *node = n->node;
 		if (same_id(node->s, id))
 			return node;
+	}
+
+	return NULL;
+}
+
+static struct ast *scope_find_expanded(struct expanded *e, struct ast *def, struct type *types)
+{
+	if (!e)
+		return NULL;
+
+	foreach_expanded(n, e) {
+		if (n->node != def)
+			continue;
+
+		if (type_lists_match(n->types, types))
+			return n->expd;
 	}
 
 	return NULL;
@@ -352,41 +411,40 @@ struct ast *file_scope_find_var(struct scope *scope, char *id)
 	return NULL;
 }
 
+struct ast *scope_find_expd_struct(struct scope *scope, struct ast *def, struct type *types)
+{
+	assert(def->k == AST_STRUCT_DEF);
+	struct ast *exists = scope_find_expanded(scope->expanded, def, types);
+	if (!exists)
+		return NULL;
+
+	assert(exists->k == AST_STRUCT_DEF);
+	return exists;
+}
+
+struct ast *file_scope_find_expd_struct(struct scope *scope, struct ast *def, struct type *types)
+{
+	assert(def->k == AST_STRUCT_DEF);
+	struct ast *found = scope_find_expd_struct(scope, def, types);
+	if (found)
+		return found;
+
+	if (!scope_flags(scope, SCOPE_FILE))
+		return file_scope_find_expd_struct(scope->parent, def, types);
+
+	return NULL;
+}
+
 void scope_add_scope(struct scope *parent, struct scope *child)
 {
 	assert(parent);
 	assert(child);
 
 	if (!scope_flags(child, SCOPE_FILE)) {
-		child->actuals = parent->actuals;
 		child->fctx = parent->fctx;
 	}
 
 	child->parent = parent;
 	child->next = parent->children;
 	parent->children = child;
-}
-
-static int add_actual(struct actual *actuals, struct ast *node)
-{
-	if (!actuals->node) {
-		/* fill empty first element */
-		actuals->node = node;
-		return 0;
-	}
-
-	/* TODO: check that there isn't already an actual like ours */
-	struct actual *actual = calloc(1, sizeof(struct actual));
-	if (!actual)
-		return -1;
-
-	actual->next = actuals->next;
-	actual->node = node;
-	actuals->next = actual;
-	return 0;
-}
-
-int scope_add_actual(struct scope *scope, struct ast *node)
-{
-	return add_actual(scope->actuals, node);
 }

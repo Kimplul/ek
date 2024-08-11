@@ -14,6 +14,6 @@ typedef c {
 
 main()
 {
-	c c;
+	c c = c!{};
 	c.a();
 }

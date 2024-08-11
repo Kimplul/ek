@@ -41,12 +41,11 @@ struct visible {
 	struct visible *next;
 };
 
-/** Actualized nodes visible to scope. */
-struct actual {
-	/** Actualized AST node. */
+struct expanded {
 	struct ast *node;
-	/** Next actual node. */
-	struct actual *next;
+	struct type *types;
+	struct ast *expd;
+	struct expanded *next;
 };
 
 struct type_defs {
@@ -82,11 +81,7 @@ struct scope {
 	/** List of child scopes. */
 	struct scope *children;
 
-	/**
-	 * List of generic structs with actual arguments to generate before
-	 * lowering
-	 */
-	struct actual *actuals;
+	struct expanded *expanded;
 
 	struct visible *symbols;
 	struct visible *macros;
@@ -101,30 +96,6 @@ struct scope {
  * @return New, empty scope.
  */
 struct scope *create_scope();
-
-/**
- * Create actuals list.
- * Since actuals are shared in the file scope, many scopes may share the actuals
- * list. Only the file scope is allowed to destroy the actual list.
- *
- * @return Empty actual list.
- */
-struct actual *create_actuals();
-
-/**
- * Destroy the list of actuals and actuals in list.
- *
- * @param actuals List of actuals to destroy.
- */
-void destroy_actuals(struct actual *actuals);
-
-/**
- * Destroy list of visibles.
- *
- * @param scope Scope list belongs to.
- * @param visible List of visibles to destroy.
- */
-void destroy_visible(struct visible *visible);
 
 /**
  * Destroy scope.
@@ -188,16 +159,6 @@ unsigned scope_flags(struct scope *scope, enum scope_flags flags);
 void scope_add_scope(struct scope *parent, struct scope *child);
 
 /**
- * Add actualized AST node to scope.
- * Will make the actualized node visible to all scopes in the file scope.
- *
- * @param scope Scope to add \p node to.
- * @param node Actualized AST node.
- * @return \c 0 when succesful, non-zero otherwise.
- */
-int scope_add_actual(struct scope *scope, struct ast *node);
-
-/**
  * Add variable to scope.
  * Propagates public variables up the file scope chain as references.
  *
@@ -247,7 +208,7 @@ int scope_add_macro(struct scope *scope, struct ast *macro);
  */
 int scope_add_trait(struct scope *scope, struct ast *trait);
 
-int scope_resolve(struct scope *scope);
+int scope_add_expd_struct(struct scope *scope, struct ast *def, struct type *types, struct ast *expanded);
 
 /**
  * Find a variable with ID in \p scope.
@@ -322,6 +283,8 @@ struct ast *scope_find_alias(struct scope *scope, char *id);
  */
 struct ast *scope_find_trait(struct scope *scope, char *id);
 
+struct ast *scope_find_expd_struct(struct scope *scope, struct ast *def, struct type *types);
+
 /**
  * Find a variable with ID visible to \p scope.
  *
@@ -382,7 +345,12 @@ struct ast *file_scope_find_alias(struct scope *scope, char *id);
  */
 struct ast *file_scope_find_trait(struct scope *scope, char *id);
 
+struct ast *file_scope_find_expd_struct(struct scope *scope, struct ast *def, struct type *types);
+
 #define foreach_visible(iter, init) \
 	for (struct visible *iter = init; iter; iter = iter->next)
+
+#define foreach_expanded(iter, init) \
+	for (struct expanded *iter = init; iter; iter = iter->next)
 
 #endif /* SCOPE_H */
