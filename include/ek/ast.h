@@ -79,6 +79,8 @@ enum ast_kind {
 	AST_TRAIT_DEF,
 	/** Structure definition. */
 	AST_STRUCT_DEF,
+	/** Structure continuation, kind of like impl in Rust. */
+	AST_STRUCT_CONT_DEF,
 	/** If. */
 	AST_IF,
 	/** Block. E.g. \c {} */
@@ -372,7 +374,8 @@ static inline bool is_primitive(struct type *t)
 #define gen_type(k, a, type, loc) gen_ast(k, a, NULL, NULL, NULL, type, NULL, \
 					  -1,                                 \
 					  loc)
-#define gen_str2(k, s, a, b, loc) gen_ast(k, a, b, NULL, NULL, NULL, s, -1, loc)
+#define gen_str3(k, s, a, b, c, loc) gen_ast(k, a, b, c, NULL, NULL, s, -1, loc)
+#define gen_str2(k, s, a, b, loc) gen_str3(k, s, a, b, NULL, loc)
 #define gen_str1(k, s, a, loc) gen_str2(k, s, a, NULL, loc)
 #define gen_str(k, s, loc) gen_ast(k, NULL, NULL, NULL, NULL, NULL, s, -1, loc)
 
@@ -567,6 +570,13 @@ static inline bool is_primitive(struct type *t)
 #define struct_body(x) return_a1(x, AST_STRUCT_DEF)
 #define gen_struct(id, params, body, loc) \
 	gen_str2(AST_STRUCT_DEF, id, params, body, loc)
+
+#define struct_cont_id(x) return_s(x, AST_STRUCT_CONT_DEF)
+#define struct_cont_params(x) return_a0(x, AST_STRUCT_CONT_DEF)
+#define struct_cont_behav(x) return_t1(x, AST_STRUCT_CONT_DEF)
+#define struct_cont_body(x) return_a2(x, AST_STRUCT_CONT_DEF)
+#define gen_struct_cont(id, params, behav, body, loc) \
+	gen_ast(AST_STRUCT_CONT_DEF, params, body, NULL, NULL, behav, id, 0, loc)
 
 #define val_id(x) return_s(x, AST_VAL)
 #define val_val(x) return_a0(x, AST_VAL)

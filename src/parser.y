@@ -140,7 +140,7 @@
 
 %nterm <type> types type opt_type
 
-%nterm <node> tagged_struct expr_if
+%nterm <node> struct struct_cont expr_if
 
 /* constant operations */
 %nterm <node> const_expr const_unop const_binop
@@ -155,6 +155,7 @@
 /* optional stuff */
 %nterm <node> opt_exprs proc_decl member opt_members
 %nterm <type> opt_types opt_sign_decls sign_decls sign_decl sign_var_decl
+%nterm <node> opt_behaviours behaviours behaviour
 
 /* reverse lists */
 %nterm <type> rev_sign_decls;
@@ -250,8 +251,7 @@ id
 	: ID {$$ = gen_id($1, src_loc(@$));}
 
 var
-	: var_decl
-	| var_init
+	: var_init
 
 embed
 	: "embed" "(" STRING ")" { $$ = gen_embed(strip($3), src_loc(@$));  }
@@ -476,7 +476,8 @@ statement
 	| while
 	| do_while
 	| body
-	| tagged_struct
+	| struct
+	| struct_cont
 	| for
 	| defer
 	| if
@@ -731,11 +732,14 @@ proc
 		ast_set_flags($$, AST_FLAG_EXTERN | AST_FLAG_NOMANGLE);
 	}
 
-member
-	: var_decl ";"
-	| type_expand ";"
+behaviour
+	: type_expand ";"
 	| proc_decl ";"
 	| proc
+
+member
+	: var_decl ";"
+	| behaviour
 	;
 
 members
@@ -746,17 +750,47 @@ opt_members
 	: members
 	| {$$ = NULL;}
 
+behaviours
+	: behaviours behaviour {
+		$$ = $1; $1->n = $2;
+		ast_set_flags($$, AST_FLAG_MEMBER);
+	}
+	| behaviour { $$ = $1; ast_set_flags($$, AST_FLAG_MEMBER); }
+
+opt_behaviours
+	: behaviours
+	| {$$ = NULL;}
+
 macro_expand
 	: APPLY "(" opt_exprs ")" {
 		$$ = gen_macro_expand($1, $3, src_loc(@$));
 	}
 
-tagged_struct
+struct
 	: "typedef" ID "[" opt_type_params "]" "{" opt_members "}" {
 		$$ = gen_struct($2, $4, $7, src_loc(@$));
 	}
 	| "typedef" ID "{" opt_members "}" {
 		$$ = gen_struct($2, NULL, $4, src_loc(@$));
+	}
+
+struct_cont
+	: "continue" "[" opt_type_params "]"
+	APPLY "[" opt_types "]" "{" opt_behaviours "}" {
+		/* full form */
+		$$ = gen_struct_cont($5, $3, $7, $10, src_loc(@$));
+	}
+	| "continue" "[" opt_type_params "]" ID "{" opt_behaviours "}" {
+		/* abbrev 1 */
+		$$ = gen_struct_cont($5, $3, NULL, $7, src_loc(@$));
+	}
+	| "continue" APPLY "[" opt_types "]" "{" opt_behaviours "}" {
+		/* abbrev 2 */
+		$$ = gen_struct_cont($2, NULL, $4, $7, src_loc(@$));
+	}
+	| "continue" ID "{" opt_behaviours "}" {
+		/* abbrev 3 */
+		$$ = gen_struct_cont($2, NULL, NULL, $4, src_loc(@$));
 	}
 
 alias
@@ -771,7 +805,9 @@ type_param
 	}
 
 type_params
-	: type_param "," type_params { $$ = $1; $1->n = $3; }
+	: type_param "," type_params {
+		$$ = $1; $1->n = $3; /** @todo this could be left recursive */
+	}
 	| type_param
 
 opt_type_params
@@ -779,7 +815,7 @@ opt_type_params
 	| { $$ = NULL; }
 
 trait
-	: "define" ID "[" opt_type_params "]" "{" opt_members "}" {
+	: "define" ID "[" opt_type_params "]" "{" opt_behaviours "}" {
 		$$ = gen_trait($2, $4, $7, src_loc(@$));
 	}
 
@@ -824,14 +860,16 @@ top_if
 top
 	: enum
 	| proc
-	| tagged_struct
+	| struct
+	| struct_cont { $$ = $1; }
 	| macro { $$ = $1; }
 	| top_if { $$ = $1; ast_set_flags($$, AST_FLAG_CONST); }
 	| import { $$ = $1; }
 	| alias { $$ = $1; }
 	| trait { $$ = $1; }
 	| "pub" enum { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
-	| "pub" tagged_struct { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
+	| "pub" struct { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
+	| "pub" struct_cont { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" proc { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" macro { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
 	| "pub" import { $$ = $2; ast_set_flags($2, AST_FLAG_PUBLIC); }
