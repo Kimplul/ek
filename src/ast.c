@@ -396,7 +396,6 @@ struct ast *clone_ast(struct ast *n)
 	assert(n->k);
 	struct ast *new = create_empty_ast();
 	new->scope = n->scope;
-	new->uses = n->uses;
 	new->loc = n->loc;
 	new->k = n->k;
 	new->v = n->v;

@@ -43,3 +43,10 @@ i27 or something?
 us. Should it also check that no abstract data types are used in the final
 lowering? Which would mean that even the lowering is allowed to fail, and not
 just the actualization phase.
+
++ continue/break could probably fairly easily use labels as well, just check
+that the following AST node is a loop and treat is as the name for that loop.
+Then continue just goes to the bottom of the loop and break goes out of the
+loop, pretty much what we're currently doing but just with the top loop
+in the stack. We'd probably just have to check the loop stack in lower.c,
+should be fairly straightforward?

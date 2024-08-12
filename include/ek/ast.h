@@ -237,8 +237,6 @@ struct ast {
 	enum ast_flags f;
 
 	struct ast *n;
-	long long uses;
-
 	struct src_loc loc;
 	struct scope *scope;
 };

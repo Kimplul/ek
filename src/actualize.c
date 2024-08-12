@@ -1183,12 +1183,12 @@ static int actualize_block(struct act_state *state,
 		block_defers(node) = clone_defers(state, defers);
 		if (!block_defers(node)) {
 			internal_error("failed cloning defers");
+			clear_defers(state, defers);
 			return -1;
 		}
-
-		clear_defers(state, defers);
 	}
 
+	clear_defers(state, defers);
 	return 0;
 }
 
@@ -1197,7 +1197,6 @@ static int actualize_id(struct act_state *state,
 {
 	UNUSED(state);
 	assert(id && id->k == AST_ID);
-	id->scope = scope;
 
 	/** @todo vars and procs kind of override eachother, i.e.
 	 *	do_something(){..}
@@ -1218,8 +1217,13 @@ static int actualize_id(struct act_state *state,
 		return -1;
 	}
 
+	/* set scope of use to scope of definition, this makes sure that when
+	 * lower() calls scope_find_*() it gets the one we just found and not a
+	 * possible shadow. This is a pretty major hack, it might be more clean
+	 * to add a ->def field into the AST or something but this works for
+	 * now. */
+	id->scope = decl->scope;
 	set_type(id, decl->t);
-	decl->uses++;
 	return 0;
 }
 
@@ -2230,7 +2234,6 @@ static int actualize_dot(struct act_state *state,
 	                                                  id);
 	if (exists) {
 		assert(exists->t);
-		exists->uses++;
 		set_type(node, exists->t);
 		return 0;
 	}
@@ -2415,7 +2418,6 @@ static int actualize_fetch(struct act_state *state, struct scope *scope,
 		return -1;
 	}
 
-	member->uses++;
 	set_type(fetch, member->t);
 	return 0;
 }

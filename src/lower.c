@@ -96,19 +96,6 @@ static void pop_loop(struct lower_state *s)
 #define label_peek(v) \
 	vect_back(char *, v)
 
-static int64_t retval_width(struct retval r)
-{
-	switch (r.kind) {
-	case REG_I27: return 3;
-	case REG_I9: return 1;
-	case CONST_I9: return 1;
-	case CONST_I27: return 3;
-	default: abort();
-	}
-
-	return 0;
-}
-
 static const char *retval_kind_str(enum retval_kind kind)
 {
 	switch (kind) {
@@ -248,34 +235,6 @@ static void output_ast_id(struct ast *id)
 	char *name = mangle(id);
 	printf("%s", name);
 	free(name);
-}
-
-static int lower_global_var(struct ast *n)
-{
-	/* trivial types are reasonably easy, but stuff like compound types need
-	 * a lot of work */
-	struct type *type = var_type(n);
-	if (is_primitive(type)) {
-		semantic_error(n->scope->fctx, n,
-		               "only primitive globals currently implemented");
-		return -1;
-	}
-
-	struct ast *init = var_init(n);
-	if (init->k != AST_CONST_INT) {
-		semantic_error(n->scope->fctx, n,
-		               "only constant expressions currently implemented");
-		return -1;
-	}
-
-	output_ast_id(n);
-	printf(" = ");
-
-	/* hmm, this might be useful elsewhere as well */
-	char *t = is_small_type(type) ? "i9" : "i27";
-	printf("%s %lli", t, int_val(init));
-	printf(";\n");
-	return 0;
 }
 
 static int lower_simple_param(struct lower_state *s, struct ast *p)
@@ -533,6 +492,10 @@ static int lower_id(struct lower_state *s, struct ast *id,
 	/* this likely isn't enough and we need to add the & to most things we
 	 * want to take the address of */
 	if (type->k == TYPE_CALLABLE) {
+		/** @todo global variables? The parser currently doesn't support
+		 * them but if we did have them we might have to run
+		 * file_scope_find_symbol and add it to the state as we run into
+		 * them */
 		struct ast *def = file_scope_find_proc(id->scope, id->s);
 		assert(def);
 
@@ -567,13 +530,14 @@ static int lower_struct_return(struct lower_state *s, struct ast *n, size_t o,
 
 static int lower_deferred(struct lower_state *s, struct ast *d)
 {
-	struct ast *t = reverse_ast_list(d);
-	foreach_node(n, t) {
-		if (lower_statement(s, n))
-			return -1;
-	}
+	if (!d)
+		return 0;
 
-	return 0;
+	/* we want to output the top of the stack first and work our way down */
+	if (lower_deferred(s, d->n))
+		return -1;
+
+	return lower_statement(s, d);
 }
 
 static int lower_return(struct lower_state *s, struct ast *r,
@@ -1230,7 +1194,7 @@ static int lower_label(struct lower_state *s, struct ast *n)
 
 	assert(n->k == AST_LABEL);
 	char *out = mangle_scope(n, n->scope);
-	printf("-> %s\n", out);
+	printf("%s:\n", out);
 	free(out);
 	return 0;
 }
@@ -1265,9 +1229,6 @@ static int lower_statement(struct lower_state *s, struct ast *n)
 static int lower_proc(struct ast *n)
 {
 	assert(n->k == AST_PROC_DEF);
-	/* nobody uses the proc, so no need to do anything */
-	if (n->uses == 0 && !ast_flags(n, AST_FLAG_NOMANGLE))
-		return 0;
 
 	/* we're just a prototype, no need to do anything */
 	if (!proc_body(n))
