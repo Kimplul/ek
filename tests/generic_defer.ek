@@ -13,5 +13,8 @@ typedef a[any T] {
 main()
 {
 	a![i27] a = a![i27]{.b = 10};
+	a.do_stuff();
+
 	a![i9] b = a![i9]{.b = 20 as i9};
+	b.do_stuff();
 }

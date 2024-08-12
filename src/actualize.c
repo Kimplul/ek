@@ -501,7 +501,7 @@ static int analyze(struct scope *scope, struct ast *tree)
 		if (actualize(&state, scope, node))
 			return -1;
 
-		printf("//actualized:\n");
+		printf("\n//actualized:\n");
 		ast_dump(0, node);
 	}
 
@@ -693,6 +693,7 @@ static int _reset(struct ast *node, void *data)
 	ast_clear_flags(node, AST_FLAG_INIT | AST_FLAG_ACTUAL);
 	/* clear type info */
 	node->t = NULL;
+	node->scope = NULL;
 	return 0;
 }
 
@@ -733,6 +734,9 @@ static int expand_type(struct ast *expd, struct ast *params, struct type *types)
 	struct act_state state = {0};
 	int ret = actualize(&state, p, expd);
 	assert(ret == 0);
+
+	printf("\n//expanded:\n");
+	ast_dump(0, expd);
 	return ret;
 }
 
@@ -897,10 +901,6 @@ static int maybe_ufcs(struct act_state *state, struct scope *scope,
 		return 0;
 
 	struct type *ptypes = callable_ptypes(dot->t);
-	if (!ptypes)
-		/* no ufcs */
-		return 0;
-
 	struct ast *expr = dot_expr(dot);
 	char *id = strdup(dot_id(dot));
 	call_expr(call) = gen_fetch(id, clone_type(expr->t), dot->loc);
@@ -909,20 +909,26 @@ static int maybe_ufcs(struct act_state *state, struct scope *scope,
 
 	struct ast *ref = NULL;
 
-	if (ptypes->k == TYPE_PTR) {
+	if (!ptypes) {
+		ref = NULL;
+	}
+	else if (ptypes->k == TYPE_PTR) {
 		/* is ufcs expects reference to member, try to take address */
 		ref = gen_unop(AST_REF, expr, dot->loc);
 		ref->t = tgen_ptr(clone_type(expr->t), dot->loc);
 		ref->scope = scope;
-	} else {
+	}
+	else {
 		/* otherwise, try to pass expr as is */
 		ref = expr;
 	}
 
-	if (simplify_refderef(state, scope, ref))
+	if (ref && simplify_refderef(state, scope, ref))
 		return -1;
 
-	call_args(call) = ast_prepend(call_args(call), ref);
+	if (ref)
+		call_args(call) = ast_prepend(call_args(call), ref);
+
 	return 0;
 }
 
@@ -1626,6 +1632,10 @@ static int actualize_alias(struct act_state *state, struct scope *scope,
 static int actualize_defer(struct act_state *state,
                            struct scope *scope, struct ast *node)
 {
+	/** @todo this doesn't work for shadowed variables, as the scope might
+	 * be set to the scope containing a shadowing variable, which means that
+	 * when lower.c does a file_scope_find_*() it finds the shadowed
+	 * variable first. */
 	struct ast *expr = defer_expr(node);
 	if (actualize(state, scope, expr))
 		return -1;

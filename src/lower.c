@@ -32,6 +32,8 @@ struct lower_state {
 
 	struct vec dealloc;
 	size_t deallocs;
+
+	struct vec procs;
 };
 
 static struct lower_state create_state()
@@ -41,6 +43,8 @@ static struct lower_state create_state()
 	state.bottom = vec_create(sizeof(char *));
 	state.out = vec_create(sizeof(char *));
 	state.dealloc = vec_create(sizeof(char *));
+	state.procs = vec_create(sizeof(struct ast *));
+
 	state.deallocs = 0;
 	state.uniq = 0;
 	return state;
@@ -57,6 +61,13 @@ static void destroy_state(struct lower_state *state)
 	vec_destroy(&state->bottom);
 	vec_destroy(&state->out);
 	vec_destroy(&state->dealloc);
+	vec_destroy(&state->procs);
+}
+
+static void add_proc(struct lower_state *s, struct ast *proc)
+{
+	assert(proc->k == AST_PROC_DEF);
+	vec_append(&s->procs, &proc);
 }
 
 static void add_dealloc(struct lower_state *s, char *dealloc)
@@ -189,6 +200,8 @@ static char *mangle(struct ast *id)
 
 	return mangle_scope(id, def->scope);
 }
+
+static int lower_proc(struct ast *n);
 
 typedef int (*visit_struct_t)(struct lower_state *s, struct ast *n, size_t o,
                               void *d);
@@ -520,6 +533,10 @@ static int lower_id(struct lower_state *s, struct ast *id,
 	/* this likely isn't enough and we need to add the & to most things we
 	 * want to take the address of */
 	if (type->k == TYPE_CALLABLE) {
+		struct ast *def = file_scope_find_proc(id->scope, id->s);
+		assert(def);
+
+		add_proc(s, def);
 		char *o = m;
 		m = build_str("&%s", m);
 		free(o);
@@ -994,6 +1011,8 @@ static int lower_fetch(struct lower_state *s, struct ast *f,
 	struct ast *proc = scope_find_proc(def->scope, fetch_id(f));
 	assert(proc);
 
+	add_proc(s, proc);
+
 	char *name = mangle(proc);
 	char *fetch = build_str("&%s", name);
 	*retval = build_retval(REG_I27, fetch);
@@ -1219,6 +1238,10 @@ static int lower_label(struct lower_state *s, struct ast *n)
 static int lower_statement(struct lower_state *s, struct ast *n)
 {
 	struct retval retval = retval_create();
+	if (ast_flags(n, AST_FLAG_LOWERED))
+		return 0;
+
+	ast_set_flags(n, AST_FLAG_LOWERED);
 
 	int ret = 0;
 	switch (n->k) {
@@ -1252,6 +1275,8 @@ static int lower_proc(struct ast *n)
 
 	if (ast_flags(n, AST_FLAG_LOWERED))
 		return 0;
+
+	ast_set_flags(n, AST_FLAG_LOWERED);
 
 	struct lower_state state = create_state();
 
@@ -1287,51 +1312,25 @@ static int lower_proc(struct ast *n)
 	}
 
 	printf("}\n");
-	destroy_state(&state);
-	ast_set_flags(n, AST_FLAG_LOWERED);
-	return 0;
-}
 
-static int lower_struct(struct ast *s)
-{
-	if (ast_flags(s, AST_FLAG_LOWERED))
-		return 0;
-
-	foreach_node(n, struct_body(s)) {
-		if (n->k == AST_PROC_DEF && lower_proc(n))
+	foreach_vec(pi, state.procs) {
+		struct ast *proc = vect_at(struct ast*, state.procs, pi);
+		if (lower_proc(proc)) {
+			destroy_state(&state);
 			return -1;
+		}
 	}
-
-	ast_set_flags(s, AST_FLAG_LOWERED);
+	destroy_state(&state);
 	return 0;
 }
 
 int lower(struct scope *root)
 {
-	/* go through all child scopes but only do actual work on file-scope
-	 * includes are allowed inside procs etc to make something only locally
-	 * visible */
-	for (struct scope *c = root->children; c; c = c->next) {
-		if (lower(c))
-			return -1;
+	struct ast *main = file_scope_find_proc(root, "main");
+	if (!main) {
+		error("no main");
+		return -1;
 	}
 
-	if (!scope_flags(root, SCOPE_FILE))
-		return 0;
-
-	foreach_visible(p, root->symbols) {
-		assert(p->node);
-		struct ast *node = p->node;
-		if (node->k == AST_PROC_DEF && lower_proc(p->node))
-			return -1;
-	}
-
-	foreach_visible(p, root->types) {
-		assert(p->node);
-		struct ast *node = p->node;
-		if (node->k == AST_STRUCT_DEF && lower_struct(p->node))
-			return -1;
-	}
-
-	return 0;
+	return lower_proc(main);
 }
