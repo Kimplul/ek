@@ -1,0 +1,23 @@
+typedef i27 {};
+typedef i9 {};
+typedef bool {};
+
+extern _putchar(i9 c);
+
+main()
+{
+	defer _putchar('S');
+	for i9 i = 0 as i9; i < 10 as i9; i = i + 1 as i9 {
+		defer _putchar('0' + i);
+
+		if i == 5 as i9 { continue; }
+		if i == 9 as i9 { defer _putchar('b'); break; }
+	}
+
+	{
+		defer _putchar('g');
+		goto end;
+	}
+
+	end:
+}

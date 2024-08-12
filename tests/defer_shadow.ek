@@ -1,0 +1,28 @@
+typedef i9 {}
+typedef i27 {}
+
+define any[] {}
+
+extern _putchar(i9 c);
+
+typedef some_struct[any T] {
+	test()
+	{
+		i9 a = 'a' as i9;
+		{
+			/* at this point, only a is defined */
+			defer _putchar(a);
+
+			/* a gets shadowed */
+			i9 a = 'b' as i9;
+
+			/* defer should still point to the outer 'a' */
+		}
+	}
+}
+
+main()
+{
+	some_struct![i9] test = some_struct![i9]{};
+	test.test();
+}

@@ -226,6 +226,7 @@ static ssize_t visit_struct(struct lower_state *s, struct ast *def, size_t base,
 
 static int lower_expr(struct lower_state *s, struct ast *e,
                       struct retval *retval);
+
 static int lower_statement(struct lower_state *s, struct ast *n);
 
 static void output_ast_id(struct ast *id)
@@ -502,6 +503,7 @@ static int lower_assign(struct lower_state *s, struct ast *a,
 	}
 
 	printf("i27 %s = %s;\n", loc.s, retval->s);
+	retval_destroy(&loc);
 	return 0;
 }
 
@@ -546,16 +548,29 @@ static int lower_struct_return(struct lower_state *s, struct ast *n, size_t o,
 	return 0;
 }
 
+static int lower_deferred(struct lower_state *s, struct ast *d)
+{
+	struct ast *t = reverse_ast_list(d);
+	foreach_node(n, t) {
+		if (lower_statement(s, n))
+			return -1;
+	}
+
+	return 0;
+}
+
 static int lower_return(struct lower_state *s, struct ast *r,
                         struct retval *retval)
 {
 	assert(r->k == AST_RETURN);
+	if (lower_deferred(s, return_defers(r)))
+		return -1;
+
 	if (!return_expr(r)) {
 		printf("=> ();\n");
 		return 0;
 	}
 
-	/** @todo defers, should they be handled here or in ast? */
 	if (lower_expr(s, return_expr(r), retval))
 		return -1;
 
@@ -1131,6 +1146,9 @@ static int lower_block(struct lower_state *s, struct ast *block)
 			return -1;
 	}
 
+	if (lower_deferred(s, block_defers(block)))
+		return -1;
+
 	assert(deallocs_top <= vec_len(&s->dealloc));
 	s->deallocs = deallocs_parent;
 
@@ -1150,6 +1168,54 @@ static int lower_block(struct lower_state *s, struct ast *block)
 	return 0;
 }
 
+static int lower_continue(struct lower_state *s, struct ast *n)
+{
+	assert(n->k == AST_CONTINUE);
+	if (lower_deferred(s, continue_defers(n)))
+		return -1;
+
+	char *bottom = label_peek(s->bottom);
+	printf("-> %s\n", bottom);
+	return 0;
+}
+
+static int lower_break(struct lower_state *s, struct ast *n)
+{
+	assert(n->k == AST_BREAK);
+	if (lower_deferred(s, break_defers(n)))
+		return -1;
+
+	char *out = label_peek(s->out);
+	printf("-> %s;\n", out);
+	return 0;
+}
+
+static int lower_goto(struct lower_state *s, struct ast *n)
+{
+	assert(n->k == AST_GOTO);
+	if (lower_deferred(s, goto_defers(n)))
+		return -1;
+
+	struct ast *label = goto_label_ref(n);
+	assert(label);
+
+	char *out = mangle_scope(label, label->scope);
+	printf("-> %s;\n", out);
+	free(out);
+	return 0;
+}
+
+static int lower_label(struct lower_state *s, struct ast *n)
+{
+	UNUSED(s);
+
+	assert(n->k == AST_LABEL);
+	char *out = mangle_scope(n, n->scope);
+	printf("-> %s\n", out);
+	free(out);
+	return 0;
+}
+
 static int lower_statement(struct lower_state *s, struct ast *n)
 {
 	struct retval retval = retval_create();
@@ -1160,6 +1226,11 @@ static int lower_statement(struct lower_state *s, struct ast *n)
 	case AST_IF: ret = lower_if(s, n, &retval); break;
 	case AST_FOR: ret = lower_for(s, n, &retval); break;
 	case AST_BLOCK: ret = lower_block(s, n); break;
+	case AST_CONTINUE: ret = lower_continue(s, n); break;
+	case AST_BREAK: ret = lower_break(s, n); break;
+	case AST_GOTO: ret = lower_goto(s, n); break;
+	case AST_LABEL: ret = lower_label(s, n); break;
+	case AST_DEFER: break;
 	case AST_EMPTY: break;
 	default: ret = lower_expr(s, n, &retval); break;
 	}

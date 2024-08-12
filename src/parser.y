@@ -134,7 +134,7 @@
 %nterm <node> var_init proc
 %nterm <node> alias trait enum_val enums enum top unit id
 %nterm <node> embed param_decl members
-%nterm <node> top_if const_if const_for defer goto assign
+%nterm <node> top_if const_if const_for goto assign
 %nterm <node> construct construct_args construct_arg
 %nterm <node> statelet
 
@@ -157,6 +157,7 @@
 %nterm <type> opt_types opt_sign_decls sign_decls sign_decl sign_var_decl
 %nterm <node> opt_construct_args
 %nterm <node> opt_behaviours behaviours behaviour
+%nterm <node> opt_deferred_statement
 
 /* reverse lists */
 %nterm <type> rev_sign_decls;
@@ -240,9 +241,6 @@ static char match_escape(char c);
  * @return Identical string but without quotation marks around it.
  */
 static char *strip(const char *s);
-
-static struct ast *reverse_ast_list(struct ast *root);
-static struct type *reverse_type_list(struct type *root);
 
 %}
 
@@ -343,9 +341,6 @@ sign_decls
 opt_decls
 	: decls
 	| {$$ = NULL;}
-
-defer
-	: "defer" body { $$ = gen_defer($2, src_loc(@$));  }
 
 const_binop
 	: const_expr "+" const_expr {
@@ -480,16 +475,19 @@ statement
 	| struct
 	| struct_cont
 	| for
-	| defer
 	| if
 	| const
 	| enum
 	| macro
 	| ID ":" { $$ = gen_label($[ID], NULL, src_loc(@$));  }
 
+opt_deferred_statement
+	: statement
+	| "defer" statement { $$ = gen_defer($2, src_loc(@$)); }
+
 rev_statements
-	: rev_statements statement { $$ = $2; $2->n = $1; }
-	| statement
+	: rev_statements opt_deferred_statement { $$ = $2; $2->n = $1; }
+	| opt_deferred_statement
 
 statements
 	: rev_statements { $$ = reverse_ast_list($1); }
@@ -1000,32 +998,6 @@ static char *strip(const char *str)
 	free((void *)str);
 	return buf;
 
-}
-
-static struct ast *reverse_ast_list(struct ast *root)
-{
-	struct ast *new_root = NULL;
-	while (root) {
-		struct ast *next = root->n;
-		root->n = new_root;
-		new_root = root;
-		root = next;
-	}
-
-	return new_root;
-}
-
-static struct type *reverse_type_list(struct type *root)
-{
-	struct type *new_root = NULL;
-	while (root) {
-		struct type *next = root->n;
-		root->n = new_root;
-		new_root = root;
-		root = next;
-	}
-
-	return new_root;
 }
 
 struct parser *create_parser()

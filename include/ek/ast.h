@@ -427,6 +427,7 @@ static inline bool is_primitive(struct type *t)
 
 #define goto_label(x) return_s(x, AST_GOTO)
 #define goto_defers(x) return_a0(x, AST_GOTO)
+#define goto_label_ref(x) return_a1(x, AST_GOTO)
 #define gen_goto(label, defers, loc) \
 	gen_str1(AST_GOTO, label, defers, loc)
 
@@ -576,8 +577,9 @@ static inline bool is_primitive(struct type *t)
 #define struct_cont_params(x) return_a0(x, AST_STRUCT_CONT_DEF)
 #define struct_cont_behav(x) return_t1(x, AST_STRUCT_CONT_DEF)
 #define struct_cont_body(x) return_a2(x, AST_STRUCT_CONT_DEF)
-#define gen_struct_cont(id, params, behav, body, loc) \
-	gen_ast(AST_STRUCT_CONT_DEF, params, body, NULL, NULL, behav, id, 0, loc)
+#define gen_struct_cont(id, params, behav, body, loc)                        \
+	gen_ast(AST_STRUCT_CONT_DEF, params, body, NULL, NULL, behav, id, 0, \
+		loc)
 
 #define val_id(x) return_s(x, AST_VAL)
 #define val_val(x) return_a0(x, AST_VAL)
@@ -713,6 +715,9 @@ int equiv_node_lists(struct ast *c1, struct ast *c2);
 
 int equiv_types(struct type *t1, struct type *t2);
 int equiv_type_lists(struct type *t1, struct type *t2);
+
+struct ast *reverse_ast_list(struct ast *root);
+struct type *reverse_type_list(struct type *root);
 
 #define foreach_node(iter, nodes) \
 	for (struct ast *iter = nodes; iter; iter = iter->n)

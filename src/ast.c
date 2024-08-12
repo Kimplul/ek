@@ -753,3 +753,30 @@ size_t type_offsetof(struct type *t, char *m)
 
 	return offset;
 }
+
+struct ast *reverse_ast_list(struct ast *root)
+{
+	struct ast *new_root = NULL;
+	while (root) {
+		struct ast *next = root->n;
+		root->n = new_root;
+		new_root = root;
+		root = next;
+	}
+
+	return new_root;
+}
+
+struct type *reverse_type_list(struct type *root)
+{
+	struct type *new_root = NULL;
+	while (root) {
+		struct type *next = root->n;
+		root->n = new_root;
+		new_root = root;
+		root = next;
+	}
+
+	return new_root;
+}
+

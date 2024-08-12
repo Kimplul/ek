@@ -1,0 +1,17 @@
+define any[] {}
+
+typedef i27 {}
+typedef i9 {}
+
+typedef a[any T] {
+	T b;
+	do_stuff() {
+		defer do_stuff();
+	}
+}
+
+main()
+{
+	a![i27] a = a![i27]{.b = 10};
+	a![i9] b = a![i9]{.b = 20 as i9};
+}

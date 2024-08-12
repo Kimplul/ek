@@ -147,7 +147,7 @@ void type_error(struct file_ctx fctx, struct type *node,
 }
 
 void loc_error(struct file_ctx fctx, struct src_loc loc,
-		const char *fmt, ...)
+               const char *fmt, ...)
 {
 	va_list args;
 	va_start(args, fmt);

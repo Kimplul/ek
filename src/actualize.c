@@ -35,6 +35,7 @@ struct act_state {
 
 	struct ast *cur_proc;
 	struct act_stack *defer_stack;
+	struct act_stack *loop_stack;
 	struct act_stack *goto_stack;
 	struct act_stack *label_stack;
 };
@@ -436,6 +437,14 @@ static void replace_ast(struct ast *n, struct ast *t)
 	t->scope = scope;
 }
 
+static void replace_slice_ast(struct ast *n, struct ast *t)
+{
+	struct ast *next = n->n;
+	replace_ast(n, t);
+	n->n = next;
+	/** @todo scope as well? */
+}
+
 static struct ast *analyze_type_expand(struct scope *scope,
                                        struct ast *n)
 {
@@ -549,7 +558,7 @@ int types_match(struct type *a, struct type *b)
 
 	if (a->k == TYPE_CALLABLE)
 		return types_match(callable_rtype(a), callable_rtype(b))
-			&& types_match(callable_ptypes(a), callable_ptypes(b));
+		       && types_match(callable_ptypes(a), callable_ptypes(b));
 
 	if (is_primitive(a) && is_primitive(b))
 		return 1;
@@ -595,7 +604,7 @@ static int _replace_id(struct ast *node, void *data)
 
 	clone->n = node->n;
 	clone->scope = node->scope;
-	replace_ast(node, clone);
+	replace_slice_ast(node, clone);
 
 	/* a succesful replacement needs no futher replacements, I think */
 	return 0;
@@ -638,7 +647,8 @@ static int implements(struct type *trait, struct type *type)
 	return 0;
 }
 
-static int should_implement_list(struct scope *scope, struct ast *params, struct src_loc loc, struct type *types)
+static int should_implement_list(struct scope *scope, struct ast *params,
+                                 struct src_loc loc, struct type *types)
 {
 	while (params && types) {
 		assert(params->k == AST_VAR_DEF);
@@ -647,9 +657,9 @@ static int should_implement_list(struct scope *scope, struct ast *params, struct
 			char *type1 = type_str(types);
 			char *type2 = type_str(t);
 			type_error(scope->fctx, types,
-					"%s does not implement %s",
-					type1,
-					type2);
+			           "%s does not implement %s",
+			           type1,
+			           type2);
 			free(type1);
 			free(type2);
 			return 0;
@@ -664,13 +674,13 @@ static int should_implement_list(struct scope *scope, struct ast *params, struct
 
 	if (params != NULL) {
 		loc_error(scope->fctx, loc,
-				"too few type params");
+		          "too few type params");
 		return 0;
 	}
 
 	if (types != NULL) {
 		loc_error(scope->fctx, loc,
-				"too many type params");
+		          "too many type params");
 		return 0;
 	}
 
@@ -704,7 +714,7 @@ static int expand_type(struct ast *expd, struct ast *params, struct type *types)
 	struct scope *p = expd->scope->parent;
 
 	reset(expd);
-	
+
 	foreach_node(n, params) {
 		struct ast *p = clone_ast(n);
 		var_type(p) = clone_type(types);
@@ -726,7 +736,8 @@ static int expand_type(struct ast *expd, struct ast *params, struct type *types)
 	return ret;
 }
 
-static struct ast *maybe_expand_struct(struct scope *scope, struct ast *def, struct src_loc loc, struct type *args)
+static struct ast *maybe_expand_struct(struct scope *scope, struct ast *def,
+                                       struct src_loc loc, struct type *args)
 {
 	assert(def->k == AST_STRUCT_DEF);
 	if (struct_params(def) == NULL) {
@@ -734,8 +745,8 @@ static struct ast *maybe_expand_struct(struct scope *scope, struct ast *def, str
 			return def;
 
 		loc_error(scope->fctx, loc,
-				"passing types to non-generic struct %s",
-				struct_id(def));
+		          "passing types to non-generic struct %s",
+		          struct_id(def));
 		return NULL;
 	}
 
@@ -754,14 +765,15 @@ static struct ast *maybe_expand_struct(struct scope *scope, struct ast *def, str
 	return expd;
 }
 
-static struct ast *maybe_expand_trait(struct scope *scope, struct ast *def, struct src_loc loc, struct type *args)
+static struct ast *maybe_expand_trait(struct scope *scope, struct ast *def,
+                                      struct src_loc loc, struct type *args)
 {
 	assert(def->k == AST_TRAIT_DEF);
 	if (trait_params(def) == NULL) {
 		if (args != NULL) {
 			loc_error(scope->fctx, loc,
-					"passing types to non-generic trait %s",
-					trait_id(def));
+			          "passing types to non-generic trait %s",
+			          trait_id(def));
 			return NULL;
 		}
 
@@ -772,7 +784,8 @@ static struct ast *maybe_expand_trait(struct scope *scope, struct ast *def, stru
 	return NULL;
 }
 
-static struct ast *maybe_expand_type(struct scope *scope, struct ast *def, struct src_loc loc, struct type *args)
+static struct ast *maybe_expand_type(struct scope *scope, struct ast *def,
+                                     struct src_loc loc, struct type *args)
 {
 	assert(def->k == AST_STRUCT_DEF || def->k == AST_TRAIT_DEF);
 	if (def->k == AST_STRUCT_DEF)
@@ -842,8 +855,7 @@ static int actualize_macro_expand(struct act_state *state,
 		arg = arg->n = next_arg;
 	}
 
-	free(macro_expand_id(macro_expand));
-	replace_ast(macro_expand, body);
+	replace_slice_ast(macro_expand, body);
 
 	/* actualize the new content */
 	if (actualize(state, scope, macro_expand)) {
@@ -863,24 +875,30 @@ static int simplify_refderef(struct act_state *state, struct scope *scope,
 
 	struct ast *e = unop_expr(n);
 	if (n->k == AST_REF && e->k == AST_DEREF) {
-		replace_ast(n, unop_expr(e));
+		replace_slice_ast(n, unop_expr(e));
 		return simplify_refderef(state, scope, n);
 	}
 
 	if (n->k == AST_DEREF && e->k == AST_REF) {
-		replace_ast(n, unop_expr(e));
+		replace_slice_ast(n, unop_expr(e));
 		return simplify_refderef(state, scope, n);
 	}
 
 	return 0;
 }
 
+/* not really ufcs at the moment */
 static int maybe_ufcs(struct act_state *state, struct scope *scope,
                       struct ast *call)
 {
 	assert(call->k == AST_CALL);
 	struct ast *dot = call_expr(call);
 	if (dot->k != AST_DOT)
+		return 0;
+
+	struct type *ptypes = callable_ptypes(dot->t);
+	if (!ptypes)
+		/* no ufcs */
 		return 0;
 
 	struct ast *expr = dot_expr(dot);
@@ -890,7 +908,7 @@ static int maybe_ufcs(struct act_state *state, struct scope *scope,
 	(call_expr(call))->scope = scope;
 
 	struct ast *ref = NULL;
-	struct type *ptypes = callable_ptypes(dot->t);
+
 	if (ptypes->k == TYPE_PTR) {
 		/* is ufcs expects reference to member, try to take address */
 		ref = gen_unop(AST_REF, expr, dot->loc);
@@ -1057,11 +1075,12 @@ static int actualize_proc(struct act_state *state,
 			return -1;
 		}
 
-		/* add 'implicit' return */
+		/* add 'implicit' return as the last defer statement to be executed in a block*/
 		struct ast *body = proc_body(proc);
 		struct ast *r = gen_return(NULL, NULL, NULL_LOC());
 		r->scope = body->scope;
-		ast_append(&block_body(body), r);
+		r->n = block_defers(body);
+		block_defers(body) = r;
 	}
 	else if (ast_block_last(proc_body(proc))->k != AST_RETURN) {
 		/* TODO: something more sophisticated than this */
@@ -1151,6 +1170,10 @@ static int actualize_block(struct act_state *state,
 	/* TODO: currently defers are sort of duplicated after a return, unsure
 	 * if they should be handled here or somewhere else */
 	if (state->defer_stack) {
+		/* no new defers, no need to clone anything */
+		if (state->defer_stack == defers)
+			return 0;
+
 		block_defers(node) = clone_defers(state, defers);
 		if (!block_defers(node)) {
 			internal_error("failed cloning defers");
@@ -1369,7 +1392,7 @@ static int actualize_tstruct(struct act_state *state, struct scope *scope,
 }
 
 static int actualize_ttrait(struct act_state *state, struct scope *scope,
-                             struct type *t)
+                            struct type *t)
 {
 	UNUSED(state);
 	/* not much to do */
@@ -1387,8 +1410,8 @@ static int actualize_ttrait(struct act_state *state, struct scope *scope,
 }
 
 static int actualize_tconstruct(struct act_state *state,
-		struct scope *scope,
-		struct type *t)
+                                struct scope *scope,
+                                struct type *t)
 {
 	assert(t->k == TYPE_CONSTRUCT);
 	struct ast *d = file_scope_find_type(scope, construct_id(t));
@@ -1604,8 +1627,6 @@ static int actualize_defer(struct act_state *state,
                            struct scope *scope, struct ast *node)
 {
 	struct ast *expr = defer_expr(node);
-	/* TODO: should the actualization only happen when the defers are
-	 * called? */
 	if (actualize(state, scope, expr))
 		return -1;
 
@@ -1655,6 +1676,8 @@ static int actualize_return(struct act_state *state, struct scope *scope,
  * nonetheless. */
 static void actualize_goto_defer(struct ast *got, struct ast *label)
 {
+	goto_label_ref(got) = label;
+
 	struct ast *goto_defers = goto_defers(got);
 	struct ast *label_defers = label_defers(label);
 	/* since we're dealing with singly linked lists, keep a reference to one
@@ -1884,7 +1907,7 @@ static int _replace_type_id(struct type *type, void *data)
 	return 0;
 }
 
-static int _replace_ast_type_id(struct ast *node, void *data)
+static int _replace_slice_ast_type_id(struct ast *node, void *data)
 {
 	if (!node)
 		return 0;
@@ -1902,7 +1925,7 @@ static int replace_type_id(struct ast *nodes, char *id,
                            struct type *replacement)
 {
 	struct replace_data pair = {id, replacement};
-	return ast_visit_list(_replace_ast_type_id, NULL, nodes, &pair);
+	return ast_visit_list(_replace_slice_ast_type_id, NULL, nodes, &pair);
 }
 
 static int _clear_scope(struct ast *node, void *data)
@@ -2054,7 +2077,8 @@ static int actualize_struct(struct act_state *state,
 
 		type_append(&tstruct_params(node->t), type);
 
-		struct ast *alias = gen_alias(strdup(id), clone_type(type), n->loc);
+		struct ast *alias = gen_alias(strdup(id), clone_type(type),
+		                              n->loc);
 		if (analyze_visibility(struct_scope, alias))
 			return -1;
 
@@ -2346,7 +2370,7 @@ static int actualize_enum_fetch(struct act_state *state, struct scope *scope,
 		return -1;
 	}
 
-	replace_ast(fetch, val_val(member));
+	replace_slice_ast(fetch, val_val(member));
 	set_type(fetch, def->t);
 	return 0;
 }
@@ -2465,19 +2489,60 @@ static int actualize_for(struct act_state *state, struct scope *scope,
                          struct ast *node)
 {
 	assert(node->k == AST_FOR);
+	struct act_stack *prev = state->loop_stack;
+	enum act_flags flags = state->flags;
+	node->t = void_type();
+
 	if (actualize_list(state, scope, for_pre(node)))
-		return -1;
+		goto err;
 
 	if (actualize_list(state, scope, for_post(node)))
-		return -1;
+		goto err;
 
 	if (actualize_list(state, scope, for_cond(node)))
-		return -1;
+		goto err;
 
+	state->flags |= ACT_IN_LOOP;
 	if (actualize_list(state, scope, for_body(node)))
-		return -1;
+		goto err;
 
+	state->loop_stack = prev;
+	state->flags = flags;
+	return 0;
+
+err:
+	state->loop_stack = prev;
+	state->flags = flags;
+	return -1;
+}
+
+static int actualize_continue(struct act_state *state, struct scope *scope,
+                              struct ast *node)
+{
+	UNUSED(scope);
 	node->t = void_type();
+	if (!state->flags & ACT_IN_LOOP) {
+		semantic_error(scope->fctx, node,
+		               "continue outside of loop");
+		return -1;
+	}
+
+	continue_defers(node) = clone_defers(state, state->loop_stack);
+	return 0;
+}
+
+static int actualize_break(struct act_state *state, struct scope *scope,
+                           struct ast *node)
+{
+	UNUSED(scope);
+	node->t = void_type();
+	if (!state->flags & ACT_IN_LOOP) {
+		semantic_error(scope->fctx, node,
+		               "break outside of loop");
+		return -1;
+	}
+
+	break_defers(node) = clone_defers(state, state->loop_stack);
 	return 0;
 }
 
@@ -2579,6 +2644,8 @@ static int actualize(struct act_state *state, struct scope *scope,
 	case AST_FETCH: ret = actualize_fetch(state, scope, node); break;
 	case AST_IF: ret = actualize_if(state, scope, node); break;
 	case AST_FOR: ret = actualize_for(state, scope, node); break;
+	case AST_CONTINUE: ret = actualize_continue(state, scope, node); break;
+	case AST_BREAK: ret = actualize_break(state, scope, node); break;
 	case AST_MACRO_EXPAND: ret = actualize_macro_expand(state, scope, node);
 		break;
 	case AST_MACRO_DEF: ret = actualize_macro_def(state, scope, node);

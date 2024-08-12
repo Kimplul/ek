@@ -113,7 +113,8 @@ struct visible *create_type(struct scope *scope, char *id, struct ast *type)
 	return n;
 }
 
-struct expanded *create_expanded(struct scope *scope, struct ast *def, struct type *types, struct ast *expd)
+struct expanded *create_expanded(struct scope *scope, struct ast *def,
+                                 struct type *types, struct ast *expd)
 {
 	struct expanded *n = calloc(1, sizeof(struct expanded));
 	if (!n)
@@ -257,14 +258,15 @@ int scope_add_trait(struct scope *scope, struct ast *trait)
 	return 0;
 }
 
-int scope_add_expd_struct(struct scope *scope, struct ast *def, struct type *types, struct ast *expd)
+int scope_add_expd_struct(struct scope *scope, struct ast *def,
+                          struct type *types, struct ast *expd)
 {
 	assert(def->k == AST_STRUCT_DEF);
 	assert(file_scope_find_expd_struct(scope, def, types) == NULL);
 
 	create_expanded(scope, def, types, expd);
 	if (scope->parent &&
-			scope_flags(scope, SCOPE_FILE) && ast_flags(def, AST_FLAG_PUBLIC))
+	    scope_flags(scope, SCOPE_FILE) && ast_flags(def, AST_FLAG_PUBLIC))
 		return scope_add_expd_struct(scope->parent, def, types, expd);
 
 	return 0;
@@ -284,7 +286,8 @@ static struct ast *scope_find_visible(struct visible *v, char *id)
 	return NULL;
 }
 
-static struct ast *scope_find_expanded(struct expanded *e, struct ast *def, struct type *types)
+static struct ast *scope_find_expanded(struct expanded *e, struct ast *def,
+                                       struct type *types)
 {
 	if (!e)
 		return NULL;
@@ -411,7 +414,8 @@ struct ast *file_scope_find_var(struct scope *scope, char *id)
 	return NULL;
 }
 
-struct ast *scope_find_expd_struct(struct scope *scope, struct ast *def, struct type *types)
+struct ast *scope_find_expd_struct(struct scope *scope, struct ast *def,
+                                   struct type *types)
 {
 	assert(def->k == AST_STRUCT_DEF);
 	struct ast *exists = scope_find_expanded(scope->expanded, def, types);
@@ -422,7 +426,8 @@ struct ast *scope_find_expd_struct(struct scope *scope, struct ast *def, struct 
 	return exists;
 }
 
-struct ast *file_scope_find_expd_struct(struct scope *scope, struct ast *def, struct type *types)
+struct ast *file_scope_find_expd_struct(struct scope *scope, struct ast *def,
+                                        struct type *types)
 {
 	assert(def->k == AST_STRUCT_DEF);
 	struct ast *found = scope_find_expd_struct(scope, def, types);

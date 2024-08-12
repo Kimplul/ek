@@ -208,7 +208,8 @@ int scope_add_macro(struct scope *scope, struct ast *macro);
  */
 int scope_add_trait(struct scope *scope, struct ast *trait);
 
-int scope_add_expd_struct(struct scope *scope, struct ast *def, struct type *types, struct ast *expanded);
+int scope_add_expd_struct(struct scope *scope, struct ast *def,
+                          struct type *types, struct ast *expanded);
 
 /**
  * Find a variable with ID in \p scope.
@@ -283,7 +284,8 @@ struct ast *scope_find_alias(struct scope *scope, char *id);
  */
 struct ast *scope_find_trait(struct scope *scope, char *id);
 
-struct ast *scope_find_expd_struct(struct scope *scope, struct ast *def, struct type *types);
+struct ast *scope_find_expd_struct(struct scope *scope, struct ast *def,
+                                   struct type *types);
 
 /**
  * Find a variable with ID visible to \p scope.
@@ -345,7 +347,8 @@ struct ast *file_scope_find_alias(struct scope *scope, char *id);
  */
 struct ast *file_scope_find_trait(struct scope *scope, char *id);
 
-struct ast *file_scope_find_expd_struct(struct scope *scope, struct ast *def, struct type *types);
+struct ast *file_scope_find_expd_struct(struct scope *scope, struct ast *def,
+                                        struct type *types);
 
 #define foreach_visible(iter, init) \
 	for (struct visible *iter = init; iter; iter = iter->next)
