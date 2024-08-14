@@ -1,3 +1,5 @@
+typedef ptr {}
+
 define b[] {
 	c![];
 	a![];
@@ -15,4 +17,10 @@ define c[] {
 typedef d {
 	b![];
 	c(*d d) {}
+}
+
+main()
+{
+	d d = d!{};
+	d.c();
 }

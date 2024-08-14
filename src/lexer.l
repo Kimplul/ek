@@ -165,7 +165,7 @@ STRING		\"(\\.|[^"\\])*\"
 {STRING} {
 	/* seems risky, I know, but letting the parser choose when to allocate a
 	 * new string seems to help with syntax error cleanup */
-	yylval->str = yytext;
+	yylval->str = strdup(yytext);
 	return STRING;
 }
 

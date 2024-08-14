@@ -158,6 +158,7 @@ enum ast_kind {
 	AST_CONST_CHAR,
 	AST_CONST_BOOL,
 	AST_CONST_STR,
+	AST_UNPACK,
 };
 
 /** Flags an AST node can have. */
@@ -274,6 +275,9 @@ size_t type_offsetof(struct type *t, char *m);
 
 #define tgen_trait(id, def, loc) \
 	tgen_type(TYPE_TRAIT, NULL, NULL, def, NULL, id, loc)
+
+#define tgen_enum(id, def, loc) \
+	tgen_type(TYPE_ENUM, NULL, NULL, def, NULL, id, loc)
 
 static inline bool is_binop(struct ast *x)
 {
@@ -624,6 +628,9 @@ static inline bool is_primitive(struct type *t)
 #define id_str(x) return_s(x, AST_ID)
 #define gen_id(id, loc) \
 	gen_str(AST_ID, id, loc)
+
+#define gen_unpack(id, loc) \
+	gen_str(AST_UNPACK, id, loc)
 
 #define gen_empty(loc) \
 	gen1(AST_EMPTY, NULL, loc)

@@ -279,11 +279,15 @@ static int lower_param(struct lower_state *s, struct ast *p, struct vec *fixups)
 	assert(p->k == AST_VAR_DEF);
 	assert(var_init(p) == NULL);
 
-	if (is_primitive(p->t) || p->t->k == TYPE_PTR) {
+	if (is_primitive(p->t) || p->t->k == TYPE_PTR || p->t->k == TYPE_CALLABLE) {
 		return lower_simple_param(s, p);
 	}
 
-	assert(p->t->k == TYPE_STRUCT);
+	if (p->t->k != TYPE_STRUCT) {
+		semantic_error(p->scope->fctx, p,
+				"illegal type");
+		return -1;
+	}
 
 	char *name = NULL;
 	if (var_id(p)) name = mangle(p);
@@ -496,13 +500,19 @@ static int lower_id(struct lower_state *s, struct ast *id,
 		 * them but if we did have them we might have to run
 		 * file_scope_find_symbol and add it to the state as we run into
 		 * them */
-		struct ast *def = file_scope_find_proc(id->scope, id->s);
+		struct ast *def = file_scope_find_symbol(id->scope, id->s);
 		assert(def);
 
-		add_proc(s, def);
-		char *o = m;
-		m = build_str("&%s", m);
-		free(o);
+		if (def->k == AST_PROC_DEF) {
+			add_proc(s, def);
+
+			char *o = m;
+			/* we don't want to take the address of a variable
+			 * (pointer to function, whatever),
+			 * just the regular functions */
+			m = build_str("&%s", m);
+			free(o);
+		}
 	}
 
 	*retval = build_retval(kind, m);
@@ -960,6 +970,18 @@ static int lower_init(struct lower_state *s, struct ast *init,
 	return 0;
 }
 
+static struct ast *maybe_fetch_enum_type(struct ast *node)
+{
+	if (node->k == AST_ENUM_DEF) {
+		struct type *t = enum_type(node);
+		assert(t && (t->k == TYPE_I9 || t->k == TYPE_I27));
+
+		return file_scope_find_type(node->scope, t->id);
+	}
+
+	return node;
+}
+
 static int lower_fetch(struct lower_state *s, struct ast *f,
                        struct retval *retval)
 {
@@ -970,6 +992,11 @@ static int lower_fetch(struct lower_state *s, struct ast *f,
 	assert(f->t->k == TYPE_CALLABLE);
 
 	struct ast *def = (fetch_type(f))->d;
+	assert(def);
+
+	/* enums are kind of sneaky as they masquerade as their underlying type
+	 * but their definition differs */
+	def = maybe_fetch_enum_type(def);
 	assert(def);
 
 	struct ast *proc = scope_find_proc(def->scope, fetch_id(f));

@@ -1,3 +1,5 @@
+typedef i27 {}
+
 main()
 {
 	/* should parse, but give an error about lvalue vs rvalue */

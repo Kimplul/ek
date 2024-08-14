@@ -1,3 +1,5 @@
+typedef ptr {}
+
 define b[] {
 	a![];
 }

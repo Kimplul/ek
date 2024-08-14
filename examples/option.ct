@@ -1,6 +1,0 @@
-type t {any};
-
-struct option <t> {
-	u8 res;
-	t val;
-};

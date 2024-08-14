@@ -1,6 +1,7 @@
 typedef i9 {}
 typedef i27 {}
 typedef bool {}
+typedef ptr {}
 
 putchar(i9 c)
 {

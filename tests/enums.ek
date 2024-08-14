@@ -1,9 +1,17 @@
+typedef i27 {
+	add(i27 a, i27 b => i27) {
+		return a + b;
+	}
+};
+
+typedef i9 {};
+
 enum A {
 	a = 200,
 	b
 }
 
-enum B: u8 {
+enum B: i9 {
 	b, c
 }
 
@@ -11,4 +19,5 @@ main()
 {
 	const a = a::A;
 	const b = b::B;
+	const c = a.add(b as i27);
 }

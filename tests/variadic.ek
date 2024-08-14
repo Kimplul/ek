@@ -1,7 +1,16 @@
+typedef i27 {}
+
 define macro(a, b, ... c)
 {
+	mut sum = 0;
 	const for i : a, b, ... c {
+		sum += i;
 	}
+
+	sum;
 }
 
-proc(u32 a, u32 b, ... c) {}
+main()
+{
+	macro!(1, 2, 3, 4);
+}

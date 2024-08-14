@@ -50,3 +50,8 @@ Then continue just goes to the bottom of the loop and break goes out of the
 loop, pretty much what we're currently doing but just with the top loop
 in the stack. We'd probably just have to check the loop stack in lower.c,
 should be fairly straightforward?
+
++ Function callbacks currently aren't treated as pointers, even though they
+really are under the hood. Unsure if I want to do something about it, one option
+could be to treat callbacks as their own thing but allow them to be casted to
+pointers?

@@ -1,6 +1,7 @@
 /* simple example with C-like strings. A real implementation would likely want
  * to use a string wrapper or something. */
 
+typedef ptr {}
 typedef i27 {}
 typedef i9 {}
 

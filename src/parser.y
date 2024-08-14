@@ -253,7 +253,7 @@ var
 	: var_init
 
 embed
-	: "embed" "(" STRING ")" { $$ = gen_embed(strip($3), src_loc(@$));  }
+	: "embed" STRING { $$ = gen_embed(strip($2), src_loc(@$));  }
 
 import
 	: "import" STRING { $$ = gen_import(strip($2), src_loc(@$));  }
@@ -423,6 +423,7 @@ expr
 	| "sizeof" expr { $$ = gen_sizeof($2, src_loc(@$)); }
 	| expr "as" type { $$ = gen_cast($1, $3, src_loc(@$));  }
 	| ID "::" type { $$ = gen_fetch($1, $3, src_loc(@$)); }
+	| "..." ID { $$ = gen_unpack($2, src_loc(@$)); }
 	| macro_expand
 	| construct
 	| assign
@@ -477,7 +478,6 @@ statement
 	| for
 	| if
 	| const
-	| enum
 	| macro
 	| ID ":" { $$ = gen_label($[ID], NULL, src_loc(@$));  }
 

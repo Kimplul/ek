@@ -280,10 +280,18 @@ static void _type_str(FILE *fp, struct type *type)
 		break;
 	}
 
+	case TYPE_ENUM: {
+		struct ast *def = type->d;
+		if (enum_id(def)) {
+			fprintf(fp, "%s", enum_id(def));
+		}
+		break;
+	}
+
 	case TYPE_TRAIT: {
 		struct ast *def = type->d;
 		if (trait_id(def)) {
-			fprintf(fp, "%s ", trait_id(def));
+			fprintf(fp, "%s", trait_id(def));
 		}
 
 		if (struct_params(def)) {

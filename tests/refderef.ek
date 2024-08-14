@@ -1,5 +1,6 @@
 typedef i9 {}
 typedef i27 {}
+typedef ptr {}
 
 main()
 {

@@ -296,6 +296,7 @@ void ast_dump(int depth, struct ast *n)
 	DUMP(AST_CONST_CHAR);
 	DUMP(AST_CONST_BOOL);
 	DUMP(AST_CONST_STR);
+	DUMP(AST_UNPACK);
 	}
 #undef DUMP
 

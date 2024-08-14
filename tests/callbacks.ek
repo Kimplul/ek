@@ -1,17 +1,16 @@
-do_stuff(^(u32) proc)
+typedef i27 {}
+
+do_stuff(^(i27 => i27) proc => i27)
 {
-	proc();
+	return proc(20);
 }
 
-other_proc(u32)
+other_proc(i27 a => i27)
 {
-}
-
-other_proc()
-{
+	return a + 10;
 }
 
 main()
 {
-	do_stuff(other_proc as ^(u32));
+	do_stuff(other_proc);
 }

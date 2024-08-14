@@ -815,6 +815,14 @@ static int actualize_macro_def(struct act_state *state,
 	/* macro bodies, arguments, etc aren't expanded upon until the macro is
 	 * called, so just try to add it to the local scope */
 	assert(n && n->k == AST_MACRO_DEF);
+
+	n->t = void_type();
+
+	/* analysis should've added us to the file scope already */
+	if (scope_flags(scope, SCOPE_FILE))
+		return 0;
+
+	/* otherwise, add us to whatever scope we're in */
 	return scope_add_macro(scope, n);
 }
 
@@ -1443,7 +1451,8 @@ static int actualize_tconstruct(struct act_state *state,
                                 struct type *t)
 {
 	assert(t->k == TYPE_CONSTRUCT);
-	struct ast *d = actualized_file_scope_find_type(state, scope, construct_id(t));
+	struct ast *d = actualized_file_scope_find_type(state, scope,
+	                                                construct_id(t));
 	if (!d) {
 		type_error(scope->fctx, t, "no such type");
 		return -1;
@@ -1602,8 +1611,7 @@ static int actualize_cast(struct act_state *state,
 
 	char *left_type = type_str(expr->t);
 	char *right_type = type_str(type);
-	semantic_error(scope->fctx, cast, "illegal cast: %s vs %s",
-	               left_type, right_type);
+	type_mismatch(scope, "illegal cast", cast, expr->t, type);
 	free(left_type);
 	free(right_type);
 	return -1;
@@ -1690,7 +1698,7 @@ static int actualize_return(struct act_state *state, struct scope *scope,
 	struct type *rtype = callable_rtype(cur_proc->t);
 	if (!types_match(node->t, rtype)) {
 		type_mismatch(scope, "return type mismatch", node,
-				rtype, node->t);
+		              rtype, node->t);
 		return -1;
 	}
 
@@ -2099,7 +2107,8 @@ static int actualize_struct(struct act_state *state,
 	else if (same_id(id, "i9"))
 		node->t = tgen_primitive(TYPE_I9, strdup(id), node, node->loc);
 	else if (same_id(id, "bool"))
-		node->t = tgen_primitive(TYPE_BOOL, strdup(id), node, node->loc);
+		node->t = tgen_primitive(TYPE_BOOL, strdup(id), node,
+		                         node->loc);
 	else if (same_id(id, "ptr")) {
 		node->t = tgen_ptr(void_type(), node->loc);
 		/* we know we're the definition for pointers */
@@ -2145,7 +2154,7 @@ static int actualize_struct(struct act_state *state,
 		 * table */
 		if (n->k == AST_VAR_DEF && node->t->k != TYPE_STRUCT) {
 			semantic_error(scope->fctx, n,
-					"variables not allowed in primitive struct");
+			               "variables not allowed in primitive struct");
 			return -1;
 		}
 
@@ -2275,8 +2284,17 @@ static int actualize_dot(struct act_state *state,
 	}
 	}
 
+	if (def->k == AST_ENUM_DEF)
+		def = (enum_type(def))->d;
+
+	if (!def) {
+		semantic_error(scope->fctx, node,
+				"no such type");
+		return -1;
+	}
+
 	struct ast *exists = actualized_scope_find_symbol(state,
-			def->scope,
+	                                                  def->scope,
 	                                                  id);
 	if (exists) {
 		assert(exists->t);
@@ -2284,8 +2302,11 @@ static int actualize_dot(struct act_state *state,
 		return 0;
 	}
 
+	char *tstr = type_str(type);
 	semantic_error(scope->fctx, node,
-	               "does not have member");
+	               "%s does not have have member",
+		       tstr);
+	free(tstr);
 	return -1;
 }
 
@@ -2430,6 +2451,8 @@ static int actualize_enum_fetch(struct act_state *state, struct scope *scope,
 		return -1;
 	}
 
+	/* this should be safe since we currently don't allow enums to be part
+	 * of any generic structures. */
 	replace_slice_ast(fetch, val_val(member));
 	set_type(fetch, def->t);
 	return 0;
@@ -2443,7 +2466,8 @@ static int actualize_fetch(struct act_state *state, struct scope *scope,
 	if (actualize_type(state, scope, type))
 		return -1;
 
-	if (type->k == TYPE_ENUM)
+	assert(type->d);
+	if (type->d->k == AST_ENUM_DEF)
 		return actualize_enum_fetch(state, scope, fetch);
 
 	if (type->k != TYPE_STRUCT && type->k != TYPE_TRAIT &&
@@ -2473,41 +2497,45 @@ static int actualize_enum(struct act_state *state, struct scope *scope,
                           struct ast *node)
 {
 	assert(node->k == AST_ENUM_DEF);
-	struct type *type = enum_type(node);
 	struct scope *enum_scope = node->scope;
 
 	/* TODO: here we could save space by choosing the smallest type that
 	 * fits */
-	if (!type) {
-		type = i27_type(scope);
-		node->t = type;
-	} else if (actualize_type(state, enum_scope, type))
+	if (!enum_type(node))
+		enum_type(node) = i27_type(scope);
+
+	/* enum are at least currently limited to top scope, so we don't have to
+	 * worry about them being part of some generic structure. Might be a
+	 * future improvement, though. */
+	struct type *type = enum_type(node);
+	if (actualize_type(state, enum_scope, type))
 		return -1;
 
+	/* overwrite type definition to point to us.
+	 * This is maybe something of a hack, but effectively 'pretend' to be a
+	 * regular i27 or whatever to make casts etc. work like in C. */
+	node->t = clone_type(type);
+	node->t->d = node;
+
 	long long counter = 0;
-	node->t = type;
 	struct ast *members = enum_body(node);
 	while (members) {
 		set_type(members, type);
-		if (val_val(members)) {
-			struct ast *val = val_val(members);
-			if (actualize(state, enum_scope, val))
-				return -1;
-
-			if (val->k != AST_CONST_INT) {
-				semantic_error(scope->fctx, members,
-				               "unable to process nonconstant expression");
-				return -1;
-			}
-
-			counter = int_val(val);
-		}
-		else {
+		if (!val_val(members))
 			val_val(members) = gen_const_int(counter, NULL_LOC());
+
+		struct ast *val = val_val(members);
+		if (actualize(state, enum_scope, val))
+			return -1;
+
+		if (val->k != AST_CONST_INT) {
+			semantic_error(scope->fctx, members,
+			               "unable to process nonconstant expression");
+			return -1;
 		}
 
+		counter = int_val(val) + 1;
 		members = members->n;
-		counter++;
 	}
 
 	/* TODO: check that we don't go outside the limits of the type */
@@ -2681,6 +2709,7 @@ static int actualize(struct act_state *state, struct scope *scope,
 	}
 
 	switch (node->k) {
+	case AST_IMPORT: ret = 0; node->t = void_type(); break;
 	case AST_PROC_DEF: ret = actualize_proc(state, scope, node); break;
 	case AST_TRAIT_DEF: ret = actualize_trait(state, scope, node); break;
 	case AST_ALIAS_DEF: ret = actualize_alias(state, scope, node); break;
