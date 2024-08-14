@@ -234,6 +234,22 @@ static void _type_list_str(FILE *fp, struct type *types)
 	}
 }
 
+static void _param_str(FILE *fp, struct ast *params)
+{
+	if (!params)
+		return;
+
+	assert(params->k == AST_VAR_DEF);
+	_type_str(fp, var_type(params));
+
+	params = params->n;
+	foreach_node(n, params) {
+		assert(n->k == AST_VAR_DEF);
+		fprintf(fp, ", ");
+		_type_str(fp, var_type(n));
+	}
+}
+
 /**
  * Workhorse for type_str().
  *
@@ -266,16 +282,26 @@ static void _type_str(FILE *fp, struct type *type)
 		if (trait_id(def)) {
 			fprintf(fp, "%s ", trait_id(def));
 		}
-		fprintf(fp, "(trait)");
+
+		if (struct_params(def)) {
+			fprintf(fp, "![");
+			_param_str(fp, trait_params(def));
+			fprintf(fp, "]");
+		}
 		break;
 	}
 
 	case TYPE_STRUCT: {
 		struct ast *def = type->d;
 		if (struct_id(def)) {
-			fprintf(fp, "%s ", struct_id(def));
+			fprintf(fp, "%s", struct_id(def));
 		}
-		fprintf(fp, "(struct)");
+
+		if (struct_params(def)) {
+			fprintf(fp, "![");
+			_param_str(fp, struct_params(def));
+			fprintf(fp, "]");
+		}
 		break;
 	}
 
