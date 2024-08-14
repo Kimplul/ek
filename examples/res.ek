@@ -1,0 +1,25 @@
+/* simple example with C-like strings. A real implementation would likely want
+ * to use a string wrapper or something. */
+
+typedef i27 {}
+typedef i9 {}
+
+typedef res[any T] {
+	*i9 e;
+	T v;
+
+	ok(T v => res![T]) {
+		return res![T]{.e = 0 as *i9, .v = v};
+	}
+
+	error(*i9 e, T v => res![T]) {
+		return res![T]{.e = e, .v = v};
+	}
+}
+
+define any[] {}
+
+main()
+{
+	const a = ok::res![i27](20);
+}

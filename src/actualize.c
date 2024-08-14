@@ -618,9 +618,6 @@ static int replace_id(struct ast *body, struct ast *id,
 
 static int implements(struct type *trait, struct type *type)
 {
-	assert(type->d);
-	struct ast *def = type->d;
-
 	assert(trait->d);
 	struct ast *trait_def = trait->d;
 	assert(trait_def->k == AST_TRAIT_DEF);
@@ -628,6 +625,9 @@ static int implements(struct type *trait, struct type *type)
 	/* empty traits are implemented implicitly */
 	if (!trait_body(trait_def))
 		return 1;
+
+	assert(type->d);
+	struct ast *def = type->d;
 
 	foreach_node(n, def) {
 		if (n->k != AST_TYPE_EXPAND)
@@ -765,7 +765,6 @@ static struct ast *maybe_expand_struct(struct scope *scope, struct ast *def,
 	if (expand_type(expd, struct_params(def), args))
 		return NULL;
 
-	scope_add_expd_struct(scope, def, args, expd);
 	return expd;
 }
 
@@ -1033,15 +1032,15 @@ static int actualize_proc_sign(struct scope *scope, struct ast *proc)
 	if (!proc_rtype(proc))
 		proc_rtype(proc) = void_type();
 
-	if (actualize_type_list(&new_state, proc->scope, proc_rtype(proc))) {
+	struct type *rtype = clone_type(proc_rtype(proc));
+	if (actualize_type_list(&new_state, proc->scope, rtype)) {
 		destroy_act_state(&new_state);
 		return -1;
 	}
 
-	struct type *callable = tgen_callable(NULL, proc_rtype(proc),
-	                                      proc->loc);
+	struct type *callable = tgen_callable(NULL, rtype, proc->loc);
 	foreach_node(p, proc_params(proc)) {
-		/* we must manually 'start' the chain **/
+		/* we must manually 'start' the chain */
 		if (!callable_ptypes(callable)) {
 			callable_ptypes(callable) = clone_type(p->t);
 			continue;
@@ -1424,7 +1423,7 @@ static int actualize_tconstruct(struct act_state *state,
                                 struct type *t)
 {
 	assert(t->k == TYPE_CONSTRUCT);
-	struct ast *d = file_scope_find_type(scope, construct_id(t));
+	struct ast *d = actualized_file_scope_find_type(state, scope, construct_id(t));
 	if (!d) {
 		type_error(scope->fctx, t, "no such type");
 		return -1;
@@ -1668,8 +1667,8 @@ static int actualize_return(struct act_state *state, struct scope *scope,
 
 	assert(state->cur_proc);
 	struct ast *cur_proc = state->cur_proc;
-	struct type *rtype = proc_rtype(cur_proc);
-	if (!types_match(node->t, rtype)) {
+	struct type *rtype = cur_proc->t;
+	if (!types_match(node->t, callable_rtype(rtype))) {
 		type_mismatch(scope, "return type mismatch", node, rtype,
 		              node->t);
 		return -1;
@@ -2082,6 +2081,7 @@ static int actualize_struct(struct act_state *state,
 		node->t = tgen_struct(id, node, node->loc);
 
 	/* iterate over types and make aliases to them */
+	struct type *types = NULL;
 	foreach_node(n, struct_params(node)) {
 		char *id = var_id(n);
 		struct type *type = var_type(n);
@@ -2089,10 +2089,9 @@ static int actualize_struct(struct act_state *state,
 		if (actualize_type(&type_state, scope, type))
 			return -1;
 
-		type_append(&tstruct_params(node->t), type);
+		type_append(&types, type);
 
-		struct ast *alias = gen_alias(strdup(id), clone_type(type),
-		                              n->loc);
+		struct ast *alias = gen_alias(strdup(id), type, n->loc);
 		if (analyze_visibility(struct_scope, alias))
 			return -1;
 
@@ -2100,6 +2099,13 @@ static int actualize_struct(struct act_state *state,
 		if (actualize(&state, struct_scope, alias))
 			return -1;
 	}
+
+	if (node->t->k == TYPE_STRUCT)
+		tstruct_params(node->t) = types;
+
+	struct ast *def = file_scope_find_type(scope, id);
+	int ret = scope_add_expd_struct(scope, def, types, node);
+	assert(ret == 0);
 
 	foreach_node(n, struct_body(node)) {
 		if (n->k != AST_TYPE_EXPAND)
@@ -2265,10 +2271,11 @@ static int actualize_init(struct act_state *state,
 		return -1;
 	}
 
-	if (actualize_type_list(state, scope, init_args(node)))
+	struct type *types = clone_type_list(init_args(node));
+	if (actualize_type_list(state, scope, types))
 		return -1;
 
-	def = maybe_expand_type(scope, def, node->loc, init_args(node));
+	def = maybe_expand_type(scope, def, node->loc, types);
 	if (!def)
 		return -1;
 

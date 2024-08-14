@@ -206,7 +206,7 @@ static ssize_t visit_struct(struct lower_state *s, struct ast *def, size_t base,
 			if (r < 0)
 				return -1;
 
-			offset += (size_t)r;
+			offset = (size_t)r;
 			continue;
 		}
 
