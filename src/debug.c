@@ -261,6 +261,9 @@ static void _type_str(FILE *fp, struct type *type)
 	if (!type)
 		return;
 
+	if (type->a)
+		fprintf(fp, "[%s = ", alias_id(type->a));
+
 	switch (type->k) {
 	case TYPE_VOID: {
 		fprintf(fp, "void");
@@ -320,6 +323,9 @@ static void _type_str(FILE *fp, struct type *type)
 		else
 			fprintf(fp, "UNKNOWN TYPE");
 	}
+
+	if (type->a)
+		fputc(']', fp);
 }
 
 char *type_str(struct type *t)

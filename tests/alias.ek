@@ -1,0 +1,9 @@
+typedef i27 {}
+typedef i9 {}
+
+typedef int i27;
+
+main()
+{
+	int a = 10 as i9;
+}
