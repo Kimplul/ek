@@ -1,0 +1,30 @@
+typedef bool {}
+
+typedef i27 {
+	cmp![];
+	eq(i27 a, i27 b => bool) {
+		return a == b;
+	}
+}
+
+typedef ptr {
+	cmp![];
+	eq(ptr a, ptr b => bool) {
+		return a == b;
+	}
+}
+
+typedef test[cmp T] {}
+
+define cmp[] {
+	eq(cmp, cmp => bool);
+}
+
+main()
+{
+	const a = test![i27]{};
+	20.eq(20);
+
+	const b = test![*i27]{};
+	a&.eq(a&);
+}

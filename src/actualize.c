@@ -462,6 +462,8 @@ static struct ast *analyze_type_expand(struct scope *scope,
 		return NULL;
 	}
 
+	n->t = trait->t;
+
 	struct ast *body = trait_body(trait);
 	body = clone_ast(body);
 
@@ -553,6 +555,13 @@ int types_match(struct type *a, struct type *b)
 	if (a->k == TYPE_STRUCT)
 		return structs_match(a, b);
 
+	if (a->k == TYPE_PTR && b->k == TYPE_PTR) {
+		if (is_void(ptr_base(a)))
+			return 1;
+		else if (is_void(ptr_base(b)))
+			return 1;
+	}
+
 	if (a->k == TYPE_PTR)
 		return types_match(ptr_base(a), ptr_base(b));
 
@@ -628,8 +637,10 @@ static int implements(struct type *trait, struct type *type)
 
 	assert(type->d);
 	struct ast *def = type->d;
+	assert(def->k == AST_STRUCT_DEF);
+	struct ast *body = struct_body(def);
 
-	foreach_node(n, def) {
+	foreach_node(n, body) {
 		if (n->k != AST_TYPE_EXPAND)
 			continue;
 
@@ -915,6 +926,9 @@ static int maybe_ufcs(struct act_state *state, struct scope *scope,
 		/* is ufcs expects reference to member, try to take address */
 		ref = gen_unop(AST_REF, expr, dot->loc);
 		ref->t = tgen_ptr(clone_type(expr->t), dot->loc);
+		if (actualize_type(state, scope, ref->t))
+			return -1;
+
 		ref->scope = scope;
 	}
 	else {
@@ -1302,6 +1316,12 @@ static int actualize_ptr(struct act_state *state, struct scope *scope,
                          struct type *t)
 {
 	assert(ptr_base(t));
+	t->d = actualized_file_scope_find_type(state, scope, "ptr");
+	if (!t->d) {
+		type_error(scope->fctx, t, "no pointer type");
+		return -1;
+	}
+
 	if (actualize_type(state, scope, ptr_base(t)))
 		return -1;
 
@@ -1667,10 +1687,10 @@ static int actualize_return(struct act_state *state, struct scope *scope,
 
 	assert(state->cur_proc);
 	struct ast *cur_proc = state->cur_proc;
-	struct type *rtype = cur_proc->t;
-	if (!types_match(node->t, callable_rtype(rtype))) {
-		type_mismatch(scope, "return type mismatch", node, rtype,
-		              node->t);
+	struct type *rtype = callable_rtype(cur_proc->t);
+	if (!types_match(node->t, rtype)) {
+		type_mismatch(scope, "return type mismatch", node,
+				rtype, node->t);
 		return -1;
 	}
 
@@ -1827,6 +1847,9 @@ static int actualize_unop(struct act_state *state,
 	case AST_REF: {
 		/** @todo array pointer decay? */
 		node->t = tgen_ptr(clone_type(expr->t), node->loc);
+		if (actualize_type(state, scope, node->t))
+			return -1;
+
 		if (simplify_refderef(state, scope, node))
 			return -1;
 
@@ -2070,15 +2093,20 @@ static int actualize_struct(struct act_state *state,
 		ast_set_flags(node, AST_FLAG_GENERIC);
 
 	/* do type setting first to make sure body checking works */
-	char *id = strdup(struct_id(node));
+	char *id = struct_id(node);
 	if (same_id(id, "i27"))
-		node->t = tgen_primitive(TYPE_I27, id, node, node->loc);
+		node->t = tgen_primitive(TYPE_I27, strdup(id), node, node->loc);
 	else if (same_id(id, "i9"))
-		node->t = tgen_primitive(TYPE_I9, id, node, node->loc);
+		node->t = tgen_primitive(TYPE_I9, strdup(id), node, node->loc);
 	else if (same_id(id, "bool"))
-		node->t = tgen_primitive(TYPE_BOOL, id, node, node->loc);
+		node->t = tgen_primitive(TYPE_BOOL, strdup(id), node, node->loc);
+	else if (same_id(id, "ptr")) {
+		node->t = tgen_ptr(void_type(), node->loc);
+		/* we know we're the definition for pointers */
+		node->t->d = node;
+	}
 	else
-		node->t = tgen_struct(id, node, node->loc);
+		node->t = tgen_struct(strdup(id), node, node->loc);
 
 	/* iterate over types and make aliases to them */
 	struct type *types = NULL;
@@ -2110,6 +2138,16 @@ static int actualize_struct(struct act_state *state,
 	foreach_node(n, struct_body(node)) {
 		if (n->k != AST_TYPE_EXPAND)
 			continue;
+
+		/** @todo when I eventually implement continuing structure
+		 * definitions I might add the primitive types by default to
+		 * structs, that way we don't need this check or the above type
+		 * table */
+		if (n->k == AST_VAR_DEF && node->t->k != TYPE_STRUCT) {
+			semantic_error(scope->fctx, n,
+					"variables not allowed in primitive struct");
+			return -1;
+		}
 
 		if (has_trait(struct_body(node), type_expand_id(n))) {
 			n->k = AST_EMPTY;
@@ -2224,6 +2262,7 @@ static int actualize_dot(struct act_state *state,
 	case TYPE_I9:
 	case TYPE_I27:
 	case TYPE_BOOL:
+	case TYPE_PTR:
 	case TYPE_TRAIT:
 	case TYPE_STRUCT: def = type->d; break;
 	default: {
@@ -2236,7 +2275,8 @@ static int actualize_dot(struct act_state *state,
 	}
 	}
 
-	struct ast *exists = actualized_scope_find_symbol(state, def->scope,
+	struct ast *exists = actualized_scope_find_symbol(state,
+			def->scope,
 	                                                  id);
 	if (exists) {
 		assert(exists->t);

@@ -218,6 +218,22 @@ void internal_warn(const char *fmt, ...)
 	va_end(args);
 }
 
+static void _type_str(FILE *fp, struct type *type);
+
+static void _type_list_str(FILE *fp, struct type *types)
+{
+	if (!types)
+		return;
+
+	_type_str(fp, types);
+
+	types = types->n;
+	foreach_type(t, types) {
+		fprintf(fp, ", ");
+		_type_str(fp, t);
+	}
+}
+
 /**
  * Workhorse for type_str().
  *
@@ -260,6 +276,15 @@ static void _type_str(FILE *fp, struct type *type)
 			fprintf(fp, "%s ", struct_id(def));
 		}
 		fprintf(fp, "(struct)");
+		break;
+	}
+
+	case TYPE_CALLABLE: {
+		fputc('(', fp);
+		_type_list_str(fp, callable_ptypes(type));
+		fprintf(fp, " => ");
+		_type_str(fp, callable_rtype(type));
+		fputc(')', fp);
 		break;
 	}
 
