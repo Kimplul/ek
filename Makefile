@@ -30,6 +30,10 @@ EK_SOURCES	:=
 
 include src/source.mk
 
+.PHONY: check
+check: all
+	$(MAKE) -C tests -k check
+
 .PHONY: format
 format:
 	find src include -iname '*.[ch]' |\
@@ -51,6 +55,7 @@ RM	= rm
 .PHONY: clean
 clean:
 	$(RM) -rf $(CLEANUP)
+	$(MAKE) -C tests clean
 
 .PHONY: clean_docs
 clean_docs:

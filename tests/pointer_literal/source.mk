@@ -1,0 +1,1 @@
+SIMPLE	+= pointer_literal

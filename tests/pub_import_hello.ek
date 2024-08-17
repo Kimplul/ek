@@ -1,6 +1,0 @@
-import "import/pub_import_hello.ek";
-
-main()
-{
-	hello();
-}

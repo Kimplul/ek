@@ -1,0 +1,1 @@
+SIMPLE	+= pub_hello

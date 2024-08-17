@@ -1,0 +1,1 @@
+SIMPLE	+= nested_structs

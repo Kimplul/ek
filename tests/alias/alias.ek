@@ -5,5 +5,5 @@ typedef int i27;
 
 main()
 {
-	int a = 10 as i9;
+	int a = 10 as i27;
 }
