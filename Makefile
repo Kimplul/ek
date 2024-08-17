@@ -15,7 +15,11 @@ all: setup
 .DEFAULT: setup
 	$(MAKE) -f scripts/makefile $<
 
-.PHONY:
+.PHONY: analyze
+analyze: setup
+	CC='gcc -fanalyzer' $(MAKE)
+
+.PHONY: setup
 setup:
 	@echo -n > deps.mk
 	@./scripts/gen-deps -p EK -c COMPILE_EK -b ek "$(EK_SOURCES)"

@@ -2289,7 +2289,7 @@ static int actualize_dot(struct act_state *state,
 
 	if (!def) {
 		semantic_error(scope->fctx, node,
-				"no such type");
+		               "no such type");
 		return -1;
 	}
 
@@ -2305,7 +2305,7 @@ static int actualize_dot(struct act_state *state,
 	char *tstr = type_str(type);
 	semantic_error(scope->fctx, node,
 	               "%s does not have have member",
-		       tstr);
+	               tstr);
 	free(tstr);
 	return -1;
 }

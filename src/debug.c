@@ -345,6 +345,8 @@ char *type_str(struct type *t)
 	char *buf = NULL; size_t size = 0;
 	/* hehe */
 	FILE *memstream = open_memstream(&buf, &size);
+	if (!memstream)
+		return NULL;
 
 	_type_str(memstream, t);
 

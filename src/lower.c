@@ -279,13 +279,14 @@ static int lower_param(struct lower_state *s, struct ast *p, struct vec *fixups)
 	assert(p->k == AST_VAR_DEF);
 	assert(var_init(p) == NULL);
 
-	if (is_primitive(p->t) || p->t->k == TYPE_PTR || p->t->k == TYPE_CALLABLE) {
+	if (is_primitive(p->t) || p->t->k == TYPE_PTR ||
+	    p->t->k == TYPE_CALLABLE) {
 		return lower_simple_param(s, p);
 	}
 
 	if (p->t->k != TYPE_STRUCT) {
 		semantic_error(p->scope->fctx, p,
-				"illegal type");
+		               "illegal type");
 		return -1;
 	}
 

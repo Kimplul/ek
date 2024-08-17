@@ -32,9 +32,14 @@ OBJCOPY		!= [ "$(LLVM)" != "0" ] \
 			&& echo llvm-objcopy \
 			|| echo $(CROSS_COMPILE)objcopy
 
-COMPILER	!= [ "$(LLVM)" != "0" ] \
-			&& echo clang --target="$(CROSS_COMPILE)" \
-			|| echo $(CROSS_COMPILE)gcc
+COMPILER	!= [ -n "$(CROSS_COMPILE)" ]						\
+			&& {								\
+				[ "$(LLVM)" != "0" ]					\
+					&& echo clang --target="$(CROSS_COMPILE)"	\
+					|| echo $(CROSS_COMPILE)gcc			\
+					;						\
+			}								\
+			|| echo $(CC)
 
 
 OBFLAGS		:= -g
@@ -60,10 +65,10 @@ COMPILE_EK	= $(COMPILE) $(EK_FLAGS)
 
 -include deps.mk
 
-ek: $(EK_OBJS)
-	$(COMPILE_EK) $(EK_OBJS) -o $@
+ek: $(EK_OBJS) build/gen/parser.o
+	$(COMPILE_EK) $(EK_OBJS) build/gen/parser.o -o $@
 
 
 # might lint some common things twice
 .PHONY:
-lint: $(TRISCV_LINTS)
+lint: $(EK_LINTS)

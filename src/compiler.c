@@ -82,21 +82,28 @@ static int process(struct scope **parent, int public, const char *file)
 		return -1;
 
 	struct parser *p = create_parser();
-	if (!p)
+	if (!p) {
+		free((void *)buf);
 		return -1;
+	}
+
 	parse(p, file, buf);
 	struct ast *tree = p->tree;
 	bool failed = p->failed;
 	destroy_parser(p);
 
-	if (failed)
+	if (failed) {
+		free((void*)buf);
 		return -1;
+	}
 
 	ast_dump_list(0, tree);
 
 	struct scope *scope = create_scope();
-	if (!scope)
+	if (!scope) {
+		free((void *)buf);
 		return -1;
+	}
 
 	if (public)
 		scope_set_flags(scope, SCOPE_PUBLIC);

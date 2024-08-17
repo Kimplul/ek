@@ -26,6 +26,9 @@ static void res_expand(struct res *r)
 struct res *res_create()
 {
 	struct res *r = malloc(sizeof(struct res));
+	if (!r)
+		return NULL;
+
 	r->n = 0;
 	/* arbitrary number */
 	r->max = 1024;
