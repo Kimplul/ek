@@ -725,7 +725,7 @@ size_t type_size(struct type *t)
 	case TYPE_I27: return 3;
 	case TYPE_PTR: return 3;
 	case TYPE_STRUCT: return struct_size(t);
-	default:
+	default: break;
 	}
 
 	assert(0 && "unhandled type to get size of");

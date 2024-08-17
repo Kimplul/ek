@@ -291,6 +291,7 @@ static inline bool is_binop(struct ast *x)
 	case AST_RSHIFT:
 		return true;
 	default:
+		break;
 	};
 
 	return false;
@@ -308,6 +309,7 @@ static inline bool is_opassign(struct ast *x)
 	case AST_ASSIGN_RSHIFT:
 		return true;
 	default:
+		break;
 	};
 	return false;
 }
@@ -321,6 +323,7 @@ static inline bool is_unop(struct ast *x)
 	case AST_NEG:
 		return true;
 	default:
+		break;
 	}
 
 	return false;
@@ -337,6 +340,7 @@ static inline bool is_comparison(struct ast *x)
 	case AST_EQ:
 		return true;
 	default:
+		break;
 	}
 
 	return false;
@@ -351,6 +355,7 @@ static inline bool is_const(struct ast *x)
 	case AST_CONST_BOOL:
 		return true;
 	default:
+		break;
 	}
 
 	return false;
@@ -365,6 +370,7 @@ static inline bool is_primitive(struct type *t)
 	case TYPE_PTR:
 		return true;
 	default:
+		break;
 	}
 
 	return false;

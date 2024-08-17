@@ -6,4 +6,4 @@ gen/gen_lexer.inc: src/lexer.l
 
 build/gen/parser.o: gen/gen_parser.c
 	mkdir -p build/gen
-	$(COMPILE_EK) -fno-analyzer -c gen/gen_parser.c -o build/gen/parser.o
+	$(COMPILE_EK) $(SKIP_ANALYZER) -c gen/gen_parser.c -o build/gen/parser.o

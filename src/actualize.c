@@ -1534,6 +1534,7 @@ static int integral_type(struct type *type)
 	case TYPE_BOOL:
 		return true; /* maybe? */
 	default:
+		break;
 	}
 
 	return false;
@@ -1560,14 +1561,12 @@ static int pointer_conversion(struct type *a, struct type *b)
 static struct ast *lookup_enum_member(struct ast *enu,
                                       char *find)
 {
-	size_t i = 0;
 	struct ast *m = enum_body(enu);
 	while (m) {
 		assert(m->k == AST_VAL);
 		if (same_id(find, val_id(m)))
 			break;
 		m = m->n;
-		i++;
 	}
 
 	return m;
@@ -1946,6 +1945,7 @@ static int _replace_type_id(struct type *type, void *data)
 	}
 
 	default:
+		break;
 	}
 
 	return 0;
@@ -2608,7 +2608,7 @@ static int actualize_continue(struct act_state *state, struct scope *scope,
 {
 	UNUSED(scope);
 	node->t = void_type();
-	if (!state->flags & ACT_IN_LOOP) {
+	if (!(state->flags & ACT_IN_LOOP)) {
 		semantic_error(scope->fctx, node,
 		               "continue outside of loop");
 		return -1;
@@ -2623,7 +2623,7 @@ static int actualize_break(struct act_state *state, struct scope *scope,
 {
 	UNUSED(scope);
 	node->t = void_type();
-	if (!state->flags & ACT_IN_LOOP) {
+	if (!(state->flags & ACT_IN_LOOP)) {
 		semantic_error(scope->fctx, node,
 		               "break outside of loop");
 		return -1;

@@ -128,6 +128,7 @@ static bool is_small_type(struct type *type)
 		return true;
 
 	default:
+		break;
 	}
 
 	return false;

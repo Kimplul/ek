@@ -32,7 +32,7 @@ static const char *cmdline_usage =
 /** Print usage of compiler. */
 static void usage()
 {
-	fprintf(stderr, cmdline_usage);
+	fputs(cmdline_usage, stderr);
 }
 
 /**
