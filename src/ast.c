@@ -193,19 +193,6 @@ struct type *type_prepend(struct type *list, struct type *elem)
 	return elem;
 }
 
-static void dump(int depth, const char *fmt, ...)
-{
-	va_list args;
-	va_start(args, fmt);
-	printf("//");
-	for (int i = 0; i < depth; ++i)
-		printf("  ");
-
-	vprintf(fmt, args);
-
-	va_end(args);
-}
-
 const char *primitive_str(struct type *type)
 {
 	switch (type->k) {
@@ -218,6 +205,13 @@ const char *primitive_str(struct type *type)
 
 	return "unimp";
 }
+
+#if defined(DEBUG)
+#define dump(depth, fmt, ...)                   \
+	do {                                    \
+		printf("//%*s", 2 * depth, ""); \
+		printf(fmt,##__VA_ARGS__);      \
+	} while (0)
 
 void ast_dump(int depth, struct ast *n)
 {
@@ -303,9 +297,9 @@ void ast_dump(int depth, struct ast *n)
 	depth++;
 
 	if (n->t) {
-		printf(" (");
+		fputs(" (", stdout);
 		type_dump_list(n->t);
-		printf(")");
+		putchar(')');
 	}
 
 	if (n->t2)
@@ -314,7 +308,7 @@ void ast_dump(int depth, struct ast *n)
 	if (n->scope)
 		printf(" {%llu}", (unsigned long long)n->scope->number);
 
-	printf("\n");
+	putchar('\n');
 
 	if (n->s)
 		dump(depth, "%s\n", n->s);
@@ -350,11 +344,11 @@ void ast_dump_list(int depth, struct ast *root)
 void type_dump(struct type *n)
 {
 	if (!n) {
-		printf(" {NULL}");
+		fputs(" {NULL}", stdout);
 		return;
 	}
 
-	printf(" ");
+	putchar(' ');
 
 #define DUMP(x) case x: printf(#x); break;
 	switch (n->k) {
@@ -388,6 +382,9 @@ void type_dump_list(struct type *root)
 		type_dump(t);
 	}
 }
+
+#undef dump
+#endif /* DEBUG */
 
 struct ast *clone_ast(struct ast *n)
 {

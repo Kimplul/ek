@@ -18,6 +18,7 @@
 #include <ek/vec.h>
 
 #define UNUSED(x) do { (void)(x); } while (0)
+#define MAYBE_UNUSED(x) UNUSED(x)
 
 struct act_stack {
 	struct ast *node;
@@ -2142,6 +2143,7 @@ static int actualize_struct(struct act_state *state,
 
 	struct ast *def = file_scope_find_type(scope, id);
 	int ret = scope_add_expd_struct(scope, def, types, node);
+	MAYBE_UNUSED(ret);
 	assert(ret == 0);
 
 	foreach_node(n, struct_body(node)) {

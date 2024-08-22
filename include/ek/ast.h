@@ -665,11 +665,19 @@ struct ast *clone_ast_list(struct ast *l);
 struct type *clone_type(struct type *n);
 struct type *clone_type_list(struct type *l);
 
+#if defined(DEBUG)
 void ast_dump_list(int depth, struct ast *root);
 void ast_dump(int depth, struct ast *node);
 
 void type_dump_list(struct type *root);
 void type_dump(struct type *node);
+#else
+#define ast_dump_list(depth, root)
+#define ast_dump(depth, root)
+
+#define type_dump_list(root)
+#define type_dump(root)
+#endif /* DEBUG */
 
 void ast_append(struct ast **list, struct ast *elem);
 void type_append(struct type **list, struct type *elem);
