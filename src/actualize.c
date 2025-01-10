@@ -632,20 +632,15 @@ static int replace_id(struct ast *body, struct ast *id,
 	return ast_visit(_replace_id, NULL, body, pair);
 }
 
-static int implements(struct type *trait, struct type *type)
+static int implements_chain(struct ast *trait_def, struct ast *def)
 {
-	assert(trait->d);
-	struct ast *trait_def = trait->d;
-	assert(trait_def->k == AST_TRAIT_DEF);
-
-	/* empty traits are implemented implicitly */
-	if (!trait_body(trait_def))
-		return 1;
-
-	assert(type->d);
-	struct ast *def = type->d;
-	assert(def->k == AST_STRUCT_DEF);
-	struct ast *body = struct_body(def);
+	struct ast *body = NULL;
+	if (def->k == AST_STRUCT_DEF)
+		body = struct_body(def);
+	else if (def->k == AST_STRUCT_CONT_DEF)
+		body = struct_cont_body(def);
+	else
+		abort();
 
 	foreach_node(n, body) {
 		if (n->k != AST_TYPE_EXPAND)
@@ -661,8 +656,24 @@ static int implements(struct type *trait, struct type *type)
 		return 1;
 	}
 
-	/** @todo look up possible continuations for type */
+	if (def->chain)
+		return implements_chain(trait_def, def->chain);
+
 	return 0;
+}
+
+static int implements(struct type *trait, struct type *type)
+{
+	assert(trait->d);
+	struct ast *trait_def = trait->d;
+	assert(trait_def->k == AST_TRAIT_DEF);
+
+	/* empty traits are implemented implicitly */
+	if (!trait_body(trait_def))
+		return 1;
+
+	assert(type->d);
+	return implements_chain(trait_def, type->d);
 }
 
 static int should_implement_list(struct scope *scope, struct ast *params,
@@ -2522,7 +2533,7 @@ static int actualize_init(struct act_state *state,
 	vec_sort(&struct_members, (vec_comp_t)init_sort);
 
 	if (vec_len(&init_args) != vec_len(&struct_members)) {
-		semantic_error(scope->fctx, node, "expected %zs args, got %zs",
+		semantic_error(scope->fctx, node, "expected %zu args, got %zu",
 		               vec_len(&struct_members),
 		               vec_len(&init_args));
 		goto err;

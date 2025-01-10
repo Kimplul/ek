@@ -1,0 +1,20 @@
+define a[] {
+	a();
+}
+
+typedef struct {}
+continue struct {
+	a![];
+	a(){}
+}
+
+typedef struct2[a T] {
+	T elem;
+}
+
+main()
+{
+	mut p = struct2![struct]{
+		.elem = struct!{}
+	};
+}
