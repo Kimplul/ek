@@ -138,7 +138,6 @@ STRING		\"(\\.|[^"\\])*\"
 "pub"		{return PUB;}
 "defer"		{return DEFER;}
 "union"		{return UNION;}
-"struct"	{return STRUCT;}
 "typedef"	{return TYPEDEF;}
 "import"	{return IMPORT;}
 "sizeof"	{return SIZEOF;}

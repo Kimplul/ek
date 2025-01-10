@@ -294,7 +294,7 @@ static void _type_str(FILE *fp, struct type *type)
 			fprintf(fp, "%s", trait_id(def));
 		}
 
-		if (struct_params(def)) {
+		if (trait_params(def)) {
 			fprintf(fp, "![");
 			_param_str(fp, trait_params(def));
 			fprintf(fp, "]");

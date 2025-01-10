@@ -584,10 +584,9 @@ static inline bool is_primitive(struct type *t)
 
 #define struct_cont_id(x) return_s(x, AST_STRUCT_CONT_DEF)
 #define struct_cont_params(x) return_a0(x, AST_STRUCT_CONT_DEF)
-#define struct_cont_behav(x) return_t1(x, AST_STRUCT_CONT_DEF)
 #define struct_cont_body(x) return_a1(x, AST_STRUCT_CONT_DEF)
-#define gen_struct_cont(id, params, behav, body, loc)                        \
-	gen_ast(AST_STRUCT_CONT_DEF, params, body, NULL, NULL, behav, id, 0, \
+#define gen_struct_cont(id, params, body, loc)                              \
+	gen_ast(AST_STRUCT_CONT_DEF, params, body, NULL, NULL, NULL, id, 0, \
 		loc)
 
 #define val_id(x) return_s(x, AST_VAL)
@@ -746,5 +745,6 @@ struct type *reverse_type_list(struct type *root);
 	for (struct type *iter = nodes; iter; iter = iter->n)
 
 struct ast *chain_base(struct ast *node);
+struct ast *clone_chain(struct ast *chain);
 
 #endif /* AST_H */

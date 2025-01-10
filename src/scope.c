@@ -185,7 +185,7 @@ int scope_add_var(struct scope *scope, struct ast *var)
 
 int scope_add_type(struct scope *scope, char *id, struct ast *type)
 {
-	struct ast *exists = file_scope_find_type(scope, id);
+	struct ast *exists = scope_find_type(scope, id);
 	if (exists) {
 		semantic_error(scope->fctx, type, "type redefined");
 		semantic_info(scope->fctx, exists, "previously here");

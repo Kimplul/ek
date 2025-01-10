@@ -75,7 +75,6 @@
 %token RSHIFTSELF ">>="
 %token COMMA ","
 %token PUB "pub"
-%token STRUCT "struct"
 %token UNION "union"
 %token TYPEDEF "typedef"
 %token IMPORT "import"
@@ -778,22 +777,13 @@ struct
 	}
 
 struct_cont
-	: "continue" "[" opt_type_params "]"
-	APPLY "[" opt_types "]" "{" opt_behaviours "}" {
-		/* full form */
-		$$ = gen_struct_cont($5, $3, $7, $10, src_loc(@$));
-	}
-	| "continue" "[" opt_type_params "]" ID "{" opt_behaviours "}" {
-		/* abbrev 1 */
-		$$ = gen_struct_cont($5, $3, NULL, $7, src_loc(@$));
-	}
-	| "continue" APPLY "[" opt_types "]" "{" opt_behaviours "}" {
+	: "continue" ID "[" opt_type_params "]" "{" opt_behaviours "}" {
 		/* abbrev 2 */
-		$$ = gen_struct_cont($2, NULL, $4, $7, src_loc(@$));
+		$$ = gen_struct_cont($2, $4, $7, src_loc(@$));
 	}
 	| "continue" ID "{" opt_behaviours "}" {
 		/* abbrev 3 */
-		$$ = gen_struct_cont($2, NULL, NULL, $4, src_loc(@$));
+		$$ = gen_struct_cont($2, NULL, $4, src_loc(@$));
 	}
 
 alias

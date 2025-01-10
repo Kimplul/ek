@@ -699,7 +699,9 @@ static size_t struct_size(struct type *t)
 		return (size_t)t->size;
 
 	size_t size = 0;
-	foreach_node(n, struct_body(t->d)) {
+
+	struct ast *base = chain_base(t->d);
+	foreach_node(n, struct_body(base)) {
 		if (n->k != AST_VAR_DEF)
 			continue;
 
@@ -734,7 +736,8 @@ size_t type_offsetof(struct type *t, char *m)
 	assert(t->k == TYPE_STRUCT);
 
 	size_t offset = 0;
-	foreach_node(n, struct_body(t->d)) {
+	struct ast *base = chain_base(t->d);
+	foreach_node(n, struct_body(base)) {
 		if (n->k != AST_VAR_DEF)
 			continue;
 
@@ -783,4 +786,19 @@ struct ast *chain_base(struct ast *node)
 		return chain_base(node->chain);
 
 	return node;
+}
+
+struct ast *clone_chain(struct ast *chain)
+{
+	if (!chain)
+		return NULL;
+
+	struct ast *new = clone_ast(chain);
+	if (!new)
+		return NULL;
+
+	if (chain->chain)
+		new->chain = clone_chain(chain->chain);
+
+	return new;
 }

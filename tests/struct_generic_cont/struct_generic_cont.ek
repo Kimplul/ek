@@ -1,0 +1,19 @@
+define any[] {}
+typedef ptr {}
+typedef i27 {}
+
+typedef struct[any T] {
+	T a;
+}
+
+continue struct[any T] {
+	do_something(*struct![T] self => T){
+		return self*.a;
+	}
+}
+
+main()
+{
+	mut p = struct![i27]{.a = 1};
+	p.do_something();
+}

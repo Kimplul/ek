@@ -724,10 +724,12 @@ static int expand_type(struct ast *expd, struct ast *params, struct type *types)
 {
 	/* we're getting expanded so remove our params to avoid redefining them
 	 * later */
-	if (expd->k == AST_STRUCT_DEF)
-		struct_params(expd) = NULL;
-	else
-		trait_params(expd) = NULL;
+	switch (expd->k) {
+	case AST_STRUCT_DEF:      struct_params(expd) = NULL; break;
+	case AST_STRUCT_CONT_DEF: struct_cont_params(expd) = NULL; break;
+	case AST_TRAIT_DEF:       trait_params(expd) = NULL; break;
+	default: abort();
+	}
 
 	assert(expd->scope->parent);
 	struct scope *p = expd->scope->parent;
@@ -738,10 +740,21 @@ static int expand_type(struct ast *expd, struct ast *params, struct type *types)
 		struct ast *p = clone_ast(n);
 		var_type(p) = clone_type(types);
 
-		if (expd->k == AST_STRUCT_DEF)
+		switch (expd->k) {
+		case AST_STRUCT_DEF:
 			ast_append(&struct_params(expd), p);
-		else
+			break;
+
+		case AST_STRUCT_CONT_DEF:
+			ast_append(&struct_cont_params(expd), p);
+			break;
+
+		case AST_TRAIT_DEF:
 			ast_append(&trait_params(expd), p);
+			break;
+
+		default: abort();
+		}
 
 		types = types->n;
 	}
@@ -786,6 +799,50 @@ static struct ast *maybe_expand_struct(struct scope *scope, struct ast *def,
 	return expd;
 }
 
+static int expand_chain(struct ast *expd, struct ast *params,
+                        struct type *types)
+{
+	/* bit of a hack for the moment, but start at the bottom of the chain to
+	 * ensure everything gets actualized in the 'correct' order. Might be a
+	 * good idea to instead do some preparations for each node in the chain
+	 * so we can avoid recursion if need be */
+	if (expd->chain && expand_chain(expd->chain, params, types))
+		return -1;
+
+	return expand_type(expd, params, types);
+}
+
+static struct ast *maybe_expand_struct_cont(struct scope *scope,
+                                            struct ast *def,
+                                            struct src_loc loc,
+                                            struct type *args)
+{
+	assert(def->k == AST_STRUCT_CONT_DEF);
+	struct ast *base = chain_base(def);
+	if (struct_params(base) == NULL) {
+		if (args == NULL)
+			return def;
+
+		loc_error(scope->fctx, loc,
+		          "passing types to non-generic struct %s",
+		          struct_id(base));
+		return NULL;
+	}
+
+	struct ast *exists = file_scope_find_expd_struct(scope, base, args);
+	if (exists)
+		return exists;
+
+	if (!should_implement_list(scope, struct_params(base), loc, args))
+		return NULL;
+
+	struct ast *expd = clone_chain(def);
+	if (expand_chain(expd, struct_params(base), args))
+		return NULL;
+
+	return expd;
+}
+
 static struct ast *maybe_expand_trait(struct scope *scope, struct ast *def,
                                       struct src_loc loc, struct type *args)
 {
@@ -808,9 +865,14 @@ static struct ast *maybe_expand_trait(struct scope *scope, struct ast *def,
 static struct ast *maybe_expand_type(struct scope *scope, struct ast *def,
                                      struct src_loc loc, struct type *args)
 {
-	assert(def->k == AST_STRUCT_DEF || def->k == AST_TRAIT_DEF);
+	assert(    def->k == AST_STRUCT_DEF
+	           || def->k == AST_STRUCT_CONT_DEF
+	           || def->k == AST_TRAIT_DEF);
+
 	if (def->k == AST_STRUCT_DEF)
 		return maybe_expand_struct(scope, def, loc, args);
+	else if (def->k == AST_STRUCT_CONT_DEF)
+		return maybe_expand_struct_cont(scope, def, loc, args);
 	else
 		return maybe_expand_trait(scope, def, loc, args);
 }
@@ -1317,6 +1379,14 @@ static int actualize_tid(struct act_state *state, struct scope *scope,
 	if (!def) {
 		type_error(scope->fctx, t, "no such type");
 		return -1;
+	}
+
+	if (def->k == AST_STRUCT_DEF || def->k == AST_STRUCT_CONT_DEF) {
+		struct ast *base = chain_base(def);
+		if (struct_params(base)) {
+			type_error(scope->fctx, t, "missing type params");
+			return -1;
+		}
 	}
 
 	assert(t->n == NULL);
@@ -2109,6 +2179,31 @@ static struct ast *chain_lookup(struct act_state *state, struct ast *def,
 	return NULL;
 }
 
+static int params_match(struct scope *scope, struct ast *base, struct ast *node)
+{
+	assert(base->k == AST_STRUCT_DEF);
+	assert(node->k == AST_STRUCT_CONT_DEF);
+
+	struct ast *base_params = struct_params(base);
+	struct ast *node_params = struct_cont_params(node);
+
+	if (ast_list_len(base_params) != ast_list_len(node_params)) {
+		semantic_error(scope->fctx, base_params,
+		               "mismatch number of type params");
+		return 0;
+	}
+
+	/** @todo report more accurately what the issue is */
+	if (!equiv_nodes(base_params, node_params)) {
+		semantic_error(scope->fctx, base_params,
+		               "mismatch type params");
+		semantic_info(scope->fctx, node_params, "previous");
+		return 0;
+	}
+
+	return 1;
+}
+
 static int expand_struct_body(struct act_state *state,
                               struct scope *scope,
                               struct ast *node,
@@ -2159,6 +2254,11 @@ static int expand_struct_body(struct act_state *state,
 		struct act_state state = {0};
 		if (actualize(&state, struct_scope, alias))
 			return -1;
+	}
+
+	if (node->k == AST_STRUCT_CONT_DEF
+	    && !params_match(scope, chain_base(node), node)) {
+		return -1;
 	}
 
 	if (node->t->k == TYPE_STRUCT)
@@ -2295,30 +2395,6 @@ static int actualize_struct(struct act_state *state,
 	                          struct_body(node));
 }
 
-static int params_match(struct scope *scope, struct ast *base, struct ast *node)
-{
-	assert(base->k == AST_STRUCT_DEF);
-	assert(node->k == AST_STRUCT_CONT_DEF);
-
-	struct ast *base_params = struct_params(base);
-	struct ast *node_params = struct_cont_params(node);
-
-	if (ast_list_len(base_params) != ast_list_len(node_params)) {
-		semantic_error(scope->fctx, base_params,
-		               "mismatch number of type params");
-		return -1;
-	}
-
-	/** @todo report more accurately what the issue is */
-	if (!equiv_nodes(base_params, node_params)) {
-		semantic_error(scope->fctx, base_params,
-		               "mismatch type params");
-		return -1;
-	}
-
-	return 0;
-}
-
 static int actualize_struct_cont(struct act_state *state,
                                  struct scope *scope, struct ast *node)
 {
@@ -2327,9 +2403,6 @@ static int actualize_struct_cont(struct act_state *state,
 	assert(up);
 
 	if (actualize(state, scope, up))
-		return -1;
-
-	if (params_match(scope, chain_base(node), node))
 		return -1;
 
 	return expand_struct_body(state, scope, node,
@@ -2425,7 +2498,8 @@ static int actualize_init(struct act_state *state,
 	struct vec init_args = vec_create(sizeof(struct init_helper));
 	struct vec struct_members = vec_create(sizeof(struct init_helper));
 
-	foreach_node(n, struct_body(def)) {
+	struct ast *base = chain_base(def);
+	foreach_node(n, struct_body(base)) {
 		if (n->k != AST_VAR_DEF)
 			continue;
 
