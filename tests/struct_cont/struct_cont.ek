@@ -1,3 +1,12 @@
-typedef i27 {}
+typedef i27 {
+	/* empty */
+}
+
 continue i27 {
+	do_something() {}
+}
+
+main()
+{
+	29.do_something();
 }

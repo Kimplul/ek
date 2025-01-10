@@ -777,3 +777,10 @@ struct type *reverse_type_list(struct type *root)
 	return new_root;
 }
 
+struct ast *chain_base(struct ast *node)
+{
+	if (node->chain)
+		return chain_base(node->chain);
+
+	return node;
+}

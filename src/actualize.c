@@ -364,6 +364,12 @@ static int analyze_visibility(struct scope *scope, struct ast *node)
 		return scope_add_type(scope, struct_id(node), node);
 	}
 
+	case AST_STRUCT_CONT_DEF: {
+		node->scope = create_scope();
+		scope_add_scope(scope, node->scope);
+		return scope_add_chain(scope, struct_cont_id(node), node);
+	}
+
 	case AST_ENUM_DEF: {
 		node->scope = create_scope();
 		scope_add_scope(scope, node->scope);
@@ -2086,12 +2092,30 @@ static int actualize_trait(struct act_state *state, struct scope *scope,
 	return node->t == NULL;
 }
 
-static int actualize_struct(struct act_state *state,
-                            struct scope *scope, struct ast *node)
+static struct ast *chain_lookup(struct act_state *state, struct ast *def,
+                                char *id)
 {
-	UNUSED(state);
-	assert(node->k == AST_STRUCT_DEF);
-	struct ast *params = struct_params(node);
+	if (!def)
+		return NULL;
+
+	struct ast *exists = actualized_scope_find_symbol(state, def->scope,
+	                                                  id);
+	if (exists)
+		return exists;
+
+	if (def->chain)
+		return chain_lookup(state, def->chain, id);
+
+	return NULL;
+}
+
+static int expand_struct_body(struct act_state *state,
+                              struct scope *scope,
+                              struct ast *node,
+                              char *id,
+                              struct ast *params,
+                              struct ast *body)
+{
 	struct scope *struct_scope = create_scope();
 	if (!struct_scope)
 		return -1;
@@ -2102,7 +2126,6 @@ static int actualize_struct(struct act_state *state,
 		ast_set_flags(node, AST_FLAG_GENERIC);
 
 	/* do type setting first to make sure body checking works */
-	char *id = struct_id(node);
 	if (same_id(id, "i27"))
 		node->t = tgen_primitive(TYPE_I27, strdup(id), node, node->loc);
 	else if (same_id(id, "i9"))
@@ -2120,7 +2143,7 @@ static int actualize_struct(struct act_state *state,
 
 	/* iterate over types and make aliases to them */
 	struct type *types = NULL;
-	foreach_node(n, struct_params(node)) {
+	foreach_node(n, params) {
 		char *id = var_id(n);
 		struct type *type = var_type(n);
 		struct act_state type_state = {0};
@@ -2142,11 +2165,19 @@ static int actualize_struct(struct act_state *state,
 		tstruct_params(node->t) = types;
 
 	struct ast *def = file_scope_find_type(scope, id);
-	int ret = scope_add_expd_struct(scope, def, types, node);
-	MAYBE_UNUSED(ret);
+	struct ast *base = chain_base(def);
+
+	int ret = 0;
+	if (node->k == AST_STRUCT_DEF)
+		ret = scope_add_expd_struct(scope, base, types, node);
+	else if (node->k == AST_STRUCT_CONT_DEF)
+		ret = scope_add_expd_chain(scope, base, types, node);
+	else
+		abort();
+
 	assert(ret == 0);
 
-	foreach_node(n, struct_body(node)) {
+	foreach_node(n, body) {
 		if (n->k != AST_TYPE_EXPAND)
 			continue;
 
@@ -2160,12 +2191,12 @@ static int actualize_struct(struct act_state *state,
 			return -1;
 		}
 
-		if (has_trait(struct_body(node), type_expand_id(n))) {
+		if (has_trait(body, type_expand_id(n))) {
 			n->k = AST_EMPTY;
 			continue;
 		}
 
-		if (same_id(struct_id(node), type_expand_id(n))) {
+		if (same_id(id, type_expand_id(n))) {
 			semantic_error(scope->fctx, n,
 			               "recursive trait implementations not allowed");
 			return -1;
@@ -2184,21 +2215,7 @@ static int actualize_struct(struct act_state *state,
 		n->n = body;
 	}
 
-	/*
-	   foreach_node(n, struct_body(node)) {
-	        switch (n->k) {
-	        case AST_EMPTY: continue;
-	        case AST_ID: continue;
-	        case AST_PROC_DEF: if (!proc_body(n)) continue;
-	        default:
-	        }
-
-	        if (analyze_visibility(struct_scope, n))
-	                return -1;
-	   }
-	 */
-
-	foreach_node(n, struct_body(node)) {
+	foreach_node(n, body) {
 		/* don't actually actualize type expansion for now, it's just
 		 * sticking around to make it easier to check if a type
 		 * implements a trait */
@@ -2210,11 +2227,22 @@ static int actualize_struct(struct act_state *state,
 		if (n->k == AST_PROC_DEF && !proc_body(n))
 			continue;
 
+		if (n->k == AST_PROC_DEF) {
+			struct ast *prev = chain_lookup(state, node->chain,
+			                                proc_id(n));
+			if (prev) {
+				/** @todo improve error messages */
+				semantic_error(scope->fctx, n, "redefinition");
+				semantic_info(scope->fctx, prev, "previous");
+				return -1;
+			}
+		}
+
 		if (analyze_visibility(struct_scope, n))
 			return -1;
 	}
 
-	foreach_node(n, struct_body(node)) {
+	foreach_node(n, body) {
 		if (n->k == AST_TYPE_EXPAND)
 			continue;
 
@@ -2228,7 +2256,7 @@ static int actualize_struct(struct act_state *state,
 	}
 
 	/* check that all prototypes are implemented */
-	foreach_node(n, struct_body(node)) {
+	foreach_node(n, body) {
 		if (n->k != AST_PROC_DEF)
 			continue;
 
@@ -2255,6 +2283,59 @@ static int actualize_struct(struct act_state *state,
 	/** @todo there is the possibility that two different traits add the
 	 * same prototype, which is reported in traits but not structs? */
 	return 0;
+}
+
+static int actualize_struct(struct act_state *state,
+                            struct scope *scope, struct ast *node)
+{
+	UNUSED(state);
+	assert(node->k == AST_STRUCT_DEF);
+	return expand_struct_body(state, scope, node,
+	                          struct_id(node), struct_params(node),
+	                          struct_body(node));
+}
+
+static int params_match(struct scope *scope, struct ast *base, struct ast *node)
+{
+	assert(base->k == AST_STRUCT_DEF);
+	assert(node->k == AST_STRUCT_CONT_DEF);
+
+	struct ast *base_params = struct_params(base);
+	struct ast *node_params = struct_cont_params(node);
+
+	if (ast_list_len(base_params) != ast_list_len(node_params)) {
+		semantic_error(scope->fctx, base_params,
+		               "mismatch number of type params");
+		return -1;
+	}
+
+	/** @todo report more accurately what the issue is */
+	if (!equiv_nodes(base_params, node_params)) {
+		semantic_error(scope->fctx, base_params,
+		               "mismatch type params");
+		return -1;
+	}
+
+	return 0;
+}
+
+static int actualize_struct_cont(struct act_state *state,
+                                 struct scope *scope, struct ast *node)
+{
+	assert(node->k == AST_STRUCT_CONT_DEF);
+	struct ast *up = node->chain;
+	assert(up);
+
+	if (actualize(state, scope, up))
+		return -1;
+
+	if (params_match(scope, chain_base(node), node))
+		return -1;
+
+	return expand_struct_body(state, scope, node,
+	                          struct_cont_id(node),
+	                          struct_cont_params(node),
+	                          struct_cont_body(node));
 }
 
 static int actualize_dot(struct act_state *state,
@@ -2295,9 +2376,8 @@ static int actualize_dot(struct act_state *state,
 		return -1;
 	}
 
-	struct ast *exists = actualized_scope_find_symbol(state,
-	                                                  def->scope,
-	                                                  id);
+	struct ast *exists = chain_lookup(state, def, id);
+
 	if (exists) {
 		assert(exists->t);
 		set_type(node, exists->t);
@@ -2306,7 +2386,7 @@ static int actualize_dot(struct act_state *state,
 
 	char *tstr = type_str(type);
 	semantic_error(scope->fctx, node,
-	               "%s does not have have member",
+	               "%s does not have member",
 	               tstr);
 	free(tstr);
 	return -1;
@@ -2717,6 +2797,8 @@ static int actualize(struct act_state *state, struct scope *scope,
 	case AST_ALIAS_DEF: ret = actualize_alias(state, scope, node); break;
 	case AST_ENUM_DEF: ret = actualize_enum(state, scope, node); break;
 	case AST_STRUCT_DEF: ret = actualize_struct(state, scope, node); break;
+	case AST_STRUCT_CONT_DEF: ret = actualize_struct_cont(state, scope,
+		                                              node); break;
 	case AST_VAR_DEF: ret = actualize_var(state, scope, node); break;
 	case AST_CALL: ret = actualize_call(state, scope, node); break;
 	case AST_BLOCK: ret = actualize_block(state, scope, node); break;

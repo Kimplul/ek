@@ -200,6 +200,64 @@ int scope_add_type(struct scope *scope, char *id, struct ast *type)
 	return 0;
 }
 
+static struct visible *scope_find_visible(struct visible *v, char *id)
+{
+	if (!v)
+		return NULL;
+
+	foreach_visible(n, v) {
+		struct ast *node = n->node;
+		if (same_id(node->s, id))
+			return n;
+	}
+
+	return NULL;
+}
+
+static void insert_chain(struct scope *scope, char *id, struct ast *type)
+{
+	struct visible *v = scope_find_visible(scope->types, id);
+	assert(v);
+
+	struct ast *n = v->node;
+	assert(n);
+
+	if (ast_flags(n, AST_FLAG_PUBLIC)
+	    || !ast_flags(type, AST_FLAG_PUBLIC)) {
+		type->chain = v->node;
+		v->node = type;
+		return;
+	}
+
+	/* find first public continuation in chain and insert just before it */
+	struct ast *next = n->chain;
+	while (next->k == AST_STRUCT_CONT_DEF && !ast_flags(next,
+	                                                    AST_FLAG_PUBLIC)) {
+		n = next;
+		next = n->chain;
+	}
+
+	n->chain = type;
+	type->chain = next;
+}
+
+int scope_add_chain(struct scope *scope, char *id, struct ast *type)
+{
+	struct ast *exists = file_scope_find_type(scope, id);
+	if (!exists) {
+		semantic_error(scope->fctx, type, "no previous definition");
+		return -1;
+	}
+
+	insert_chain(scope, id, type);
+
+	if (scope->parent &&
+	    scope_flags(scope, SCOPE_FILE) && ast_flags(type, AST_FLAG_PUBLIC))
+		return scope_add_chain(scope->parent, id, type);
+
+	return 0;
+}
+
 int scope_add_macro(struct scope *scope, struct ast *macro)
 {
 	assert(macro->k == AST_MACRO_DEF);
@@ -262,6 +320,7 @@ int scope_add_expd_struct(struct scope *scope, struct ast *def,
                           struct type *types, struct ast *expd)
 {
 	assert(def->k == AST_STRUCT_DEF);
+	assert(expd->k == AST_STRUCT_DEF);
 	assert(file_scope_find_expd_struct(scope, def, types) == NULL);
 
 	create_expanded(scope, def, types, expd);
@@ -272,22 +331,8 @@ int scope_add_expd_struct(struct scope *scope, struct ast *def,
 	return 0;
 }
 
-static struct ast *scope_find_visible(struct visible *v, char *id)
-{
-	if (!v)
-		return NULL;
-
-	foreach_visible(n, v) {
-		struct ast *node = n->node;
-		if (same_id(node->s, id))
-			return node;
-	}
-
-	return NULL;
-}
-
-static struct ast *scope_find_expanded(struct expanded *e, struct ast *def,
-                                       struct type *types)
+static struct expanded *scope_find_expanded(struct expanded *e, struct ast *def,
+                                            struct type *types)
 {
 	if (!e)
 		return NULL;
@@ -297,15 +342,64 @@ static struct ast *scope_find_expanded(struct expanded *e, struct ast *def,
 			continue;
 
 		if (type_lists_match(n->types, types))
-			return n->expd;
+			return n;
 	}
 
 	return NULL;
 }
 
+static void insert_expd_chain(struct scope *scope, struct ast *def,
+                              struct type *types, struct ast *expd)
+{
+	struct expanded *e = scope_find_expanded(scope->expanded, def, types);
+	assert(e);
+
+	struct ast *n = e->expd;
+	assert(n);
+
+	if (ast_flags(n, AST_FLAG_PUBLIC)
+	    || !ast_flags(expd, AST_FLAG_PUBLIC)) {
+		expd->chain = e->expd;
+		e->expd = expd;
+		/* types should be identical, we checked that earlier */
+		return;
+	}
+
+	/* find first public continuation in chain and insert just before it */
+	struct ast *next = n->chain;
+	while (next->k == AST_STRUCT_CONT_DEF &&
+	       !ast_flags(next, AST_FLAG_PUBLIC)) {
+		n = next;
+		next = n->chain;
+	}
+
+	n->chain = expd;
+	expd->chain = next;
+}
+
+int scope_add_expd_chain(struct scope *scope, struct ast *def,
+                         struct type *types, struct ast *expd)
+{
+	assert(def->k == AST_STRUCT_DEF);
+	assert(expd->k == AST_STRUCT_CONT_DEF);
+	assert(file_scope_find_expd_struct(scope, def, types) != NULL);
+
+	insert_expd_chain(scope, def, types, expd);
+
+	if (scope->parent &&
+	    scope_flags(scope, SCOPE_FILE) && ast_flags(def, AST_FLAG_PUBLIC))
+		return scope_add_expd_struct(scope->parent, def, types, expd);
+
+	return 0;
+}
+
 struct ast *scope_find_type(struct scope *scope, char *id)
 {
-	return scope_find_visible(scope->types, id);
+	struct visible *v = scope_find_visible(scope->types, id);
+	if (!v)
+		return NULL;
+
+	return v->node;
 }
 
 struct ast *file_scope_find_type(struct scope *scope, char *id)
@@ -325,7 +419,11 @@ struct ast *file_scope_find_type(struct scope *scope, char *id)
 
 struct ast *scope_find_macro(struct scope *scope, char *id)
 {
-	return scope_find_visible(scope->macros, id);
+	struct visible *v = scope_find_visible(scope->macros, id);
+	if (!v)
+		return NULL;
+
+	return v->node;
 }
 
 struct ast *file_scope_find_macro(struct scope *scope, char *id)
@@ -345,9 +443,12 @@ struct ast *file_scope_find_macro(struct scope *scope, char *id)
 
 struct ast *scope_find_proc(struct scope *scope, char *id)
 {
-	struct ast *n = scope_find_visible(scope->symbols, id);
-	if (!n)
+	struct visible *v = scope_find_visible(scope->symbols, id);
+	if (!v)
 		return NULL;
+
+	struct ast *n = v->node;
+	assert(n);
 
 	if (n->k != AST_PROC_DEF)
 		return NULL;
@@ -369,7 +470,11 @@ struct ast *file_scope_find_proc(struct scope *scope, char *id)
 
 struct ast *scope_find_symbol(struct scope *scope, char *id)
 {
-	return scope_find_visible(scope->symbols, id);
+	struct visible *v = scope_find_visible(scope->symbols, id);
+	if (!v)
+		return NULL;
+
+	return v->node;
 }
 
 struct ast *file_scope_find_symbol(struct scope *scope, char *id)
@@ -389,9 +494,12 @@ struct ast *file_scope_find_symbol(struct scope *scope, char *id)
 
 struct ast *scope_find_var(struct scope *scope, char *id)
 {
-	struct ast *n = scope_find_visible(scope->symbols, id);
-	if (!n)
+	struct visible *v = scope_find_visible(scope->symbols, id);
+	if (!v)
 		return NULL;
+
+	struct ast *n = v->node;
+	assert(n);
 
 	if (n->k != AST_VAR_DEF)
 		return NULL;
@@ -418,18 +526,20 @@ struct ast *scope_find_expd_struct(struct scope *scope, struct ast *def,
                                    struct type *types)
 {
 	assert(def->k == AST_STRUCT_DEF);
-	struct ast *exists = scope_find_expanded(scope->expanded, def, types);
-	if (!exists)
+	struct expanded *expd = scope_find_expanded(scope->expanded, def,
+	                                            types);
+	if (!expd)
 		return NULL;
 
-	assert(exists->k == AST_STRUCT_DEF);
+	struct ast *exists = expd->expd;
+	assert(exists->k == AST_STRUCT_DEF || exists->k == AST_STRUCT_CONT_DEF);
 	return exists;
 }
 
 struct ast *file_scope_find_expd_struct(struct scope *scope, struct ast *def,
                                         struct type *types)
 {
-	assert(def->k == AST_STRUCT_DEF);
+	assert(def->k == AST_STRUCT_DEF || def->k == AST_STRUCT_CONT_DEF);
 	struct ast *found = scope_find_expd_struct(scope, def, types);
 	if (found)
 		return found;

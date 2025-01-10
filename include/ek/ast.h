@@ -238,6 +238,7 @@ struct ast {
 	enum ast_flags f;
 
 	struct ast *n;
+	struct ast *chain;
 	struct src_loc loc;
 	struct scope *scope;
 };
@@ -584,7 +585,7 @@ static inline bool is_primitive(struct type *t)
 #define struct_cont_id(x) return_s(x, AST_STRUCT_CONT_DEF)
 #define struct_cont_params(x) return_a0(x, AST_STRUCT_CONT_DEF)
 #define struct_cont_behav(x) return_t1(x, AST_STRUCT_CONT_DEF)
-#define struct_cont_body(x) return_a2(x, AST_STRUCT_CONT_DEF)
+#define struct_cont_body(x) return_a1(x, AST_STRUCT_CONT_DEF)
 #define gen_struct_cont(id, params, behav, body, loc)                        \
 	gen_ast(AST_STRUCT_CONT_DEF, params, body, NULL, NULL, behav, id, 0, \
 		loc)
@@ -743,5 +744,7 @@ struct type *reverse_type_list(struct type *root);
 
 #define foreach_type(iter, nodes) \
 	for (struct type *iter = nodes; iter; iter = iter->n)
+
+struct ast *chain_base(struct ast *node);
 
 #endif /* AST_H */

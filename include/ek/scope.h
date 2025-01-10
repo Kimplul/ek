@@ -178,6 +178,8 @@ int scope_add_var(struct scope *scope, struct ast *var);
  */
 int scope_add_type(struct scope *scope, char *id, struct ast *type);
 
+int scope_add_chain(struct scope *scope, char *id, struct ast *node);
+
 /**
  * Add procedure to scope.
  * Propagates public procedures up the file scope chain as references.
@@ -210,6 +212,9 @@ int scope_add_trait(struct scope *scope, struct ast *trait);
 
 int scope_add_expd_struct(struct scope *scope, struct ast *def,
                           struct type *types, struct ast *expanded);
+
+int scope_add_expd_chain(struct scope *scope, struct ast *def,
+                         struct type *types, struct ast *expanded);
 
 /**
  * Find a variable with ID in \p scope.
