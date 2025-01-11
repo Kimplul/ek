@@ -1,0 +1,14 @@
+pub define any[] {}
+pub typedef i27 {}
+pub typedef struct[any T] {}
+
+/* private definition of some function */
+continue struct[any T] {
+	do_something(){}
+}
+
+pub some_func()
+{
+	mut p = struct![i27]{};
+	p.do_something();
+}

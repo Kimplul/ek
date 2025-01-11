@@ -355,6 +355,8 @@ struct ast *file_scope_find_trait(struct scope *scope, char *id);
 struct ast *file_scope_find_expd_struct(struct scope *scope, struct ast *def,
                                         struct type *types);
 
+bool same_src(struct ast *a, struct ast *b);
+
 #define foreach_visible(iter, init) \
 	for (struct visible *iter = init; iter; iter = iter->next)
 

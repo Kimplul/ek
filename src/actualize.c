@@ -343,9 +343,17 @@ static int analyze_visibility(struct scope *scope, struct ast *node)
 
 	case AST_IMPORT: {
 		const char *file = import_file(node);
-		return process_file(&scope,
+		int ret = process_file(&scope,
 		                    (int)ast_flags(node, AST_FLAG_PUBLIC),
 		                    file);
+
+		if (ret == 0)
+			return 0;
+
+		/** @todo should maybe make this some other type of error, kind
+		 * of too busy atm */
+		semantic_info(scope->fctx, node, "imported here");
+		return ret;
 	}
 
 	case AST_IF: {
@@ -823,6 +831,26 @@ static int expand_chain(struct ast *expd, struct ast *params,
 	return expand_type(expd, params, types);
 }
 
+static struct ast *chain_graft(struct ast *exists, struct ast *def,
+		struct ast *params, struct type *types)
+{
+	if (same_src(exists, def))
+		return exists;
+
+	assert(def->chain);
+	struct ast *graft = chain_graft(exists, def->chain, params, types);
+	if (!graft)
+		return NULL;
+
+	struct ast *new = clone_ast(def);
+	new->chain = graft;
+
+	if (expand_type(new, params, types))
+		return NULL;
+
+	return new;
+}
+
 static struct ast *maybe_expand_struct_cont(struct scope *scope,
                                             struct ast *def,
                                             struct src_loc loc,
@@ -842,7 +870,7 @@ static struct ast *maybe_expand_struct_cont(struct scope *scope,
 
 	struct ast *exists = file_scope_find_expd_struct(scope, base, args);
 	if (exists)
-		return exists;
+		return chain_graft(exists, def, struct_params(base), args);
 
 	if (!should_implement_list(scope, struct_params(base), loc, args))
 		return NULL;

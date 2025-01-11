@@ -1,0 +1,8 @@
+import "a.ek";
+import "b.ek"
+
+main()
+{
+	a();
+	b();
+}

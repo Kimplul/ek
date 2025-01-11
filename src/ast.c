@@ -150,7 +150,7 @@ void ast_clear_flags(struct ast *node, enum ast_flags flags)
 
 unsigned ast_flags(struct ast *node, enum ast_flags flags)
 {
-	return node->f & flags;
+	return (node->f & flags) == flags;
 }
 
 void ast_append(struct ast **list, struct ast *elem)
