@@ -76,6 +76,9 @@ static struct ast *create_empty_ast()
 	}
 
 	struct ast *n = calloc(1, sizeof(struct ast));
+	if (!n)
+		return NULL;
+
 	/* just to be safe */
 	n->k = AST_EMPTY;
 	vect_append(struct ast *, nodes, &n);
@@ -89,6 +92,9 @@ static struct type *create_empty_type()
 	}
 
 	struct type *n = calloc(1, sizeof(struct type));
+	if (!n)
+		return NULL;
+
 	/* just to be safe */
 	n->k = TYPE_VOID;
 	n->size = -1;
@@ -393,6 +399,9 @@ struct ast *clone_ast(struct ast *n)
 
 	assert(n->k);
 	struct ast *new = create_empty_ast();
+	if (!new)
+		return NULL;
+
 	new->scope = n->scope;
 	new->loc = n->loc;
 	new->k = n->k;
@@ -435,6 +444,9 @@ struct type *clone_type(struct type *n)
 
 	assert(n->k);
 	struct type *new = create_empty_type();
+	if (!new)
+		return NULL;
+
 	new->scope = n->scope;
 	new->loc = n->loc;
 	new->k = n->k;

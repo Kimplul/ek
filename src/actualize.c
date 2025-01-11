@@ -344,8 +344,8 @@ static int analyze_visibility(struct scope *scope, struct ast *node)
 	case AST_IMPORT: {
 		const char *file = import_file(node);
 		int ret = process_file(&scope,
-		                    (int)ast_flags(node, AST_FLAG_PUBLIC),
-		                    file);
+		                       (int)ast_flags(node, AST_FLAG_PUBLIC),
+		                       file);
 
 		if (ret == 0)
 			return 0;
@@ -832,7 +832,7 @@ static int expand_chain(struct ast *expd, struct ast *params,
 }
 
 static struct ast *chain_graft(struct ast *exists, struct ast *def,
-		struct ast *params, struct type *types)
+                               struct ast *params, struct type *types)
 {
 	if (same_src(exists, def))
 		return exists;
