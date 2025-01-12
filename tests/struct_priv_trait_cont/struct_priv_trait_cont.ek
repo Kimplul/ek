@@ -1,0 +1,30 @@
+import "struct.ek"
+
+/* we implement trait here, but there's another private implementation in
+ * `struct.ek`. Intuitively, I would expect that `p` would end up calling
+ * this implementation, since without this continuation the code wouldn't
+ * compile, but the current instanciation/unification system doesn't handle this
+ * correctly, and the `do_something()` in `struct.ek` is the one that gets
+ * called (since that's the trait implementation visible to that section of the
+ * continuation chain).
+ *
+ * On a related note, for whatever reason `do_something()` doesn't get written
+ * by the codegen. Should maybe try and do something about that as well.
+ */
+continue implementer {
+	trait![];
+	do_something(=> i27)
+	{
+		return 1;
+	}
+}
+
+main()
+{
+	mut p = struct![implementer]{
+		.a = implementer!{}
+	};
+	p.call_something();
+
+	some_func();
+}

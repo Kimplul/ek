@@ -1,3 +1,18 @@
++ I wonder if some kind of `-fast-compile` would be possible? By default I
+  iterate over all definitions in a scope, but an idea for a future rewrite
+  could be to start from main() and typecheck on demand, leaving untouched bits
+  of code unchecked. Unsure how much time it would really save, but we could
+  also add some kind of warning like `function never used` by later iterating
+  over the unchecked stuff? In general I don't like how `actualize.c` works atm,
+  at least generics instantiation (in particular the unification is currently
+  annoying as fuck to deal with)
+
++ Currently the codegen is kind of bugged in that struct instances use the
+  functions defined in the scope of the public part of the chain, one 'shortcut'
+  would be to require that 'continue' matches the pub/private of the base
+  struct, so public structs can only be continued publically and private structs
+  privately? See `tests/struct_priv_trait_cont` for an example.
+
 + Build the consteval stuff
 
 OPTIMIZATIONS:

@@ -304,13 +304,14 @@ static void _type_str(FILE *fp, struct type *type)
 
 	case TYPE_STRUCT: {
 		struct ast *def = type->d;
-		if (struct_id(def)) {
-			fprintf(fp, "%s", struct_id(def));
+		struct ast *base = chain_base(def);
+		if (struct_id(base)) {
+			fprintf(fp, "%s", struct_id(base));
 		}
 
-		if (struct_params(def)) {
+		if (struct_params(base)) {
 			fprintf(fp, "![");
-			_param_str(fp, struct_params(def));
+			_param_str(fp, struct_params(base));
 			fprintf(fp, "]");
 		}
 		break;

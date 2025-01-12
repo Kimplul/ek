@@ -2194,6 +2194,9 @@ static int actualize_trait(struct act_state *state, struct scope *scope,
 		if (exists)
 			continue;
 
+		if (analyze_visibility(trait_scope, n))
+			return -1;
+
 		if (actualize_proc_sign(trait_scope, n))
 			return -1;
 	}

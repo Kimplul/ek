@@ -1,0 +1,32 @@
+pub typedef ptr {};
+pub typedef i27 {};
+
+pub define trait[] {
+	do_something(=> i27);
+}
+
+pub typedef implementer {}
+continue implementer {
+	trait![];
+	do_something(=> i27)
+	{
+		return 0;
+	}
+}
+
+pub typedef struct[trait T] {
+	T a;
+
+	call_something(*struct![T] self)
+	{
+		self*.a.do_something();
+	}
+}
+
+pub some_func()
+{
+	mut p = struct![implementer]{
+		.a = implementer!{}
+	};
+	p.call_something();
+}
