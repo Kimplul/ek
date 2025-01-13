@@ -1,13 +1,8 @@
 import "struct.ek"
 
-continue struct[any T] {
-	do_something(){}
-}
-
 main()
 {
 	mut p = struct![i27]{};
-	/* should be different from do_something() defined in struct.ek */
 	p.do_something();
 
 	some_func();

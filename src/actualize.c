@@ -2441,6 +2441,21 @@ static int actualize_struct_cont(struct act_state *state,
                                  struct scope *scope, struct ast *node)
 {
 	assert(node->k == AST_STRUCT_CONT_DEF);
+	struct ast *base = chain_base(node);
+	assert(base);
+
+	/** @todo this is arguably kind of a hack to sidestep issues
+	 * with 'which implementation of this trait should be used', but
+	 * it kind of has some nice properties in and of itself, will
+	 * have to think about this a bit more. */
+	if (ast_flags(node, AST_FLAG_PUBLIC) != ast_flags(base, AST_FLAG_PUBLIC)) {
+		/** @todo should the error report mention that this is possibly
+		 * a temporary hack? */
+		semantic_error(scope->fctx, node, "different publicity flags than base");
+		semantic_info(scope->fctx, base, "previous here");
+		return -1;
+	}
+
 	struct ast *up = node->chain;
 	assert(up);
 

@@ -3,7 +3,7 @@ pub typedef i27 {}
 pub typedef struct[any T] {}
 
 /* private definition of some function */
-continue struct[any T] {
+pub continue struct[any T] {
 	do_something(){}
 }
 
