@@ -22,37 +22,37 @@ enum scope_flags {
 	SCOPE_FILE = (1 << 1),
 };
 
-/**
- * An AST node visible to the scope we're in.
- * The same AST node can be referenced by multiple visible nodes,
- * but only the owning scope is allowed to destroy the node.
- * Check that \p owner is identical to the scope the visible node
- * belongs to.
- *
- * Basic linked list for now, can probably be optimized into some kind of hash
- * table later.
- */
-struct visible {
-	/** Name of the visible node. */
-	char *id;
-	/** AST node that is visible. */
-	struct ast *node;
-	/** Next visible object in the scope we're in. */
-	struct visible *next;
+#define MAP_KEY char *
+#define MAP_TYPE struct ast *
+#define MAP_CMP(a, b) strcmp((a), (b))
+#define MAP_NAME symbols
+#include "map.h"
+
+#define MAP_KEY char *
+#define MAP_TYPE struct type *
+#define MAP_CMP(a, b) strcmp((a), (b))
+#define MAP_NAME types
+#include "map.h"
+
+struct expanded_key {
+	char *name;
+	struct type *args;
 };
 
-struct expanded {
-	struct ast *node;
-	struct type *types;
-	struct ast *expd;
-	struct expanded *next;
-};
+static inline int expanded_key_cmp(struct expanded_key a, struct expanded_key b)
+{
+	int s = strcmp(a.name, b.name);
+	if (s != 0)
+		return s;
 
-struct type_defs {
-	char *id;
-	struct ast *type_def;
-	struct type_defs *next;
-};
+	return type_cmp(a.args, b.args);
+}
+
+#define MAP_KEY struct expanded_key
+#define MAP_TYPE struct type *
+#define MAP_CMP(a, b) expanded_key_cmp((a), (b))
+#define MAP_NAME expanded
+#include "map.h"
 
 /**
  * Scope.
@@ -62,8 +62,10 @@ struct type_defs {
 struct scope {
 	/** Parent scope, NULL if top scope. */
 	struct scope *parent;
+
 	/** Scope flags. */
 	enum scope_flags flags;
+
 	/** Unique scope ID. Mostly used for debugging. */
 	size_t number;
 
@@ -81,13 +83,11 @@ struct scope {
 	/** List of child scopes. */
 	struct scope *children;
 
-	struct expanded *expanded;
-
 	struct visible *symbols;
 	struct visible *macros;
-	struct visible *types;
 
-	struct visible *type_constructs;
+	struct types *types;
+	struct expanded *expanded;
 };
 
 /**
@@ -352,8 +352,7 @@ struct ast *file_scope_find_alias(struct scope *scope, char *id);
  */
 struct ast *file_scope_find_trait(struct scope *scope, char *id);
 
-struct ast *file_scope_find_expd_struct(struct scope *scope, struct ast *def,
-                                        struct type *types);
+struct type *file_scope_find_expd(struct scope *scope, struct ast *def, struct type *types);
 
 bool same_src(struct ast *a, struct ast *b);
 

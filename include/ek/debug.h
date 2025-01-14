@@ -103,10 +103,7 @@ void semantic_warn(struct file_ctx ctx, struct ast *node, const char *fmt,
  * @param node AST node to print message with.
  * @param fmt Format string. Follows standard printf() formatting.
  */
-void semantic_error(struct file_ctx ctx, struct ast *node, const char *fmt,
-                    ...);
-void type_error(struct file_ctx ctx, struct type *type, const char *fmt, ...);
-void loc_error(struct file_ctx ctx, struct src_loc loc, const char *fmt, ...);
+void semantic_error(struct ast *node, const char *fmt, ...);
 
 /**
  * Print internal error.

@@ -582,6 +582,17 @@ size_t ast_list_len(struct ast *node)
 	return count;
 }
 
+size_t type_list_len(struct type *node)
+{
+	size_t count = 0;
+	while (node) {
+		count++;
+		node = node->n;
+	}
+
+	return count;
+}
+
 struct ast *ast_last(struct ast *list)
 {
 	if (!list)

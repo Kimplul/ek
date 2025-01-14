@@ -15,13 +15,7 @@
 
 #include <ek/debug.h>
 #include <ek/scope.h>
-#include <ek/actualize.h>
-
-static bool same_src_scope(struct scope *a, struct scope *b)
-{
-	/** @todo a bit ridiculous, is there a less hacky way? */
-	return a->fctx.fbuf == b->fctx.fbuf;
-}
+#include <ek/analyze.h>
 
 struct scope *create_scope()
 {
@@ -172,20 +166,6 @@ struct visible *create_proc(struct scope *scope, char *id, struct ast *proc)
 	return n;
 }
 
-static bool scope_add_recurse(struct scope *scope, struct ast *node)
-{
-	if (!scope->parent)
-		return false;
-
-	if (!ast_flags(node, AST_FLAG_PUBLIC))
-		return false;
-
-	if (same_src_scope(scope, node->scope))
-		return true;
-
-	return scope_flags(scope, SCOPE_PUBLIC);
-}
-
 int scope_add_var(struct scope *scope, struct ast *var)
 {
 	struct ast *exists = scope_find_symbol(scope, var_id(var));
@@ -196,9 +176,6 @@ int scope_add_var(struct scope *scope, struct ast *var)
 	}
 
 	create_var(scope, var_id(var), var);
-	if (scope_add_recurse(scope, var))
-		return scope_add_var(scope->parent, var);
-
 	return 0;
 }
 
@@ -212,9 +189,6 @@ int scope_add_type(struct scope *scope, char *id, struct ast *type)
 	}
 
 	create_type(scope, id, type);
-	if (scope_add_recurse(scope, type))
-		return scope_add_type(scope->parent, id, type);
-
 	return 0;
 }
 
@@ -269,9 +243,6 @@ int scope_add_chain(struct scope *scope, char *id, struct ast *type)
 
 	insert_chain(scope, id, type);
 
-	if (scope_add_recurse(scope, type))
-		return scope_add_chain(scope->parent, id, type);
-
 	return 0;
 }
 
@@ -287,9 +258,6 @@ int scope_add_macro(struct scope *scope, struct ast *macro)
 
 	/* always add to scope, do resolve checking later */
 	create_macro(scope, macro_def_id(macro), macro);
-	if (scope_add_recurse(scope, macro))
-		return scope_add_macro(scope->parent, macro);
-
 	return 0;
 }
 
@@ -305,9 +273,6 @@ int scope_add_proc(struct scope *scope, struct ast *proc)
 
 	/* always add to scope, do resolve checking later */
 	create_proc(scope, proc_id(proc), proc);
-	if (scope_add_recurse(scope, proc))
-		return scope_add_proc(scope->parent, proc);
-
 	return 0;
 }
 
@@ -324,9 +289,6 @@ int scope_add_trait(struct scope *scope, struct ast *trait)
 	}
 
 	create_type(scope, id, trait);
-	if (scope_add_recurse(scope, trait))
-		return scope_add_trait(scope->parent, trait);
-
 	return 0;
 }
 
@@ -338,9 +300,6 @@ int scope_add_expd_struct(struct scope *scope, struct ast *def,
 	assert(file_scope_find_expd_struct(scope, def, types) == NULL);
 
 	create_expanded(scope, def, types, expd);
-	if (scope_add_recurse(scope, expd))
-		return scope_add_expd_struct(scope->parent, def, types, expd);
-
 	return 0;
 }
 
@@ -398,10 +357,6 @@ int scope_add_expd_chain(struct scope *scope, struct ast *def,
 	assert(file_scope_find_expd_struct(scope, def, types) != NULL);
 
 	insert_expd_chain(scope, def, types, expd);
-
-	if (scope_add_recurse(scope, expd))
-		return scope_add_expd_chain(scope->parent, def, types, expd);
-
 	return 0;
 }
 
@@ -575,9 +530,3 @@ void scope_add_scope(struct scope *parent, struct scope *child)
 	child->next = parent->children;
 	parent->children = child;
 }
-
-bool same_src(struct ast *a, struct ast *b)
-{
-	return same_src_scope(a->scope, b->scope);
-}
-

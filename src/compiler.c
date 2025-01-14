@@ -15,8 +15,8 @@
 #include <limits.h>
 #include <errno.h>
 
-#include <ek/actualize.h>
 #include <ek/compiler.h>
+#include <ek/analyze.h>
 #include <ek/string.h>
 #include <ek/parser.h>
 #include <ek/debug.h>

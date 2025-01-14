@@ -190,7 +190,6 @@ enum ast_flags {
 	/** Whether a struct/union initialization is index or name based. */
 	AST_FLAG_MEMBER = (1 << 11),
 	/** Struct/union is generic. */
-	AST_FLAG_GENERIC = (1 << 13),
 	AST_FLAG_NOMANGLE = (1 << 14),
 	AST_FLAG_DOEXPR = (1 << 15),
 	AST_FLAG_LOWERED = (1 << 16),
@@ -204,6 +203,29 @@ enum type_kind {
 	TYPE_TRAIT,
 };
 
+struct compound_entry {
+	struct ast *def;
+	struct type *type;
+};
+
+#define MAP_KEY char *
+#define MAP_TYPE struct compound_entry
+#define MAP_CMP(a, b) strcmp((a), (b))
+#define MAP_NAME compound_map
+#include "map.h"
+
+#define SPTREE_TYPE char *
+#define SPTREE_CMP(a, b) strcmp((a), (b))
+#define SPTREE_NAME trait_set
+#include "sptree.h"
+
+struct compound_type {
+	enum type_kind k;
+	struct ast *def;
+	struct compound_map map;
+	struct trait_set set;
+};
+
 struct type {
 	enum type_kind k;
 
@@ -211,10 +233,9 @@ struct type {
 	struct type *t0;
 	struct type *t1;
 
-	/* definition */
-	struct ast *d;
-	/* alias */
-	struct ast *a;
+	/* struct members etc */
+	struct compound_type *d;
+
 	/* id */
 	char *id;
 	/* next */
@@ -708,6 +729,7 @@ int type_visit_list(type_callback_t before, type_callback_t after,
  * @return Number of elements in \p list.
  */
 size_t ast_list_len(struct ast *list);
+size_t type_list_len(struct type *list);
 
 /**
  * Get last nose in ASt list.
@@ -745,6 +767,6 @@ struct type *reverse_type_list(struct type *root);
 	for (struct type *iter = nodes; iter; iter = iter->n)
 
 struct ast *chain_base(struct ast *node);
-struct ast *clone_chain(struct ast *chain);
+int type_cmp(struct type *a, struct type *b);
 
 #endif /* AST_H */
