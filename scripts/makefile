@@ -42,7 +42,7 @@ COMPILER	!= [ -n "$(CROSS_COMPILE)" ]						\
 			|| echo $(CC)
 
 
-OBFLAGS		:= -g
+OBFLAGS		:= -g -std=gnu23
 WARNFLAGS	:= -Wall -Wextra
 
 COMPILE_FLAGS	:= $(CFLAGS) $(WARNFLAGS) $(OPTFLAGS) $(OBFLAGS) $(ASSERTFLAGS) \

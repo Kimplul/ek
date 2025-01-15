@@ -297,7 +297,7 @@ int scope_add_proc(struct scope *scope, struct ast *proc)
 {
 	assert(proc->k == AST_PROC_DEF);
 	struct ast *exists = file_scope_find_symbol(scope, proc_id(proc));
-	if (exists) {
+	if (exists && proc_body(exists) == proc_body(proc)) {
 		semantic_error(proc->scope->fctx, proc, "proc redefined");
 		semantic_info(exists->scope->fctx, exists, "previously here");
 		return -1;
@@ -361,44 +361,14 @@ static struct expanded *scope_find_expanded(struct expanded *e, struct ast *def,
 	return NULL;
 }
 
-static void insert_expd_chain(struct scope *scope, struct ast *def,
-                              struct type *types, struct ast *expd)
-{
-	struct expanded *e = scope_find_expanded(scope->expanded, def, types);
-	assert(e);
-
-	struct ast *n = e->expd;
-	assert(n);
-
-	if (ast_flags(n, AST_FLAG_PUBLIC)
-	    || !ast_flags(expd, AST_FLAG_PUBLIC)) {
-		expd->chain = e->expd;
-		e->expd = expd;
-		/* types should be identical, we checked that earlier */
-		return;
-	}
-
-	/* find first public continuation in chain and insert just before it */
-	struct ast *next = n->chain;
-	while (next->k == AST_STRUCT_CONT_DEF &&
-	       !ast_flags(next, AST_FLAG_PUBLIC)) {
-		n = next;
-		next = n->chain;
-	}
-
-	n->chain = expd;
-	expd->chain = next;
-}
-
 int scope_add_expd_chain(struct scope *scope, struct ast *def,
                          struct type *types, struct ast *expd)
 {
-	assert(def->k == AST_STRUCT_DEF);
+	assert(def->k == AST_STRUCT_CONT_DEF);
 	assert(expd->k == AST_STRUCT_CONT_DEF);
-	assert(file_scope_find_expd_struct(scope, def, types) != NULL);
+	assert(file_scope_find_expd_struct(scope, def, types) == NULL);
 
-	insert_expd_chain(scope, def, types, expd);
-
+	create_expanded(scope, def, types, expd);
 	if (scope_add_recurse(scope, expd))
 		return scope_add_expd_chain(scope->parent, def, types, expd);
 
@@ -537,7 +507,7 @@ struct ast *file_scope_find_var(struct scope *scope, char *id)
 struct ast *scope_find_expd_struct(struct scope *scope, struct ast *def,
                                    struct type *types)
 {
-	assert(def->k == AST_STRUCT_DEF);
+	assert(def->k == AST_STRUCT_DEF || def->k == AST_STRUCT_CONT_DEF);
 	struct expanded *expd = scope_find_expanded(scope->expanded, def,
 	                                            types);
 	if (!expd)

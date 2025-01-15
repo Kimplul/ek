@@ -1,6 +1,7 @@
 typedef i27 {}
+typedef ptr {}
 
-do_stuff(^(i27 => i27) proc => i27)
+do_stuff(*(i27 => i27) proc => i27)
 {
 	return proc(20);
 }
@@ -12,5 +13,5 @@ other_proc(i27 a => i27)
 
 main()
 {
-	do_stuff(other_proc);
+	do_stuff(other_proc&);
 }

@@ -643,13 +643,15 @@ opt_sign_decls
 
 type
 	: ID { $$ = tgen_id($1, src_loc(@$)); }
-	| "^" "(" opt_sign_decls "=>" opt_type ")" {
+	| "*" "(" opt_sign_decls "=>" opt_type ")" {
 		/* still not entirely sold on this signature, but it's not terrible I
 		 * guess */
 		$$ = tgen_callable($[opt_sign_decls], $[opt_type], src_loc(@$));
+		$$ = tgen_ptr($$, src_loc(@$));
 	}
-	| "^" "(" opt_sign_decls ")" {
+	| "*" "(" opt_sign_decls ")" {
 		$$ = tgen_callable($[opt_sign_decls], NULL, src_loc(@$));
+		$$ = tgen_ptr($$, src_loc(@$));
 	}
 	| "*" type {
 		$$ = tgen_ptr($2, src_loc(@$));

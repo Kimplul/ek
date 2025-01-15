@@ -1,1 +1,1 @@
-SIMPLE_XFAIL	+= struct_priv_trait_cont
+SIMPLE	+= struct_priv_trait_cont

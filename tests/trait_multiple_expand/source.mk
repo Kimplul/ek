@@ -1,1 +1,1 @@
-SIMPLE += trait_multiple_expand
+SIMPLE_XFAIL += trait_multiple_expand

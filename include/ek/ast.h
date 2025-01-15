@@ -194,6 +194,9 @@ enum ast_flags {
 	AST_FLAG_NOMANGLE = (1 << 14),
 	AST_FLAG_DOEXPR = (1 << 15),
 	AST_FLAG_LOWERED = (1 << 16),
+	AST_FLAG_UFCS_SIMPLE = (1 << 17),
+	AST_FLAG_UFCS_REF = (1 << 18),
+	AST_FLAG_UFCS_TRIVIAL = (1 << 19),
 };
 
 struct ast;
@@ -578,13 +581,15 @@ static inline bool is_primitive(struct type *t)
 
 #define struct_id(x) return_s(x, AST_STRUCT_DEF)
 #define struct_params(x) return_a0(x, AST_STRUCT_DEF)
-#define struct_body(x) return_a1(x, AST_STRUCT_DEF)
+#define struct_body(x) return_a2(x, AST_STRUCT_DEF)
+#define struct_raw_body(x) return_a1(x, AST_STRUCT_DEF)
 #define gen_struct(id, params, body, loc) \
 	gen_str2(AST_STRUCT_DEF, id, params, body, loc)
 
 #define struct_cont_id(x) return_s(x, AST_STRUCT_CONT_DEF)
 #define struct_cont_params(x) return_a0(x, AST_STRUCT_CONT_DEF)
-#define struct_cont_body(x) return_a1(x, AST_STRUCT_CONT_DEF)
+#define struct_cont_body(x) return_a2(x, AST_STRUCT_CONT_DEF)
+#define struct_cont_raw_body(x) return_a1(x, AST_STRUCT_CONT_DEF)
 #define gen_struct_cont(id, params, body, loc)                              \
 	gen_ast(AST_STRUCT_CONT_DEF, params, body, NULL, NULL, NULL, id, 0, \
 		loc)

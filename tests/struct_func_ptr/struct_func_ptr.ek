@@ -1,0 +1,14 @@
+typedef ptr {}
+typedef i27 {}
+
+typedef struct {
+	*() f;
+}
+
+do_something(){}
+
+main()
+{
+	mut p = struct!{.f = do_something&};
+	p.f();
+}

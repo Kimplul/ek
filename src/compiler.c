@@ -123,6 +123,50 @@ static int process(struct scope **parent, int public, const char *file)
 	return 0;
 }
 
+#define MAP_KEY char *
+#define MAP_TYPE struct scope *
+#define MAP_CMP(a, b) strcmp((a), (b))
+#define MAP_NAME scopes
+#include "ek/map.h"
+
+static int copy_scope(struct scope *to, struct scope *from)
+{
+	/** @todo handle duplicates */
+	foreach_visible(n, from->symbols) {
+		struct ast *def = n->node;
+		if (!ast_flags(def, AST_FLAG_PUBLIC))
+			continue;
+
+		switch (def->k) {
+		case AST_PROC_DEF:
+			if (scope_add_proc(to, def))
+				return -1;
+			break;
+
+		case AST_VAR_DEF:
+			if (scope_add_var(to, def))
+				return -1;
+			break;
+
+		default: abort();
+		}
+	}
+
+	return 0;
+}
+
+/* ugly global for now */
+static struct scopes scopes;
+
+static void destroy_scopes()
+{
+	foreach(scopes, n, &scopes) {
+		free(n->key);
+	}
+
+	scopes_destroy(&scopes);
+}
+
 int process_file(struct scope **scope, int public, const char *file)
 {
 	int res = -1;
@@ -141,7 +185,7 @@ int process_file(struct scope **scope, int public, const char *file)
 	if (!dir)
 		goto out;
 
-	/* TODO: iterate through include paths */
+	/* TODO: iterate through include paths? */
 	const char *cwd = ek_cwdname();
 	res_add(r, (void *)cwd);
 	if (!cwd)
@@ -153,8 +197,20 @@ int process_file(struct scope **scope, int public, const char *file)
 		goto out;
 	}
 
-	if (process(scope, public, base))
-		goto out;
+	char *real = realpath(base, NULL);
+	assert(real);
+
+	struct scope **exists = scopes_find(&scopes, real);
+	if (exists) {
+		if (copy_scope(*scope, *exists))
+			goto out;
+
+	} else {
+		if (process(scope, public, base))
+			goto out;
+
+		scopes_insert(&scopes, real, *scope);
+	}
 
 	if (chdir(cwd)) {
 		error("couldn't change back to directory %s: %s\n", cwd,
@@ -170,11 +226,14 @@ out:
 }
 
 int compile(const char *input) {
+	scopes = scopes_create();
+
 	int ret = -1;
 	struct scope *root = NULL;
 	if (process_file(&root, 0, input)) {
 		destroy_scope(root);
 		destroy_allocs();
+		destroy_scopes();
 		error("compilation of %s stopped due to errors", input);
 		return ret;
 	}
@@ -182,11 +241,13 @@ int compile(const char *input) {
 	if ((ret = lower(root))) {
 		destroy_scope(root);
 		destroy_allocs();
+		destroy_scopes();
 		error("compilation of %s stopped due to errors", input);
 		return ret;
 	}
 
 	destroy_scope(root);
 	destroy_allocs();
+	destroy_scopes();
 	return 0;
 }

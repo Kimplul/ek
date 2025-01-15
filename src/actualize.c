@@ -491,14 +491,19 @@ static struct ast *analyze_type_expand(struct scope *scope,
 	return body;
 }
 
-static int has_trait(struct ast *body, char *id)
+static int has_trait(struct ast *body, struct ast *expand)
 {
+	assert(expand->k == AST_TYPE_EXPAND);
 	foreach_node(n, body) {
-		/* traits don't currently take generic parameters I guess? */
-		if (n->k != AST_ID)
+		/* ignore trait parameters for now */
+		if (n->k != AST_TYPE_EXPAND)
 			continue;
 
-		if (same_id(id_str(n), id))
+		/* ignore ourselves */
+		if (n == expand)
+			continue;
+
+		if (same_id(type_expand_id(n), type_expand_id(expand)))
 			return -1;
 	}
 
@@ -739,7 +744,8 @@ static int reset(struct ast *body)
 	return ast_visit(_reset, NULL, body, NULL);
 }
 
-static int expand_type(struct ast *expd, struct ast *params, struct type *types)
+static int expand_type(struct scope *scope, struct ast *expd,
+                       struct ast *params, struct type *types)
 {
 	/* we're getting expanded so remove our params to avoid redefining them
 	 * later */
@@ -749,9 +755,6 @@ static int expand_type(struct ast *expd, struct ast *params, struct type *types)
 	case AST_TRAIT_DEF:       trait_params(expd) = NULL; break;
 	default: abort();
 	}
-
-	assert(expd->scope->parent);
-	struct scope *p = expd->scope->parent;
 
 	reset(expd);
 
@@ -782,7 +785,7 @@ static int expand_type(struct ast *expd, struct ast *params, struct type *types)
 	 * will succeed (and I guess we wouldn't need to actualize anything) but
 	 * this seems like the simplest solution for now */
 	struct act_state state = {0};
-	int ret = actualize(&state, p, expd);
+	int ret = actualize(&state, scope, expd);
 	assert(ret == 0);
 
 	printf("\n//expanded:\n");
@@ -812,43 +815,27 @@ static struct ast *maybe_expand_struct(struct scope *scope, struct ast *def,
 		return NULL;
 
 	struct ast *expd = clone_ast(def);
-	if (expand_type(expd, struct_params(def), args))
+	if (scope_add_expd_struct(scope, def, args, expd))
+		return NULL;
+
+	if (expand_type(scope, expd, struct_params(def), args))
 		return NULL;
 
 	return expd;
 }
 
-static int expand_chain(struct ast *expd, struct ast *params,
+static int expand_chain(struct scope *scope, struct ast *expd,
+                        struct ast *params,
                         struct type *types)
 {
 	/* bit of a hack for the moment, but start at the bottom of the chain to
 	 * ensure everything gets actualized in the 'correct' order. Might be a
 	 * good idea to instead do some preparations for each node in the chain
 	 * so we can avoid recursion if need be */
-	if (expd->chain && expand_chain(expd->chain, params, types))
+	if (expd->chain && expand_chain(scope, expd->chain, params, types))
 		return -1;
 
-	return expand_type(expd, params, types);
-}
-
-static struct ast *chain_graft(struct ast *exists, struct ast *def,
-                               struct ast *params, struct type *types)
-{
-	if (same_src(exists, def))
-		return exists;
-
-	assert(def->chain);
-	struct ast *graft = chain_graft(exists, def->chain, params, types);
-	if (!graft)
-		return NULL;
-
-	struct ast *new = clone_ast(def);
-	new->chain = graft;
-
-	if (expand_type(new, params, types))
-		return NULL;
-
-	return new;
+	return expand_type(scope, expd, params, types);
 }
 
 static struct ast *maybe_expand_struct_cont(struct scope *scope,
@@ -868,15 +855,18 @@ static struct ast *maybe_expand_struct_cont(struct scope *scope,
 		return NULL;
 	}
 
-	struct ast *exists = file_scope_find_expd_struct(scope, base, args);
+	struct ast *exists = file_scope_find_expd_struct(scope, def, args);
 	if (exists)
-		return chain_graft(exists, def, struct_params(base), args);
+		return exists;
 
 	if (!should_implement_list(scope, struct_params(base), loc, args))
 		return NULL;
 
 	struct ast *expd = clone_chain(def);
-	if (expand_chain(expd, struct_params(base), args))
+	if (scope_add_expd_chain(scope, def, args, expd))
+		return NULL;
+
+	if (expand_chain(scope, expd, struct_params(base), args))
 		return NULL;
 
 	return expd;
@@ -1017,48 +1007,36 @@ static int simplify_refderef(struct act_state *state, struct scope *scope,
 	return 0;
 }
 
-/* not really ufcs at the moment */
-static int maybe_ufcs(struct act_state *state, struct scope *scope,
-                      struct ast *call)
+static int use_ufcs(struct ast *call)
 {
 	assert(call->k == AST_CALL);
 	struct ast *dot = call_expr(call);
 	if (dot->k != AST_DOT)
-		return 0;
+		return false;
+
+	/** @todo does this still work with function pointers? */
+	struct ast *expr = dot_expr(dot);
+	struct type *type = expr->t;
+	if (dot->t->k != TYPE_CALLABLE)
+		return false;
 
 	struct type *ptypes = callable_ptypes(dot->t);
-	struct ast *expr = dot_expr(dot);
-	char *id = strdup(dot_id(dot));
-	call_expr(call) = gen_fetch(id, clone_type(expr->t), dot->loc);
-	(call_expr(call))->t = clone_type(dot->t);
-	(call_expr(call))->scope = scope;
-
-	struct ast *ref = NULL;
-
 	if (!ptypes) {
-		ref = NULL;
-	}
-	else if (ptypes->k == TYPE_PTR) {
-		/* is ufcs expects reference to member, try to take address */
-		ref = gen_unop(AST_REF, expr, dot->loc);
-		ref->t = tgen_ptr(clone_type(expr->t), dot->loc);
-		if (actualize_type(state, scope, ref->t))
-			return -1;
-
-		ref->scope = scope;
-	}
-	else {
-		/* otherwise, try to pass expr as is */
-		ref = expr;
+		ast_set_flags(call, AST_FLAG_UFCS_TRIVIAL);
+		return true;
 	}
 
-	if (ref && simplify_refderef(state, scope, ref))
-		return -1;
+	if (types_match(ptypes, type)) {
+		ast_set_flags(call, AST_FLAG_UFCS_SIMPLE);
+		return true;
+	}
 
-	if (ref)
-		call_args(call) = ast_prepend(call_args(call), ref);
+	if (ptypes->k == TYPE_PTR && types_match(ptr_base(ptypes), type)) {
+		ast_set_flags(call, AST_FLAG_UFCS_REF);
+		return true;
+	}
 
-	return 0;
+	return false;
 }
 
 static int actualize_call(struct act_state *state,
@@ -1073,23 +1051,28 @@ static int actualize_call(struct act_state *state,
 		return -1;
 
 	struct ast *expr = call_expr(call);
-	if (expr->t->k != TYPE_CALLABLE) {
-		char *tstr = type_str(expr->t);
+	struct type *type = expr->t;
+	if (type->k == TYPE_PTR)
+		type = ptr_base(type);
+
+	if (type->k != TYPE_CALLABLE) {
+		char *tstr = type_str(type);
 		semantic_error(scope->fctx, call, "not a callable type: %s",
 		               tstr);
 		free(tstr);
 		return -1;
 	}
 
-	if (maybe_ufcs(state, scope, call))
-		return -1;
-
-	struct type *callable = expr->t;
+	struct type *callable = type;
 	struct type *ptypes = callable_ptypes(callable);
 	struct ast *arg = call_args(call);
+
+	if (use_ufcs(call) && ptypes)
+		ptypes = ptypes->n;
+
 	foreach_type(p, ptypes) {
 		if (!arg) {
-			semantic_error(scope->fctx, call, "too many arguments");
+			semantic_error(scope->fctx, call, "too few arguments");
 			return -1;
 		}
 
@@ -2040,25 +2023,28 @@ static int _replace_type_id(struct type *type, void *data)
 		break;
 	}
 
-	case TYPE_TRAIT: {
-		struct ast *def = type->d;
-		assert(def);
+	/* these shouldn't actually even be here?
+	   case TYPE_TRAIT: {
+	        struct ast *def = type->d;
+	        assert(def);
 
-		char *name = trait_id(def);
-		if (same_id(id, name))
-			replace_type(type, clone_type(replacement));
-		break;
-	}
+	        char *name = trait_id(def);
+	        if (same_id(id, name))
+	                replace_type(type, clone_type(replacement));
 
-	case TYPE_STRUCT: {
-		struct ast *def = type->d;
-		assert(def);
+	        break;
+	   }
 
-		char *name = struct_id(def);
-		if (same_id(id, name))
-			replace_type(type, clone_type(replacement));
-		break;
-	}
+	   case TYPE_STRUCT: {
+	        struct ast *def = type->d;
+	        assert(def);
+
+	        char *name = struct_id(def);
+	        if (same_id(id, name))
+	                replace_type(type, clone_type(replacement));
+	        break;
+	   }
+	 */
 
 	default:
 		break;
@@ -2101,107 +2087,6 @@ static int _clear_scope(struct ast *node, void *data)
 static int clear_scope(struct ast *nodes)
 {
 	return ast_visit(_clear_scope, NULL, nodes, NULL);
-}
-
-
-/* lots of overlap with actualize_struct, kind of ugly... */
-static int actualize_trait(struct act_state *state, struct scope *scope,
-                           struct ast *node)
-{
-	UNUSED(state);
-	assert(node->k == AST_TRAIT_DEF);
-	struct ast *params = trait_params(node);
-	struct scope *trait_scope = create_scope();
-	if (!trait_scope)
-		return -1;
-
-	scope_add_scope(node->scope, trait_scope);
-	node->scope = trait_scope;
-
-	/** @todo should probably add in aliases for the traits in scope? */
-	if (params)
-		ast_set_flags(node, AST_FLAG_GENERIC);
-
-	char *id = trait_id(node);
-	node->t = tgen_trait(strdup(id), node, node->loc);
-
-	/* copy body */
-	node->a2 = clone_ast(trait_raw_body(node));
-
-	/* do type expansions */
-	foreach_node(n, trait_body(node)) {
-		if (n->k != AST_TYPE_EXPAND)
-			continue;
-
-		/* don't re-expand already implemented traits */
-		if (has_trait(trait_body(node), type_expand_id(n))) {
-			/* not sure about this, but at least we don't have stray
-			 * type expands everywhere */
-			n->k = AST_EMPTY;
-			continue;
-		}
-
-		if (same_id(trait_id(node), type_expand_id(n))) {
-			semantic_error(scope->fctx, n,
-			               "recursive trait implementations not allowed");
-			return -1;
-		}
-
-		struct ast *body = analyze_type_expand(scope, n);
-		if (!body) {
-			n->k = AST_EMPTY;
-			continue;
-		}
-
-		replace_type_id(body, type_expand_id(n), node->t);
-		clear_scope(body);
-
-		ast_last(body)->n = n->n;
-		n->n = body;
-	}
-
-
-	/** @todo I should really check that there's just one prototype and one
-	 * implementation of that prototype, not sure what the best approach
-	 * would be. Add a prototypes -list to scopes? */
-
-	/* add all prototypes that don't have matching definition to scope */
-	foreach_node(n, trait_body(node)) {
-		if (n->k == AST_TYPE_EXPAND)
-			continue;
-
-		if (n->k == AST_PROC_DEF && !proc_body(n))
-			continue;
-
-		if (analyze_visibility(trait_scope, n))
-			return -1;
-
-		struct act_state state = {0};
-		if (actualize(&state, trait_scope, n))
-			return -1;
-	}
-
-	foreach_node(n, trait_body(node)) {
-		/* 'actualize' prototypes to make them appear in scope searches
-		 * */
-		if (n->k != AST_PROC_DEF)
-			continue;
-
-		if (proc_body(n))
-			continue;
-
-		struct ast *exists = scope_find_proc(trait_scope, proc_id(n));
-		if (exists)
-			continue;
-
-		if (analyze_visibility(trait_scope, n))
-			return -1;
-
-		if (actualize_proc_sign(trait_scope, n))
-			return -1;
-	}
-
-	return node->t == NULL;
 }
 
 static struct ast *chain_lookup(struct act_state *state, struct ast *def,
@@ -2262,8 +2147,14 @@ static int expand_struct_body(struct act_state *state,
 	if (params)
 		ast_set_flags(node, AST_FLAG_GENERIC);
 
+	/* clone raw body */
+	node->a2 = clone_ast_list(body);
+	body = node->a2;
+
 	/* do type setting first to make sure body checking works */
-	if (same_id(id, "i27"))
+	if (node->k == AST_TRAIT_DEF)
+		node->t = tgen_trait(strdup(id), node, node->loc);
+	else if (same_id(id, "i27"))
 		node->t = tgen_primitive(TYPE_I27, strdup(id), node, node->loc);
 	else if (same_id(id, "i9"))
 		node->t = tgen_primitive(TYPE_I9, strdup(id), node, node->loc);
@@ -2306,23 +2197,19 @@ static int expand_struct_body(struct act_state *state,
 	if (node->t->k == TYPE_STRUCT)
 		tstruct_params(node->t) = types;
 
-	struct ast *def = file_scope_find_type(scope, id);
-	struct ast *base = chain_base(def);
-
 	int ret = 0;
-	if (node->k == AST_STRUCT_DEF)
-		ret = scope_add_expd_struct(scope, base, types, node);
-	else if (node->k == AST_STRUCT_CONT_DEF)
-		ret = scope_add_expd_chain(scope, base, types, node);
-	else
-		abort();
+	switch (node->k) {
+	case AST_STRUCT_DEF: ret = scope_add_expd_struct(scope, node, types,
+		                                         node); break;
+	case AST_STRUCT_CONT_DEF: ret = scope_add_expd_chain(scope, node, types,
+		                                             node); break;
+	case AST_TRAIT_DEF: break;
+	default: abort();
+	}
 
 	assert(ret == 0);
 
 	foreach_node(n, body) {
-		if (n->k != AST_TYPE_EXPAND)
-			continue;
-
 		/** @todo when I eventually implement continuing structure
 		 * definitions I might add the primitive types by default to
 		 * structs, that way we don't need this check or the above type
@@ -2333,9 +2220,13 @@ static int expand_struct_body(struct act_state *state,
 			return -1;
 		}
 
-		if (has_trait(body, type_expand_id(n))) {
-			n->k = AST_EMPTY;
+		if (n->k != AST_TYPE_EXPAND)
 			continue;
+
+		if (has_trait(body, n)) {
+			semantic_error(scope->fctx, n,
+			               "reimplementation of trait");
+			return -1;
 		}
 
 		if (same_id(id, type_expand_id(n))) {
@@ -2357,6 +2248,16 @@ static int expand_struct_body(struct act_state *state,
 		n->n = body;
 	}
 
+	/* add prototypes */
+	foreach_node(n, body) {
+		if (!(n->k == AST_PROC_DEF && !proc_body(n)))
+			continue;
+
+		if (analyze_visibility(struct_scope, n))
+			return -1;
+	}
+
+	/* add implementations/variables */
 	foreach_node(n, body) {
 		/* don't actually actualize type expansion for now, it's just
 		 * sticking around to make it easier to check if a type
@@ -2365,11 +2266,10 @@ static int expand_struct_body(struct act_state *state,
 		if (n->k == AST_TYPE_EXPAND)
 			continue;
 
-		/* prototypes are handled separately */
 		if (n->k == AST_PROC_DEF && !proc_body(n))
 			continue;
 
-		if (n->k == AST_PROC_DEF) {
+		if (n->k == AST_PROC_DEF && proc_body(n)) {
 			struct ast *prev = chain_lookup(state, node->chain,
 			                                proc_id(n));
 			if (prev) {
@@ -2388,14 +2288,13 @@ static int expand_struct_body(struct act_state *state,
 		if (n->k == AST_TYPE_EXPAND)
 			continue;
 
-		/* prototypes are (still) handled separately */
-		if (n->k == AST_PROC_DEF && !proc_body(n))
-			continue;
-
 		struct act_state state = {0};
 		if (actualize(&state, struct_scope, n))
 			return -1;
 	}
+
+	if (node->k == AST_TRAIT_DEF)
+		return 0;
 
 	/* check that all prototypes are implemented */
 	foreach_node(n, body) {
@@ -2422,8 +2321,6 @@ static int expand_struct_body(struct act_state *state,
 		}
 	}
 
-	/** @todo there is the possibility that two different traits add the
-	 * same prototype, which is reported in traits but not structs? */
 	return 0;
 }
 
@@ -2433,29 +2330,15 @@ static int actualize_struct(struct act_state *state,
 	UNUSED(state);
 	assert(node->k == AST_STRUCT_DEF);
 	return expand_struct_body(state, scope, node,
-	                          struct_id(node), struct_params(node),
-	                          struct_body(node));
+	                          struct_id(node),
+	                          struct_params(node),
+	                          struct_raw_body(node));
 }
 
 static int actualize_struct_cont(struct act_state *state,
                                  struct scope *scope, struct ast *node)
 {
 	assert(node->k == AST_STRUCT_CONT_DEF);
-	struct ast *base = chain_base(node);
-	assert(base);
-
-	/** @todo this is arguably kind of a hack to sidestep issues
-	 * with 'which implementation of this trait should be used', but
-	 * it kind of has some nice properties in and of itself, will
-	 * have to think about this a bit more. */
-	if (ast_flags(node, AST_FLAG_PUBLIC) != ast_flags(base, AST_FLAG_PUBLIC)) {
-		/** @todo should the error report mention that this is possibly
-		 * a temporary hack? */
-		semantic_error(scope->fctx, node, "different publicity flags than base");
-		semantic_info(scope->fctx, base, "previous here");
-		return -1;
-	}
-
 	struct ast *up = node->chain;
 	assert(up);
 
@@ -2465,7 +2348,17 @@ static int actualize_struct_cont(struct act_state *state,
 	return expand_struct_body(state, scope, node,
 	                          struct_cont_id(node),
 	                          struct_cont_params(node),
-	                          struct_cont_body(node));
+	                          struct_cont_raw_body(node));
+}
+
+static int actualize_trait(struct act_state *state, struct scope *scope,
+                           struct ast *node)
+{
+	assert(node->k == AST_TRAIT_DEF);
+	return expand_struct_body(state, scope, node,
+	                          trait_id(node),
+	                          trait_params(node),
+	                          trait_raw_body(node));
 }
 
 static int actualize_dot(struct act_state *state,
@@ -2516,8 +2409,8 @@ static int actualize_dot(struct act_state *state,
 
 	char *tstr = type_str(type);
 	semantic_error(scope->fctx, node,
-	               "%s does not have member",
-	               tstr);
+	               "%s does not have member '%s'",
+	               tstr, id);
 	free(tstr);
 	return -1;
 }

@@ -196,6 +196,11 @@ typedef int (*visit_struct_t)(struct lower_state *s, struct ast *n, size_t o,
 static ssize_t visit_struct(struct lower_state *s, struct ast *def, size_t base,
                             visit_struct_t cb, void *data)
 {
+	/* I believe we're only interested in the variables, so find them at the
+	 * root of the chain */
+	if (def->chain)
+		return visit_struct(s, def->chain, base, cb, data);
+
 	size_t offset = (size_t)base;
 	foreach_node(n, struct_body(def)) {
 		if (n->k != AST_VAR_DEF)
@@ -879,12 +884,49 @@ static int lower_call(struct lower_state *s, struct ast *c,
 	assert(c->k == AST_CALL);
 
 	struct retval call = retval_create();
+	if (ast_flags(c, AST_FLAG_UFCS_SIMPLE)
+	    || ast_flags(c, AST_FLAG_UFCS_REF)
+	    || ast_flags(c, AST_FLAG_UFCS_TRIVIAL)) {
+		struct ast *dot = call_expr(c);
+		assert(dot && dot->k == AST_DOT);
+
+		struct ast *expr = dot_expr(dot);
+
+		char *id = strdup(dot_id(dot));
+		assert(id);
+
+		struct ast *fetch = gen_fetch(id, clone_type(expr->t),
+		                              dot->loc);
+		assert(fetch);
+
+		fetch->t = clone_type(dot->t);
+		call_expr(c) = fetch;
+
+		if (!ast_flags(c, AST_FLAG_UFCS_TRIVIAL)) {
+			struct ast *arg = expr;
+			if (ast_flags(c, AST_FLAG_UFCS_REF)) {
+				arg = gen_unop(AST_REF, expr, dot->loc);
+				arg->t = clone_type(expr->t);
+				/** @todo should simplify refderef here */
+			}
+
+			/* prepend new arg to list */
+			arg->n = call_args(c);
+			call_args(c) = arg;
+		}
+	}
+
 	if (lower_expr(s, call_expr(c), &call)) {
 		retval_destroy(&call);
 		return -1;
 	}
 
-	struct type *rtype = callable_rtype((call_expr(c))->t);
+	struct ast *expr = call_expr(c);
+	struct type *callable = expr->t;
+	if (callable->k == TYPE_PTR)
+		callable = ptr_base(callable);
+
+	struct type *rtype = callable_rtype(callable);
 	char *rbuf = NULL;
 	if (rtype->k == TYPE_STRUCT) {
 		rbuf = build_str("rbuf_%zd", s->uniq++);
