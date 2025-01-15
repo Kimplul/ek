@@ -1,13 +1,13 @@
 pub typedef ptr {};
 pub typedef i27 {};
 
-pub define trait[] {
+pub define trait {
 	do_something(=> i27);
 }
 
 pub typedef implementer {}
 continue implementer {
-	trait![];
+	trait!;
 	do_something(=> i27)
 	{
 		return 0;

@@ -1,0 +1,5 @@
+pub typedef i27 {};
+
+pub define trait {
+	do_something(=> i27);
+}

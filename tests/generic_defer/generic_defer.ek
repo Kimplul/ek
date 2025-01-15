@@ -1,4 +1,4 @@
-define any[] {}
+define any {}
 
 typedef i27 {}
 typedef i9 {}

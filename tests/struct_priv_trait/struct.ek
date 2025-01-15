@@ -1,0 +1,8 @@
+pub typedef ptr {};
+pub typedef i27 {};
+
+define trait {
+	do_something(=> i27);
+}
+
+pub typedef struct[trait T] {};

@@ -2131,6 +2131,22 @@ static int params_match(struct scope *scope, struct ast *base, struct ast *node)
 	return 1;
 }
 
+/* slightly hacky but works well enough for now */
+static int trait_exported(struct scope *scope, struct ast *def)
+{
+	assert(file_scope_find_type(scope, def->s) == def);
+
+	while (!scope_flags(scope, SCOPE_FILE) && scope->parent)
+		scope = scope->parent;
+
+	assert(scope && scope_flags(scope, SCOPE_FILE));
+	struct scope *parent = scope->parent;
+	if (!parent)
+		return true;
+
+	return file_scope_find_type(parent, def->s) == def;
+}
+
 static int expand_struct_body(struct act_state *state,
                               struct scope *scope,
                               struct ast *node,
@@ -2178,6 +2194,17 @@ static int expand_struct_body(struct act_state *state,
 		if (actualize_type(&type_state, scope, type))
 			return -1;
 
+		if (ast_flags(node, AST_FLAG_PUBLIC)) {
+			struct ast *def = type->d;
+			/* traits should only show up during the initial
+			 * expansion, but should maybe make sure somehow */
+			if (def->k == AST_TRAIT_DEF && !trait_exported(scope, def)) {
+				semantic_error(struct_scope->fctx, n,
+						"trait used in pub def must also be exported");
+				return -1;
+			}
+		}
+
 		type_append(&types, type);
 
 		struct ast *alias = gen_alias(strdup(id), type, n->loc);
@@ -2187,6 +2214,7 @@ static int expand_struct_body(struct act_state *state,
 		struct act_state state = {0};
 		if (actualize(&state, struct_scope, alias))
 			return -1;
+
 	}
 
 	if (node->k == AST_STRUCT_CONT_DEF

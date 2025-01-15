@@ -683,7 +683,7 @@ opt_types
 	| { $$ = NULL; }
 
 type_expand
-	: APPLY "[" opt_types "]" { $$ = gen_type_expand($1, $3, src_loc(@$)); }
+	: APPLY { $$ = gen_type_expand($1, NULL, src_loc(@$)); }
 
 var_decl
 	: type ID { $$ = gen_var($2, $1, NULL, src_loc(@$));  }
@@ -810,8 +810,8 @@ opt_type_params
 	| { $$ = NULL; }
 
 trait
-	: "define" ID "[" opt_type_params "]" "{" opt_behaviours "}" {
-		$$ = gen_trait($2, $4, $7, src_loc(@$));
+	: "define" ID "{" opt_behaviours "}" {
+		$$ = gen_trait($2, NULL, $4, src_loc(@$));
 	}
 
 enum_val

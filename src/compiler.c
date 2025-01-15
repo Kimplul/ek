@@ -160,6 +160,7 @@ static struct scopes scopes;
 
 static void destroy_scopes()
 {
+	if (scopes_len(&scopes))
 	foreach(scopes, n, &scopes) {
 		free(n->key);
 	}

@@ -1,21 +1,21 @@
 typedef ptr {}
 
-define b[] {
-	c![];
-	a![];
+define b {
+	c!;
+	a!;
 }
 
-define a[] {
-	c![];
+define a {
+	c!;
 	a(*a a);
 }
 
-define c[] {
+define c {
 	c(*c c);
 }
 
 typedef d {
-	b![];
+	b!;
 	c(*d d) {}
 }
 

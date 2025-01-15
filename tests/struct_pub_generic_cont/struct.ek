@@ -1,4 +1,4 @@
-pub define any[] {}
+pub define any {}
 pub typedef i27 {}
 pub typedef struct[any T] {}
 

@@ -1,7 +1,7 @@
 typedef i9 {}
 typedef i27 {}
 
-define any[] {}
+define any {}
 
 extern _putchar(i9 c);
 

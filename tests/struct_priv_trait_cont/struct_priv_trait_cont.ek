@@ -12,7 +12,7 @@ import "struct.ek"
  * by the codegen. Should maybe try and do something about that as well.
  */
 continue implementer {
-	trait![];
+	trait!;
 	do_something(=> i27)
 	{
 		return 1;

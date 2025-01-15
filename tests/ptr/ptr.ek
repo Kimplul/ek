@@ -1,14 +1,14 @@
 typedef bool {}
 
 typedef i27 {
-	cmp![];
+	cmp!;
 	eq(i27 a, i27 b => bool) {
 		return a == b;
 	}
 }
 
 typedef ptr {
-	cmp![];
+	cmp!;
 	eq(ptr a, ptr b => bool) {
 		return a == b;
 	}
@@ -16,7 +16,7 @@ typedef ptr {
 
 typedef test[cmp T] {}
 
-define cmp[] {
+define cmp {
 	eq(cmp, cmp => bool);
 }
 

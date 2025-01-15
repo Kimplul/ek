@@ -1,0 +1,3 @@
+import "trait.ek"
+
+pub typedef struct[trait T] {};
