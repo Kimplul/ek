@@ -729,21 +729,6 @@ static int should_implement_list(struct scope *scope, struct ast *params,
 	return 0;
 }
 
-static int _reset(struct ast *node, void *data)
-{
-	UNUSED(data);
-	ast_clear_flags(node, AST_FLAG_INIT | AST_FLAG_ACTUAL);
-	/* clear type info */
-	node->t = NULL;
-	node->scope = NULL;
-	return 0;
-}
-
-static int reset(struct ast *body)
-{
-	return ast_visit(_reset, NULL, body, NULL);
-}
-
 static int expand_type(struct scope *scope, struct ast *expd,
                        struct ast *params, struct type *types)
 {
@@ -755,8 +740,6 @@ static int expand_type(struct scope *scope, struct ast *expd,
 	case AST_TRAIT_DEF:       trait_params(expd) = NULL; break;
 	default: abort();
 	}
-
-	reset(expd);
 
 	foreach_node(n, params) {
 		struct ast *p = clone_ast(n);
