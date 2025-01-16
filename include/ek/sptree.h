@@ -73,6 +73,9 @@ static inline struct SPNODE *SPTREE(last)(struct SPNODE *n)
 
 static inline SPTREE_TYPE *SPTREE(begin)(struct SPROOT *s)
 {
+	if (SPTREE(len)(s) == 0)
+		return NULL;
+
 	return &SPTREE(first)(s->root)->data;
 }
 

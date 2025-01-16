@@ -31,6 +31,6 @@ int compile(const char *input);
  * @param file File to process.
  * @return \c 0 if compilation was succesful, otherwise some non-zero value.
  */
-int process_file(struct scope **parent, int public, const char *file);
+struct scope *process_file(const char *file);
 
 #endif /* EK_COMPILER_H */

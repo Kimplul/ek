@@ -39,6 +39,10 @@ struct scope *create_scope()
 	scope->macros = visible_create();
 	scope->types = visible_create();
 
+	scope->exported_symbols = exported_create();
+	scope->exported_macros = exported_create();
+	scope->exported_types = exported_create();
+
 	scope->number = counter++;
 	return scope;
 }
@@ -59,9 +63,12 @@ void destroy_scope(struct scope *scope)
 
 	expanded_destroy(&scope->expanded);
 
+	exported_destroy(&scope->exported_symbols);
+	exported_destroy(&scope->exported_macros);
+	exported_destroy(&scope->exported_types);
+
 	struct scope *prev = scope->children, *cur;
-	if (prev)
-		do {
+	if (prev) do {
 			cur = prev->next;
 			destroy_scope(prev);
 		} while ((prev = cur));
@@ -87,7 +94,7 @@ struct ast **create_type(struct scope *scope, char *id, struct ast *type)
 }
 
 struct ast **create_expanded(struct scope *scope, struct ast *def,
-                                 struct type *types, struct ast *expd)
+                             struct type *types, struct ast *expd)
 {
 	struct expanded_key key = {.def = def, .types = types};
 	return expanded_insert(&scope->expanded, key, expd);
@@ -448,4 +455,40 @@ void scope_add_scope(struct scope *parent, struct scope *child)
 	child->parent = parent;
 	child->next = parent->children;
 	parent->children = child;
+}
+
+bool is_exported_type(struct scope *scope, struct ast *def)
+{
+	struct ast **found = exported_find(&scope->exported_types, def);
+	if (found)
+		return true;
+
+	if (scope->parent)
+		return is_exported_type(scope->parent, def);
+
+	return false;
+}
+
+bool is_exported_symbol(struct scope *scope, struct ast *def)
+{
+	struct ast **found = exported_find(&scope->exported_symbols, def);
+	if (found)
+		return true;
+
+	if (scope->parent)
+		return is_exported_symbol(scope->parent, def);
+
+	return false;
+}
+
+bool is_exported_macro(struct scope *scope, struct ast *def)
+{
+	struct ast **found = exported_find(&scope->exported_macros, def);
+	if (found)
+		return true;
+
+	if (scope->parent)
+		return is_exported_macro(scope->parent, def);
+
+	return false;
 }

@@ -424,15 +424,15 @@ struct ast *clone_ast(struct ast *n)
 
 	/* don't clone defers */
 	if (!(n->k == AST_BLOCK))
-	if (n->a1)
-		new->a1 = clone_ast_list(n->a1);
+		if (n->a1)
+			new->a1 = clone_ast_list(n->a1);
 
 	/* don't clone expanded body, just the raw one */
 	if (!(n->k == AST_TRAIT_DEF
-	    || n->k == AST_STRUCT_DEF
-	    || n->k == AST_STRUCT_CONT_DEF))
-	if (n->a2)
-		new->a2 = clone_ast_list(n->a2);
+	      || n->k == AST_STRUCT_DEF
+	      || n->k == AST_STRUCT_CONT_DEF))
+		if (n->a2)
+			new->a2 = clone_ast_list(n->a2);
 
 	if (n->a3)
 		new->a3 = clone_ast_list(n->a3);

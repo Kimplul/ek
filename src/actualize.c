@@ -327,6 +327,32 @@ static int eval_const_if(struct scope *scope, struct ast *node)
 
 static int actualize_proc_sign(struct scope *scope, struct ast *proc);
 
+static int copy_scope(struct scope *to, struct scope *from)
+{
+	/** @todo handle duplicates */
+	foreach(visible, n, &from->symbols) {
+		struct ast *def = n->data;
+		if (!ast_flags(def, AST_FLAG_PUBLIC))
+			continue;
+
+		switch (def->k) {
+		case AST_PROC_DEF:
+			if (scope_add_proc(to, def))
+				return -1;
+			break;
+
+		case AST_VAR_DEF:
+			if (scope_add_var(to, def))
+				return -1;
+			break;
+
+		default: abort();
+		}
+	}
+
+	return 0;
+}
+
 static int analyze_visibility(struct scope *scope, struct ast *node)
 {
 	if (!node)
@@ -343,17 +369,19 @@ static int analyze_visibility(struct scope *scope, struct ast *node)
 
 	case AST_IMPORT: {
 		const char *file = import_file(node);
-		int ret = process_file(&scope,
-		                       (int)ast_flags(node, AST_FLAG_PUBLIC),
-		                       file);
+		struct scope *child = process_file(file);
 
-		if (ret == 0)
-			return 0;
+		if (!child) {
+			semantic_info(scope->fctx, node, "imported here");
+			return -1;
+		}
 
-		/** @todo should maybe make this some other type of error, kind
-		 * of too busy atm */
-		semantic_info(scope->fctx, node, "imported here");
-		return ret;
+		if (copy_scope(scope, child)) {
+			semantic_info(scope->fctx, node, "imported here");
+			return -1;
+		}
+
+		return 0;
 	}
 
 	case AST_IF: {
@@ -2118,22 +2146,6 @@ static int params_match(struct scope *scope, struct ast *base, struct ast *node)
 	return 1;
 }
 
-/* slightly hacky but works well enough for now */
-static int trait_exported(struct scope *scope, struct ast *def)
-{
-	assert(file_scope_find_type(scope, def->s) == def);
-
-	while (!scope_flags(scope, SCOPE_FILE) && scope->parent)
-		scope = scope->parent;
-
-	assert(scope && scope_flags(scope, SCOPE_FILE));
-	struct scope *parent = scope->parent;
-	if (!parent)
-		return true;
-
-	return file_scope_find_type(parent, def->s) == def;
-}
-
 static int expand_struct_body(struct act_state *state,
                               struct scope *scope,
                               struct ast *node,
@@ -2185,9 +2197,10 @@ static int expand_struct_body(struct act_state *state,
 			struct ast *def = type->d;
 			/* traits should only show up during the initial
 			 * expansion, but should maybe make sure somehow */
-			if (def->k == AST_TRAIT_DEF && !trait_exported(scope, def)) {
+			if (def->k == AST_TRAIT_DEF && !is_exported_type(scope,
+			                                                 def)) {
 				semantic_error(struct_scope->fctx, n,
-						"trait used in pub def must also be exported");
+				               "trait used in pub def must also be exported");
 				return -1;
 			}
 		}

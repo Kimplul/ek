@@ -55,6 +55,11 @@ static inline int expanded_key_cmp(struct expanded_key a, struct expanded_key b)
 #define MAP_NAME expanded
 #include "map.h"
 
+#define SPTREE_TYPE struct ast *
+#define SPTREE_CMP(a, b) ((uintptr_t)(a) - (uintptr_t)(b))
+#define SPTREE_NAME exported
+#include "sptree.h"
+
 /**
  * Scope.
  * Responsible for keeping track of visibilities and
@@ -87,6 +92,10 @@ struct scope {
 	struct visible symbols;
 	struct visible macros;
 	struct visible types;
+
+	struct exported exported_symbols;
+	struct exported exported_macros;
+	struct exported exported_types;
 };
 
 /**
@@ -103,15 +112,6 @@ struct scope *create_scope();
  * @param scope Scope to destroy.
  */
 void destroy_scope(struct scope *scope);
-
-/**
- * Add a scratch AST node.
- *
- * @param scope Scope to add scratch AST node to.
- * @param scratch Scratch node to add to \p scope.
- * @return \c 0 when successful, non-zero otherwise.
- */
-int scope_add_scratch(struct scope *scope, struct ast *scratch);
 
 /**
  * Set scope flags.
@@ -336,10 +336,8 @@ struct ast *file_scope_find_trait(struct scope *scope, char *id);
 struct ast *file_scope_find_expd_struct(struct scope *scope, struct ast *def,
                                         struct type *types);
 
-#define foreach_visible(iter, init) \
-	for (struct visible *iter = init; iter; iter = iter->next)
-
-#define foreach_expanded(iter, init) \
-	for (struct expanded *iter = init; iter; iter = iter->next)
+bool is_exported_type(struct scope *scope, struct ast *def);
+bool is_exported_symbol(struct scope *scope, struct ast *def);
+bool is_exported_macro(struct scope *scope, struct ast *def);
 
 #endif /* SCOPE_H */

@@ -67,7 +67,7 @@ static char *read_file(const char *file, FILE *f)
  * @param file File name to process.
  * @return \c 0 if processing was succesful, non-zero value otherwise.
  */
-static int process(struct scope **parent, int public, const char *file)
+static int process(struct scope *scope, const char *file)
 {
 	FILE *f = fopen(file, "rb");
 	if (!f) {
@@ -99,23 +99,9 @@ static int process(struct scope **parent, int public, const char *file)
 
 	ast_dump_list(0, tree);
 
-	struct scope *scope = create_scope();
-	if (!scope) {
-		free((void *)buf);
-		return -1;
-	}
-
-	if (public)
-		scope_set_flags(scope, SCOPE_PUBLIC);
-
 	scope->fctx.fbuf = buf;
 	scope->fctx.fname = strdup(file);
 	scope_set_flags(scope, SCOPE_FILE);
-
-	if (*parent)
-		scope_add_scope(*parent, scope);
-	else
-		*parent = scope;
 
 	if (analyze_root(scope, tree))
 		return -1;
@@ -129,52 +115,26 @@ static int process(struct scope **parent, int public, const char *file)
 #define MAP_NAME scopes
 #include "ek/map.h"
 
-static int copy_scope(struct scope *to, struct scope *from)
-{
-	/** @todo handle duplicates */
-	foreach(visible, n, &from->symbols) {
-		struct ast *def = n->data;
-		if (!ast_flags(def, AST_FLAG_PUBLIC))
-			continue;
-
-		switch (def->k) {
-		case AST_PROC_DEF:
-			if (scope_add_proc(to, def))
-				return -1;
-			break;
-
-		case AST_VAR_DEF:
-			if (scope_add_var(to, def))
-				return -1;
-			break;
-
-		default: abort();
-		}
-	}
-
-	return 0;
-}
-
 /* ugly global for now */
 static struct scopes scopes;
 
 static void destroy_scopes()
 {
 	if (scopes_len(&scopes))
-	foreach(scopes, n, &scopes) {
-		free(n->key);
-	}
+		foreach(scopes, n, &scopes) {
+			destroy_scope(n->data);
+			free(n->key);
+		}
 
 	scopes_destroy(&scopes);
 }
 
-int process_file(struct scope **scope, int public, const char *file)
+struct scope *process_file(const char *file)
 {
-	int res = -1;
 	/** todo report failure allocating stuff maybe? */
 	struct res *r = res_create();
 	if (!r)
-		return -1;
+		return NULL;
 
 	const char *base = ek_basename(file);
 	res_add(r, (void *)base);
@@ -203,37 +163,39 @@ int process_file(struct scope **scope, int public, const char *file)
 
 	struct scope **exists = scopes_find(&scopes, real);
 	if (exists) {
-		if (copy_scope(*scope, *exists))
-			goto out;
-
+		res_destroy(r);
 		free(real);
+		return *exists;
 	} else {
-		if (process(scope, public, base))
+		struct scope *scope = create_scope();
+		if (process(scope, base)) {
+			destroy_scope(scope);
+			free(real);
 			goto out;
+		}
 
-		scopes_insert(&scopes, real, *scope);
+		scopes_insert(&scopes, real, scope);
+		res_destroy(r);
+		return scope;
 	}
 
 	if (chdir(cwd)) {
 		error("couldn't change back to directory %s: %s\n", cwd,
-		      strerror(
-			      errno));
+		      strerror(errno));
 		goto out;
 	}
 
-	res = 0;
 out:
 	res_destroy(r);
-	return res;
+	return NULL;
 }
 
 int compile(const char *input) {
 	scopes = scopes_create();
 
 	int ret = -1;
-	struct scope *root = NULL;
-	if (process_file(&root, 0, input)) {
-		destroy_scope(root);
+	struct scope *root = process_file(input);
+	if (!root) {
 		destroy_allocs();
 		destroy_scopes();
 		error("compilation of %s stopped due to errors", input);
@@ -241,14 +203,12 @@ int compile(const char *input) {
 	}
 
 	if ((ret = lower(root))) {
-		destroy_scope(root);
 		destroy_allocs();
 		destroy_scopes();
 		error("compilation of %s stopped due to errors", input);
 		return ret;
 	}
 
-	destroy_scope(root);
 	destroy_allocs();
 	destroy_scopes();
 	return 0;
