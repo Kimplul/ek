@@ -34,28 +34,13 @@ struct scope *create_scope()
 		return NULL;
 	}
 
+	scope->expanded = expanded_create();
+	scope->symbols = visible_create();
+	scope->macros = visible_create();
+	scope->types = visible_create();
+
 	scope->number = counter++;
 	return scope;
-}
-
-static void destroy_visible(struct visible *visible)
-{
-	struct visible *prev = visible, *cur;
-	if (prev)
-		do {
-			cur = prev->next;
-			free(prev);
-		} while ((prev = cur));
-}
-
-static void destroy_expanded(struct expanded *expanded)
-{
-	struct expanded *prev = expanded, *cur;
-	if (prev)
-		do {
-			cur = prev->next;
-			free(prev);
-		} while ((prev = cur));
 }
 
 void destroy_scope(struct scope *scope)
@@ -68,11 +53,11 @@ void destroy_scope(struct scope *scope)
 		free((void *)scope->fctx.fname);
 	}
 
-	destroy_visible(scope->symbols);
-	destroy_visible(scope->macros);
-	destroy_visible(scope->types);
+	visible_destroy(&scope->symbols);
+	visible_destroy(&scope->macros);
+	visible_destroy(&scope->types);
 
-	destroy_expanded(scope->expanded);
+	expanded_destroy(&scope->expanded);
 
 	struct scope *prev = scope->children, *cur;
 	if (prev)
@@ -96,80 +81,31 @@ unsigned scope_flags(struct scope *scope, enum scope_flags flags)
 	return (scope->flags & flags) == flags;
 }
 
-static struct visible *create_visible(char *id, struct ast *node)
+struct ast **create_type(struct scope *scope, char *id, struct ast *type)
 {
-	struct visible *visible = calloc(1, sizeof(struct visible));
-	if (!visible)
-		return NULL;
-
-	visible->id = id;
-	visible->node = node;
-	return visible;
+	return visible_insert(&scope->types, id, type);
 }
 
-struct visible *create_type(struct scope *scope, char *id, struct ast *type)
-{
-	struct visible *n = create_visible(id, type);
-	if (!n)
-		return NULL;
-
-	n->next = scope->types;
-	scope->types = n;
-
-	return n;
-}
-
-struct expanded *create_expanded(struct scope *scope, struct ast *def,
+struct ast **create_expanded(struct scope *scope, struct ast *def,
                                  struct type *types, struct ast *expd)
 {
-	struct expanded *n = calloc(1, sizeof(struct expanded));
-	if (!n)
-		return NULL;
-
-	n->node = def;
-	n->types = types;
-	n->expd = expd;
-
-	n->next = scope->expanded;
-	scope->expanded = n;
-
-	return n;
+	struct expanded_key key = {.def = def, .types = types};
+	return expanded_insert(&scope->expanded, key, expd);
 }
 
-struct visible *create_var(struct scope *scope, char *id, struct ast *var)
+struct ast **create_var(struct scope *scope, char *id, struct ast *var)
 {
-	struct visible *n = create_visible(id, var);
-	if (!n)
-		return NULL;
-
-	n->next = scope->symbols;
-	scope->symbols = n;
-
-	return n;
+	return visible_insert(&scope->symbols, id, var);
 }
 
-struct visible *create_macro(struct scope *scope, char *id, struct ast *macro)
+struct ast **create_macro(struct scope *scope, char *id, struct ast *macro)
 {
-	struct visible *n = create_visible(id, macro);
-	if (!n)
-		return NULL;
-
-	n->next = scope->macros;
-	scope->macros = n;
-
-	return n;
+	return visible_insert(&scope->macros, id, macro);
 }
 
-struct visible *create_proc(struct scope *scope, char *id, struct ast *proc)
+struct ast **create_proc(struct scope *scope, char *id, struct ast *proc)
 {
-	struct visible *n = create_visible(id, proc);
-	if (!n)
-		return NULL;
-
-	n->next = scope->symbols;
-	scope->symbols = n;
-
-	return n;
+	return visible_insert(&scope->symbols, id, proc);
 }
 
 static bool scope_add_recurse(struct scope *scope, struct ast *node)
@@ -218,32 +154,17 @@ int scope_add_type(struct scope *scope, char *id, struct ast *type)
 	return 0;
 }
 
-static struct visible *scope_find_visible(struct visible *v, char *id)
-{
-	if (!v)
-		return NULL;
-
-	foreach_visible(n, v) {
-		struct ast *node = n->node;
-		if (same_id(node->s, id))
-			return n;
-	}
-
-	return NULL;
-}
-
 static void insert_chain(struct scope *scope, char *id, struct ast *type)
 {
-	struct visible *v = scope_find_visible(scope->types, id);
+	struct ast **v = visible_find(&scope->types, id);
 	assert(v);
 
-	struct ast *n = v->node;
-	assert(n);
+	struct ast *n = *v;
 
 	if (ast_flags(n, AST_FLAG_PUBLIC)
 	    || !ast_flags(type, AST_FLAG_PUBLIC)) {
-		type->chain = v->node;
-		v->node = type;
+		type->chain = n;
+		*v = type;
 		return;
 	}
 
@@ -344,23 +265,6 @@ int scope_add_expd_struct(struct scope *scope, struct ast *def,
 	return 0;
 }
 
-static struct expanded *scope_find_expanded(struct expanded *e, struct ast *def,
-                                            struct type *types)
-{
-	if (!e)
-		return NULL;
-
-	foreach_expanded(n, e) {
-		if (n->node != def)
-			continue;
-
-		if (type_lists_match(n->types, types))
-			return n;
-	}
-
-	return NULL;
-}
-
 int scope_add_expd_chain(struct scope *scope, struct ast *def,
                          struct type *types, struct ast *expd)
 {
@@ -377,11 +281,11 @@ int scope_add_expd_chain(struct scope *scope, struct ast *def,
 
 struct ast *scope_find_type(struct scope *scope, char *id)
 {
-	struct visible *v = scope_find_visible(scope->types, id);
+	struct ast **v = visible_find(&scope->types, id);
 	if (!v)
 		return NULL;
 
-	return v->node;
+	return *v;
 }
 
 struct ast *file_scope_find_type(struct scope *scope, char *id)
@@ -401,11 +305,11 @@ struct ast *file_scope_find_type(struct scope *scope, char *id)
 
 struct ast *scope_find_macro(struct scope *scope, char *id)
 {
-	struct visible *v = scope_find_visible(scope->macros, id);
+	struct ast **v = visible_find(&scope->macros, id);
 	if (!v)
 		return NULL;
 
-	return v->node;
+	return *v;
 }
 
 struct ast *file_scope_find_macro(struct scope *scope, char *id)
@@ -425,11 +329,11 @@ struct ast *file_scope_find_macro(struct scope *scope, char *id)
 
 struct ast *scope_find_proc(struct scope *scope, char *id)
 {
-	struct visible *v = scope_find_visible(scope->symbols, id);
+	struct ast **v = visible_find(&scope->symbols, id);
 	if (!v)
 		return NULL;
 
-	struct ast *n = v->node;
+	struct ast *n = *v;
 	assert(n);
 
 	if (n->k != AST_PROC_DEF)
@@ -452,11 +356,11 @@ struct ast *file_scope_find_proc(struct scope *scope, char *id)
 
 struct ast *scope_find_symbol(struct scope *scope, char *id)
 {
-	struct visible *v = scope_find_visible(scope->symbols, id);
+	struct ast **v = visible_find(&scope->symbols, id);
 	if (!v)
 		return NULL;
 
-	return v->node;
+	return *v;
 }
 
 struct ast *file_scope_find_symbol(struct scope *scope, char *id)
@@ -476,11 +380,11 @@ struct ast *file_scope_find_symbol(struct scope *scope, char *id)
 
 struct ast *scope_find_var(struct scope *scope, char *id)
 {
-	struct visible *v = scope_find_visible(scope->symbols, id);
+	struct ast **v = visible_find(&scope->symbols, id);
 	if (!v)
 		return NULL;
 
-	struct ast *n = v->node;
+	struct ast *n = *v;
 	assert(n);
 
 	if (n->k != AST_VAR_DEF)
@@ -508,12 +412,12 @@ struct ast *scope_find_expd_struct(struct scope *scope, struct ast *def,
                                    struct type *types)
 {
 	assert(def->k == AST_STRUCT_DEF || def->k == AST_STRUCT_CONT_DEF);
-	struct expanded *expd = scope_find_expanded(scope->expanded, def,
-	                                            types);
+	struct expanded_key key = {.def = def, .types = types};
+	struct ast **expd = expanded_find(&scope->expanded, key);
 	if (!expd)
 		return NULL;
 
-	struct ast *exists = expd->expd;
+	struct ast *exists = *expd;
 	assert(exists->k == AST_STRUCT_DEF || exists->k == AST_STRUCT_CONT_DEF);
 	return exists;
 }
@@ -545,9 +449,3 @@ void scope_add_scope(struct scope *parent, struct scope *child)
 	child->next = parent->children;
 	parent->children = child;
 }
-
-bool same_src(struct ast *a, struct ast *b)
-{
-	return same_src_scope(a->scope, b->scope);
-}
-

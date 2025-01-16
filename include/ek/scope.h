@@ -10,6 +10,8 @@
  * Scope handling stuff.
  */
 
+#include <string.h>
+
 #include "ast.h"
 #include "debug.h"
 
@@ -22,37 +24,36 @@ enum scope_flags {
 	SCOPE_FILE = (1 << 1),
 };
 
-/**
- * An AST node visible to the scope we're in.
- * The same AST node can be referenced by multiple visible nodes,
- * but only the owning scope is allowed to destroy the node.
- * Check that \p owner is identical to the scope the visible node
- * belongs to.
- *
- * Basic linked list for now, can probably be optimized into some kind of hash
- * table later.
- */
-struct visible {
-	/** Name of the visible node. */
-	char *id;
-	/** AST node that is visible. */
-	struct ast *node;
-	/** Next visible object in the scope we're in. */
-	struct visible *next;
+struct visible_tuple {
+	struct ast *def;
 };
 
-struct expanded {
-	struct ast *node;
+#define MAP_KEY char *
+#define MAP_TYPE struct ast *
+#define MAP_CMP(a, b) strcmp((a), (b))
+#define MAP_NAME visible
+#include "map.h"
+
+struct expanded_key {
+	struct ast *def;
 	struct type *types;
-	struct ast *expd;
-	struct expanded *next;
 };
 
-struct type_defs {
-	char *id;
-	struct ast *type_def;
-	struct type_defs *next;
-};
+static inline int expanded_key_cmp(struct expanded_key a, struct expanded_key b)
+{
+	uintptr_t na = (uintptr_t)a.def;
+	uintptr_t nb = (uintptr_t)b.def;
+	if (na != nb)
+		return na - nb;
+
+	return !type_lists_match(a.types, b.types);
+}
+
+#define MAP_KEY struct expanded_key
+#define MAP_TYPE struct ast *
+#define MAP_CMP(a, b) expanded_key_cmp((a), (b))
+#define MAP_NAME expanded
+#include "map.h"
 
 /**
  * Scope.
@@ -81,13 +82,11 @@ struct scope {
 	/** List of child scopes. */
 	struct scope *children;
 
-	struct expanded *expanded;
+	struct expanded expanded;
 
-	struct visible *symbols;
-	struct visible *macros;
-	struct visible *types;
-
-	struct visible *type_constructs;
+	struct visible symbols;
+	struct visible macros;
+	struct visible types;
 };
 
 /**
@@ -104,24 +103,6 @@ struct scope *create_scope();
  * @param scope Scope to destroy.
  */
 void destroy_scope(struct scope *scope);
-
-/**
- * Add default stuff to scope, mainly builtin types.
- *
- * @param root Scope to add default stuff to.
- * @note Only has to be called on the file scope, all child scopes will
- * look up stuff from the file scope anyway.
- * @return \c 0 if succesful, non-zero otherwise.
- */
-int scope_add_defaults(struct scope *root);
-
-/**
- * Destroy defaults in scope that might otherwise not be freed.
- *
- * @param root Scope to destroy added defaults in.
- * @todo not sure if this should be private.
- */
-void scope_destroy_defaults(struct scope *root);
 
 /**
  * Add a scratch AST node.
@@ -354,8 +335,6 @@ struct ast *file_scope_find_trait(struct scope *scope, char *id);
 
 struct ast *file_scope_find_expd_struct(struct scope *scope, struct ast *def,
                                         struct type *types);
-
-bool same_src(struct ast *a, struct ast *b);
 
 #define foreach_visible(iter, init) \
 	for (struct visible *iter = init; iter; iter = iter->next)

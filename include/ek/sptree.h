@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stddef.h>
+#include <assert.h>
 #include <stdbool.h>
 
 #ifndef SPTREE_TYPE

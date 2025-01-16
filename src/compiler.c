@@ -132,8 +132,8 @@ static int process(struct scope **parent, int public, const char *file)
 static int copy_scope(struct scope *to, struct scope *from)
 {
 	/** @todo handle duplicates */
-	foreach_visible(n, from->symbols) {
-		struct ast *def = n->node;
+	foreach(visible, n, &from->symbols) {
+		struct ast *def = n->data;
 		if (!ast_flags(def, AST_FLAG_PUBLIC))
 			continue;
 
@@ -206,6 +206,7 @@ int process_file(struct scope **scope, int public, const char *file)
 		if (copy_scope(*scope, *exists))
 			goto out;
 
+		free(real);
 	} else {
 		if (process(scope, public, base))
 			goto out;
