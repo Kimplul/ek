@@ -1292,12 +1292,16 @@ static int actualize_block(struct act_state *state,
 		if (state->defer_stack == defers)
 			return 0;
 
-		block_defers(node) = clone_defers(state, defers);
-		if (!block_defers(node)) {
+		struct ast *d = clone_defers(state, defers);
+		if (!d) {
 			internal_error("failed cloning defers");
 			clear_defers(state, defers);
 			return -1;
 		}
+
+		block_defers(node) = d;
+		if (actualize_list(state, d->scope, d))
+			return -1;
 	}
 
 	clear_defers(state, defers);
