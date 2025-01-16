@@ -12,8 +12,7 @@ do
 	echo "	@../ek $NAME/$NAME.ek > reports/$NAME/log 2>&1 \\"	>> tests.mk
 	echo "		&& echo 'Wrong retval' > reports/$NAME/OK \\"	>> tests.mk
 	echo "		|| :"						>> tests.mk
-	echo "	@grep '$EMSG' reports/$NAME/log > /dev/null; \\"	>> tests.mk
-	echo "		[ \$\$? -eq 0 ] \\"				>> tests.mk
+	echo "	@grep '$EMSG' reports/$NAME/log > /dev/null \\"		>> tests.mk
 	echo "			&& echo OK > reports/$NAME/OK \\"	>> tests.mk
 	echo "			|| echo EMSG > reports/$NAME/OK"	>> tests.mk
 done
