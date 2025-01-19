@@ -1,0 +1,10 @@
+import "reexports.ek"
+
+main()
+{
+	reexported_func(20);
+
+	mut p = exported_struct![i27]{};
+
+	reexported_macro!(p);
+}

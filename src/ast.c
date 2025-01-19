@@ -820,3 +820,14 @@ struct ast *clone_chain(struct ast *chain)
 
 	return new;
 }
+
+bool is_subchain(struct ast *sub, struct ast *top)
+{
+	if (sub == top)
+		return true;
+
+	if (top->chain)
+		return is_subchain(sub, top->chain);
+
+	return false;
+}

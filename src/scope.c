@@ -492,3 +492,65 @@ bool is_exported_macro(struct scope *scope, struct ast *def)
 
 	return false;
 }
+
+int scope_add_exported_symbol(struct scope *scope, struct ast *def)
+{
+	struct ast **inserted = exported_insert(&scope->exported_symbols, def);
+	if (!inserted) {
+		internal_error("failed inserting exported symbol");
+		return -1;
+	}
+
+	assert(*inserted == def);
+	return 0;
+}
+
+int scope_add_exported_type(struct scope *scope, struct ast *def)
+{
+	struct ast **inserted = exported_insert(&scope->exported_types, def);
+	if (!inserted) {
+		internal_error("failed inserting exported type");
+		return -1;
+	}
+
+	assert(*inserted == def);
+	return 0;
+}
+
+static void remove_exported_chain(struct scope *scope, struct ast *chain)
+{
+	struct ast **found = exported_find(&scope->exported_types, chain);
+	if (!found)
+		return;
+
+	exported_remove(&scope->exported_types, chain);
+	if (chain->chain)
+		remove_exported_chain(scope, chain->chain);
+}
+
+int scope_add_exported_chain(struct scope *scope, struct ast *def)
+{
+	assert(exported_find(&scope->exported_types, def) == NULL);
+	remove_exported_chain(scope, def->chain);
+
+	struct ast **inserted = exported_insert(&scope->exported_types, def);
+	if (!inserted) {
+		internal_error("failed inserting exported chain");
+		return -1;
+	}
+
+	assert(*inserted == def);
+	return 0;
+}
+
+int scope_add_exported_macro(struct scope *scope, struct ast *def)
+{
+	struct ast **inserted = exported_insert(&scope->exported_macros, def);
+	if (!inserted) {
+		internal_error("failed inserting exported macro");
+		return -1;
+	}
+
+	assert(*inserted == def);
+	return 0;
+}

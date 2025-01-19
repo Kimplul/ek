@@ -751,6 +751,7 @@ struct type *reverse_type_list(struct type *root);
 
 struct ast *chain_base(struct ast *node);
 struct ast *clone_chain(struct ast *chain);
+bool is_subchain(struct ast *sub, struct ast *top);
 
 int type_lists_match(struct type *a, struct type *b);
 

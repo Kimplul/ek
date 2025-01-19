@@ -327,28 +327,259 @@ static int eval_const_if(struct scope *scope, struct ast *node)
 
 static int actualize_proc_sign(struct scope *scope, struct ast *proc);
 
-static int copy_scope(struct scope *to, struct scope *from)
+static int copy_proc(bool public, struct scope *to, struct ast *def)
 {
-	/** @todo handle duplicates */
-	foreach(visible, n, &from->symbols) {
-		struct ast *def = n->data;
-		if (!ast_flags(def, AST_FLAG_PUBLIC))
-			continue;
+	struct ast *exists = file_scope_find_symbol(to, proc_id(def));
+	if (!exists) {
+		if (scope_add_proc(to, def))
+			return -1;
 
+		if (public && scope_add_exported_symbol(to, def))
+			return -1;
+
+		return 0;
+	}
+
+	if (exists != def) {
+		semantic_error(exists->scope->fctx, exists,
+				"symbol redefined");
+		semantic_info(def->scope->fctx, def,
+				"prev here");
+		return -1;
+	}
+
+	/* symbol already exists, so we can 'unify' here */
+	if (is_exported_symbol(to, def))
+		return 0;
+
+	if (scope_add_exported_symbol(to, def))
+		return -1;
+
+	return 0;
+}
+
+static int copy_var(bool public, struct scope *to, struct ast *def)
+{
+	struct ast *exists = file_scope_find_symbol(to, var_id(def));
+	if (!exists) {
+		if (scope_add_var(to, def))
+			return -1;
+
+		if (public && scope_add_exported_symbol(to, def))
+			return -1;
+
+		return 0;
+	}
+
+	if (exists != def) {
+		semantic_error(exists->scope->fctx, exists,
+				"symbol redefined");
+		semantic_info(def->scope->fctx, def,
+				"prev here");
+		return -1;
+	}
+
+	if (is_exported_symbol(to, def))
+		return 0;
+
+	if (scope_add_exported_symbol(to, def))
+		return -1;
+
+	return 0;
+}
+
+static int copy_symbols(bool public, struct scope *to, struct scope *from)
+{
+	foreach(exported, n, &from->exported_symbols) {
+		struct ast *def = *n;
 		switch (def->k) {
 		case AST_PROC_DEF:
-			if (scope_add_proc(to, def))
+			if (copy_proc(public, to, def))
 				return -1;
 			break;
 
 		case AST_VAR_DEF:
-			if (scope_add_var(to, def))
+			if (copy_var(public, to, def))
 				return -1;
 			break;
 
 		default: abort();
 		}
 	}
+
+	if (!public)
+		return 0;
+
+	return 0;
+}
+
+static int copy_type(bool public, struct scope *to, struct ast *def, char *id)
+{
+	struct ast *exists = file_scope_find_type(to, id);
+	if (!exists) {
+		if (scope_add_type(to, id, def))
+			return -1;
+
+		if (public && scope_add_exported_type(to, def))
+			return -1;
+
+		return 0;
+	}
+
+	if (exists != def) {
+		semantic_error(exists->scope->fctx, exists,
+				"type redefined");
+		semantic_info(def->scope->fctx, def,
+				"prev here");
+		return -1;
+	}
+
+	if (is_exported_type(to, def))
+		return 0;
+
+	if (public && scope_add_exported_type(to, def))
+		return -1;
+
+	return 0;
+}
+
+static int copy_chain(bool public, struct scope *to, struct ast *def)
+{
+	struct ast *exists = file_scope_find_type(to, struct_cont_id(def));
+	if (!exists) {
+		if (scope_add_type(to, struct_cont_id(def), def))
+			return -1;
+
+		if (public && scope_add_exported_type(to, def))
+			return -1;
+
+		return 0;
+	}
+
+	if (exists == def) {
+		if (is_exported_type(to, exists))
+			return 0;
+
+		if (public && scope_add_exported_type(to, def))
+			return -1;
+
+		return 0;
+	}
+
+	if (is_subchain(exists, def)) {
+		/* def takes priority */
+		if (scope_add_chain(to, struct_cont_id(def), def))
+			return -1;
+
+		if (public && scope_add_exported_type(to, def))
+			return -1;
+
+		return 0;
+	}
+
+	if (is_subchain(def, exists)) {
+		/* exists takes priority, but we can still export the subchain
+		 * if need be */
+		if (is_exported_type(to, exists))
+			return 0;
+
+		if (public && scope_add_exported_type(to, def))
+			return -1;
+
+		return 0;
+	}
+
+
+	semantic_error(exists->scope->fctx, exists,
+			"unrelated struct cont chains");
+	semantic_info(def->scope->fctx, def,
+			"prev here");
+	return -1;
+}
+
+static int copy_types(bool public, struct scope *to, struct scope *from)
+{
+	foreach(exported, n, &from->exported_types) {
+		struct ast *def = *n;
+		switch (def->k) {
+		case AST_STRUCT_DEF:
+			if (copy_type(public, to, def, struct_id(def)))
+				return -1;
+			break;
+
+		case AST_TRAIT_DEF:
+			if (copy_type(public, to, def, trait_id(def)))
+				return -1;
+			break;
+
+		case AST_ALIAS_DEF:
+			if (copy_type(public, to, def, alias_id(def)))
+				return -1;
+			break;
+
+		case AST_ENUM_DEF:
+			if (copy_type(public, to, def, enum_id(def)))
+				return -1;
+			break;
+
+		case AST_STRUCT_CONT_DEF:
+			if (copy_chain(public, to, def))
+				return -1;
+			break;
+
+		default:
+			internal_error("unhandled type in copy");
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+static int copy_macros(bool public, struct scope *to, struct scope *from)
+{
+	foreach(exported, n, &from->exported_macros) {
+		struct ast *def = *n;
+
+		struct ast *exists = file_scope_find_macro(to, macro_def_id(def));
+		if (!exists) {
+			if (scope_add_macro(to, def))
+				return -1;
+
+			if (public && scope_add_exported_macro(to, def))
+				return -1;
+
+			break;
+		}
+
+		if (exists != def) {
+			semantic_error(exists->scope->fctx, exists,
+					"macro redefined");
+			semantic_info(def->scope->fctx, def,
+					"prev here");
+			return -1;
+		}
+
+		if (is_exported_macro(to, def))
+			break;
+
+		if (scope_add_exported_macro(to, def))
+			return -1;
+	}
+
+	return 0;
+}
+
+static int copy_scope(bool public, struct scope *to, struct scope *from)
+{
+	if (copy_symbols(public, to, from))
+		return -1;
+
+	if (copy_types(public, to, from))
+		return -1;
+
+	if (copy_macros(public, to, from))
+		return -1;
 
 	return 0;
 }
@@ -359,13 +590,37 @@ static int analyze_visibility(struct scope *scope, struct ast *node)
 		return 0;
 
 	switch (node->k) {
-	case AST_VAR_DEF: return scope_add_var(scope, node);
+	case AST_VAR_DEF: {
+		/* no global variables at the moment */
+		if (scope_add_var(scope, node))
+			return -1;
+
+		break;
+	}
+
 	case AST_PROC_DEF: {
 		node->scope = create_scope();
 		scope_add_scope(scope, node->scope);
-		return scope_add_proc(scope, node);
+		if (scope_add_proc(scope, node))
+			return -1;
+
+		if (ast_flags(node, AST_FLAG_PUBLIC))
+		if (scope_add_exported_symbol(scope, node))
+			return -1;
+
+		break;
 	}
-	case AST_MACRO_DEF: return scope_add_macro(scope, node);
+
+	case AST_MACRO_DEF: {
+		if (scope_add_macro(scope, node))
+			return -1;
+
+		if (ast_flags(node, AST_FLAG_PUBLIC))
+		if (scope_add_exported_macro(scope, node))
+			return -1;
+
+		break;
+	}
 
 	case AST_IMPORT: {
 		const char *file = import_file(node);
@@ -376,12 +631,12 @@ static int analyze_visibility(struct scope *scope, struct ast *node)
 			return -1;
 		}
 
-		if (copy_scope(scope, child)) {
+		if (copy_scope(ast_flags(node, AST_FLAG_PUBLIC), scope, child)) {
 			semantic_info(scope->fctx, node, "imported here");
 			return -1;
 		}
 
-		return 0;
+		break;
 	}
 
 	case AST_IF: {
@@ -391,36 +646,73 @@ static int analyze_visibility(struct scope *scope, struct ast *node)
 
 		/* since a const if likely replaced the current node with
 		 * something else, we have to analyze the replacement */
-		return analyze(scope, node);
+		if (analyze(scope, node))
+			return -1;
+
+		break;
 	}
 
 	case AST_STRUCT_DEF: {
 		node->scope = create_scope();
 		scope_add_scope(scope, node->scope);
-		return scope_add_type(scope, struct_id(node), node);
+		if (scope_add_type(scope, struct_id(node), node))
+			return -1;
+
+		if (ast_flags(node, AST_FLAG_PUBLIC))
+		if (scope_add_exported_type(scope, node))
+			return -1;
+
+		break;
 	}
 
 	case AST_STRUCT_CONT_DEF: {
 		node->scope = create_scope();
 		scope_add_scope(scope, node->scope);
-		return scope_add_chain(scope, struct_cont_id(node), node);
+		if (scope_add_chain(scope, struct_cont_id(node), node))
+			return -1;
+
+		if (ast_flags(node, AST_FLAG_PUBLIC))
+		if (scope_add_exported_chain(scope, node))
+			return -1;
+
+		break;
 	}
 
 	case AST_ENUM_DEF: {
 		node->scope = create_scope();
 		scope_add_scope(scope, node->scope);
-		return scope_add_type(scope, enum_id(node), node);
+		if (scope_add_type(scope, enum_id(node), node))
+			return -1;
+
+		if (ast_flags(node, AST_FLAG_PUBLIC))
+		if (scope_add_exported_type(scope, node))
+			return -1;
+
+		break;
 	}
 
 	case AST_ALIAS_DEF: {
-		char *id = alias_id(node);
-		return scope_add_type(scope, id, node);
+		if (scope_add_type(scope, alias_id(node), node))
+			return -1;
+
+		if (ast_flags(node, AST_FLAG_PUBLIC))
+		if (scope_add_exported_type(scope, node))
+			return -1;
+
+		break;
 	}
 
 	case AST_TRAIT_DEF: {
 		node->scope = create_scope();
 		scope_add_scope(scope, node->scope);
-		return scope_add_type(scope, trait_id(node), node);
+		if (scope_add_type(scope, trait_id(node), node))
+			return -1;
+
+		if (ast_flags(node, AST_FLAG_PUBLIC))
+		if (scope_add_exported_type(scope, node))
+			return -1;
+
+		break;
 	}
 
 	case AST_EMPTY: {

@@ -1,0 +1,11 @@
+pub import "defines.ek"
+
+pub typedef exported_struct[reexported_trait T] {}
+
+priv_func() {
+	reexported_func(10);
+
+	mut p = exported_struct![i27] {};
+
+	reexported_macro!(p);
+}

@@ -340,4 +340,9 @@ bool is_exported_type(struct scope *scope, struct ast *def);
 bool is_exported_symbol(struct scope *scope, struct ast *def);
 bool is_exported_macro(struct scope *scope, struct ast *def);
 
+int scope_add_exported_symbol(struct scope *scope, struct ast *def);
+int scope_add_exported_type(struct scope *scope, struct ast *def);
+int scope_add_exported_chain(struct scope *scope, struct ast *def);
+int scope_add_exported_macro(struct scope *scope, struct ast *def);
+
 #endif /* SCOPE_H */

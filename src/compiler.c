@@ -159,7 +159,10 @@ struct scope *process_file(const char *file)
 	}
 
 	char *real = realpath(base, NULL);
-	assert(real);
+	if (!real) {
+		error("no such file: %s", file);
+		goto out;
+	}
 
 	struct scope **exists = scopes_find(&scopes, real);
 	if (exists) {

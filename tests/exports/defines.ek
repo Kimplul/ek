@@ -1,0 +1,10 @@
+pub typedef i27 {} /* struct def */
+pub typedef int i27; /* alias def */
+pub define reexported_trait {} /* trait def */
+pub define reexported_macro() {} /* macro def */
+pub reexported_func(i27 v) {} /* func def */
+pub enum reexported_enum : int {
+	SOME_ENUM = 10
+}
+// pub int reexported_var = 10;
+// global vars not currently supported due to missing constexpr checking I guess
