@@ -22,6 +22,7 @@ enum scope_flags {
 	SCOPE_PUBLIC = (1 << 0),
 	/** Scope is file scope. */
 	SCOPE_FILE = (1 << 1),
+	SCOPE_ROOT = (1 << 2)
 };
 
 struct visible_tuple {

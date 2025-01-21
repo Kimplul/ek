@@ -171,13 +171,14 @@ struct scope *process_file(const char *file)
 		return *exists;
 	} else {
 		struct scope *scope = create_scope();
-		if (process(scope, base)) {
-			destroy_scope(scope);
-			free(real);
-			goto out;
-		}
+		if (scopes_len(&scopes) == 0)
+			scope_set_flags(scope, SCOPE_ROOT);
 
 		scopes_insert(&scopes, real, scope);
+
+		if (process(scope, base))
+			goto out;
+
 		res_destroy(r);
 		return scope;
 	}

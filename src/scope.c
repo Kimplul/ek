@@ -17,12 +17,6 @@
 #include <ek/scope.h>
 #include <ek/actualize.h>
 
-static bool same_src_scope(struct scope *a, struct scope *b)
-{
-	/** @todo a bit ridiculous, is there a less hacky way? */
-	return a->fctx.fbuf == b->fctx.fbuf;
-}
-
 struct scope *create_scope()
 {
 	/* if I ever try making the parser multithreaded, this should be atomic. */
@@ -122,9 +116,6 @@ static bool scope_add_recurse(struct scope *scope, struct ast *node)
 
 	if (!ast_flags(node, AST_FLAG_PUBLIC))
 		return false;
-
-	if (same_src_scope(scope, node->scope))
-		return true;
 
 	return scope_flags(scope, SCOPE_PUBLIC);
 }
@@ -459,6 +450,9 @@ void scope_add_scope(struct scope *parent, struct scope *child)
 
 bool is_exported_type(struct scope *scope, struct ast *def)
 {
+	if (scope_flags(scope, SCOPE_ROOT))
+		return true;
+
 	struct ast **found = exported_find(&scope->exported_types, def);
 	if (found)
 		return true;
@@ -471,6 +465,9 @@ bool is_exported_type(struct scope *scope, struct ast *def)
 
 bool is_exported_symbol(struct scope *scope, struct ast *def)
 {
+	if (scope_flags(scope, SCOPE_ROOT))
+		return true;
+
 	struct ast **found = exported_find(&scope->exported_symbols, def);
 	if (found)
 		return true;
@@ -483,6 +480,9 @@ bool is_exported_symbol(struct scope *scope, struct ast *def)
 
 bool is_exported_macro(struct scope *scope, struct ast *def)
 {
+	if (scope_flags(scope, SCOPE_ROOT))
+		return true;
+
 	struct ast **found = exported_find(&scope->exported_macros, def);
 	if (found)
 		return true;

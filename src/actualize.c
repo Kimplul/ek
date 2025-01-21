@@ -1201,6 +1201,8 @@ static struct ast *maybe_expand_type(struct scope *scope, struct ast *def,
 	           || def->k == AST_STRUCT_CONT_DEF
 	           || def->k == AST_TRAIT_DEF);
 
+	ast_set_flags_recurse(def, AST_FLAG_INSTANCE);
+
 	if (def->k == AST_STRUCT_DEF)
 		return maybe_expand_struct(scope, def, loc, args);
 	else if (def->k == AST_STRUCT_CONT_DEF)
@@ -1432,6 +1434,40 @@ static int undefined_gotos(struct act_state *state, struct scope *scope)
 	return ret;
 }
 
+struct exported_helper {
+	struct scope *scope;
+	struct ast *node;
+};
+
+static int _check_exported(struct type *type, struct exported_helper *helper)
+{
+	struct ast *def = type->d;
+	if (!def)
+		return 0;
+
+	struct ast *node = helper->node;
+	struct scope *scope = helper->scope;
+
+	if (is_exported_type(scope, def))
+		return 0;
+
+	char *tstr = type_str(type);
+	semantic_error(node->scope->fctx, node,
+			"type %s should be exported",
+			tstr);
+	free(tstr);
+	return -1;
+}
+
+static int check_exported(struct scope *scope, struct ast *node ,struct type *type)
+{
+	struct exported_helper helper = {
+		.scope = scope,
+		.node = node
+	};
+	return type_visit((type_callback_t)_check_exported, NULL, type, &helper);
+}
+
 static int actualize_proc_sign(struct scope *scope, struct ast *proc)
 {
 	assert(proc && proc->k == AST_PROC_DEF);
@@ -1439,6 +1475,11 @@ static int actualize_proc_sign(struct scope *scope, struct ast *proc)
 	struct act_state new_state = {0};
 	proc->scope = create_scope();
 	scope_add_scope(scope, proc->scope);
+
+	foreach_node(p, proc_params(proc)) {
+		if (ast_flags(proc, AST_FLAG_PUBLIC))
+			ast_set_flags(p, AST_FLAG_PUBLIC);
+	}
 
 	if (actualize_list(&new_state, proc->scope, proc_params(proc))) {
 		destroy_act_state(&new_state);
@@ -1452,6 +1493,12 @@ static int actualize_proc_sign(struct scope *scope, struct ast *proc)
 	if (actualize_type_list(&new_state, proc->scope, rtype)) {
 		destroy_act_state(&new_state);
 		return -1;
+	}
+
+	if (ast_flags(proc, AST_FLAG_PUBLIC) && !ast_flags(proc, AST_FLAG_INSTANCE))
+	foreach_type(t, rtype) {
+		if (check_exported(scope, proc, t))
+			return -1;
 	}
 
 	struct type *callable = tgen_callable(NULL, rtype, proc->loc);
@@ -1683,6 +1730,11 @@ static int actualize_var(struct act_state *state,
 		/* TODO: should there be some default zero value? */
 		/* declare */
 		set_type(var, type);
+
+	if (ast_flags(var, AST_FLAG_PUBLIC) && !ast_flags(var, AST_FLAG_INSTANCE)) {
+		if (check_exported(scope, var, var->t))
+			return -1;
+	}
 
 	/* an unnamed var is a var in a signature that should not produce a
 	 * warning on not being used (if I ever get around to adding those kinds
@@ -2485,18 +2537,6 @@ static int expand_struct_body(struct act_state *state,
 		if (actualize_type(&type_state, scope, type))
 			return -1;
 
-		if (ast_flags(node, AST_FLAG_PUBLIC)) {
-			struct ast *def = type->d;
-			/* traits should only show up during the initial
-			 * expansion, but should maybe make sure somehow */
-			if (def->k == AST_TRAIT_DEF && !is_exported_type(scope,
-			                                                 def)) {
-				semantic_error(struct_scope->fctx, n,
-				               "trait used in pub def must also be exported");
-				return -1;
-			}
-		}
-
 		type_append(&types, type);
 
 		struct ast *alias = gen_alias(strdup(id), type, n->loc);
@@ -2507,6 +2547,19 @@ static int expand_struct_body(struct act_state *state,
 		if (actualize(&state, struct_scope, alias))
 			return -1;
 
+		if (!ast_flags(node, AST_FLAG_PUBLIC))
+			continue;
+
+		if (ast_flags(node, AST_FLAG_INSTANCE))
+			continue;
+
+		struct ast *def = type->d;
+		if (is_exported_type(scope, def))
+			continue;
+
+		semantic_error(struct_scope->fctx, n,
+			       "trait used in pub def must also be exported");
+		return -1;
 	}
 
 	if (node->k == AST_STRUCT_CONT_DEF
@@ -2607,6 +2660,9 @@ static int expand_struct_body(struct act_state *state,
 	foreach_node(n, body) {
 		if (n->k == AST_TYPE_EXPAND)
 			continue;
+
+		if (ast_flags(node, AST_FLAG_PUBLIC))
+			ast_set_flags(n, AST_FLAG_PUBLIC);
 
 		struct act_state state = {0};
 		if (actualize(&state, struct_scope, n))

@@ -149,6 +149,17 @@ void ast_set_flags(struct ast *node, enum ast_flags flags)
 	node->f |= flags;
 }
 
+static int _ast_set_flags(struct ast *node, enum ast_flags *flags)
+{
+	ast_set_flags(node, *flags);
+	return 0;
+}
+
+void ast_set_flags_recurse(struct ast *node, enum ast_flags flags)
+{
+	ast_visit((ast_callback_t)_ast_set_flags, NULL, node, &flags);
+}
+
 void ast_clear_flags(struct ast *node, enum ast_flags flags)
 {
 	node->f &= ~(flags);

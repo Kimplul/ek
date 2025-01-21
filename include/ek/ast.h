@@ -197,6 +197,7 @@ enum ast_flags {
 	AST_FLAG_UFCS_SIMPLE = (1 << 17),
 	AST_FLAG_UFCS_REF = (1 << 18),
 	AST_FLAG_UFCS_TRIVIAL = (1 << 19),
+	AST_FLAG_INSTANCE = (1 << 20),
 };
 
 struct ast;
@@ -691,6 +692,7 @@ struct ast *ast_prepend(struct ast *list, struct ast *elem);
 struct type *type_prepend(struct type *list, struct type *elem);
 
 void ast_set_flags(struct ast *node, enum ast_flags flags);
+void ast_set_flags_recurse(struct ast *node, enum ast_flags flags);
 void ast_clear_flags(struct ast *node, enum ast_flags flags);
 unsigned ast_flags(struct ast *node, enum ast_flags flags);
 
