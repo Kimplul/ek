@@ -735,6 +735,14 @@ proc
 		$$ = gen_proc($[ID], $[opt_decls], NULL, NULL, src_loc(@$));
 		ast_set_flags($$, AST_FLAG_EXTERN | AST_FLAG_NOMANGLE);
 	}
+	| "extern" ID "(" opt_decls ")" body {
+		$$ = gen_proc($[ID], $[opt_decls], NULL, $[body], src_loc(@$));
+		ast_set_flags($$, AST_FLAG_NOMANGLE);
+	}
+	| "extern" ID "(" opt_decls "=>" opt_type ")" body {
+		$$ = gen_proc($[ID], $[opt_decls], $[opt_type], $[body], src_loc(@$));
+		ast_set_flags($$, AST_FLAG_NOMANGLE);
+	}
 
 behaviour
 	: type_expand ";"
