@@ -8,7 +8,6 @@
 
 #include <ek/lower.h>
 #include <ek/scope.h>
-#include <ek/vec.h>
 
 #define UNUSED(x) (void)x
 
@@ -24,26 +23,38 @@ struct retval {
 	char *s;
 };
 
+#define VEC_NAME str_vec
+#define VEC_TYPE char *
+#include <conts/vec.h>
+
+#define VEC_NAME ast_vec
+#define VEC_TYPE struct ast *
+#include <conts/vec.h>
+
+#define VEC_NAME retval_vec
+#define VEC_TYPE struct retval
+#include <conts/vec.h>
+
 struct lower_state {
-	struct vec top;
-	struct vec bottom;
-	struct vec out;
+	struct str_vec top;
+	struct str_vec bottom;
+	struct str_vec out;
 	int64_t uniq;
 
-	struct vec dealloc;
+	struct str_vec dealloc;
 	size_t deallocs;
 
-	struct vec procs;
+	struct ast_vec procs;
 };
 
 static struct lower_state create_state()
 {
 	struct lower_state state;
-	state.top = vec_create(sizeof(char *));
-	state.bottom = vec_create(sizeof(char *));
-	state.out = vec_create(sizeof(char *));
-	state.dealloc = vec_create(sizeof(char *));
-	state.procs = vec_create(sizeof(struct ast *));
+	state.top = str_vec_create(0);
+	state.bottom = str_vec_create(0);
+	state.out = str_vec_create(0);
+	state.dealloc = str_vec_create(0);
+	state.procs = ast_vec_create(0);
 
 	state.deallocs = 0;
 	state.uniq = 0;
@@ -52,41 +63,41 @@ static struct lower_state create_state()
 
 static void destroy_state(struct lower_state *state)
 {
-	assert(vec_len(&state->top) == 0);
-	assert(vec_len(&state->bottom) == 0);
-	assert(vec_len(&state->out) == 0);
-	assert(vec_len(&state->dealloc) == 0);
+	assert(str_vec_len(&state->top) == 0);
+	assert(str_vec_len(&state->bottom) == 0);
+	assert(str_vec_len(&state->out) == 0);
+	assert(str_vec_len(&state->dealloc) == 0);
 
-	vec_destroy(&state->top);
-	vec_destroy(&state->bottom);
-	vec_destroy(&state->out);
-	vec_destroy(&state->dealloc);
-	vec_destroy(&state->procs);
+	str_vec_destroy(&state->top);
+	str_vec_destroy(&state->bottom);
+	str_vec_destroy(&state->out);
+	str_vec_destroy(&state->dealloc);
+	ast_vec_destroy(&state->procs);
 }
 
 static void add_proc(struct lower_state *s, struct ast *proc)
 {
 	assert(proc->k == AST_PROC_DEF);
-	vec_append(&s->procs, &proc);
+	ast_vec_append(&s->procs, proc);
 }
 
 static void add_dealloc(struct lower_state *s, char *dealloc)
 {
-	vect_append(char *, s->dealloc, &dealloc);
+	str_vec_append(&s->dealloc, dealloc);
 }
 
 static void push_loop(struct lower_state *s, char *top, char *bottom, char *out)
 {
-	vect_append(char *, s->top, &top);
-	vect_append(char *, s->bottom, &bottom);
-	vect_append(char *, s->out, &out);
+	str_vec_append(&s->top, top);
+	str_vec_append(&s->bottom, bottom);
+	str_vec_append(&s->out, out);
 }
 
 static void pop_loop(struct lower_state *s)
 {
-	char *top = vect_pop(char *, s->top);
-	char *bottom = vect_pop(char *, s->bottom);
-	char *out = vect_pop(char *, s->out);
+	char *top = *str_vec_pop(&s->top);
+	char *bottom = *str_vec_pop(&s->bottom);
+	char *out = *str_vec_pop(&s->out);
 
 	free(top);
 	free(bottom);
@@ -94,7 +105,7 @@ static void pop_loop(struct lower_state *s)
 }
 
 #define label_peek(v) \
-	vect_back(char *, v)
+	(*str_vec_back(&(v)))
 
 static const char *retval_kind_str(enum retval_kind kind)
 {
@@ -147,14 +158,13 @@ static struct retval build_retval(enum retval_kind kind, char *s)
 	return (struct retval){.kind = kind, .s = s};
 }
 
-static void strvec_destroy(struct vec *v)
+static void destroy_retval_vec(struct retval_vec *v)
 {
-	foreach_vec(vi, *v) {
-		char *s = vect_at(char *, *v, vi);
-		free(s);
+	foreach(retval_vec, r, v) {
+		free(r->s);
 	}
 
-	vec_destroy(v);
+	retval_vec_destroy(v);
 }
 
 static __attribute__((format (printf, 1, 2)))
@@ -258,7 +268,7 @@ static int lower_simple_param(struct lower_state *s, struct ast *p)
 
 struct struct_param_helper {
 	char *name;
-	struct vec *fixups;
+	struct str_vec *fixups;
 };
 
 static int collect_struct_param(struct lower_state *s, struct ast *n,
@@ -273,13 +283,13 @@ static int collect_struct_param(struct lower_state *s, struct ast *n,
 
 	printf("%s %s, ", type, pname);
 	char *f = build_str("%s >> %s %s %zd;\n", pname, type, h->name, offset);
-	vect_append(char *, *h->fixups, &f);
+	str_vec_append(h->fixups, f);
 
 	free(pname);
 	return 0;
 }
 
-static int lower_param(struct lower_state *s, struct ast *p, struct vec *fixups)
+static int lower_param(struct lower_state *s, struct ast *p, struct str_vec *fixups)
 {
 	UNUSED(s);
 	assert(p->k == AST_VAR_DEF);
@@ -303,7 +313,7 @@ static int lower_param(struct lower_state *s, struct ast *p, struct vec *fixups)
 	/* alloc param struct */
 	size_t size = type_size(p->t);
 	char *alloc = build_str("i27 %s = ^ %zd;\n", name, size);
-	vect_append(char *, *fixups, &alloc);
+	str_vec_append(fixups, alloc);
 
 	struct struct_param_helper h = {name, fixups};
 	int ret = visit_struct(s, p->t->d, 0,
@@ -313,7 +323,7 @@ static int lower_param(struct lower_state *s, struct ast *p, struct vec *fixups)
 }
 
 static int lower_params(struct lower_state *s, struct ast *params,
-                        struct vec *fixups)
+                        struct str_vec *fixups)
 {
 	/** @todo fix structs, struct arguments must be stored to some
 	 * structures on the stack */
@@ -528,7 +538,7 @@ static int lower_id(struct lower_state *s, struct ast *id,
 
 struct struct_return_helper {
 	char *name;
-	struct vec *locs;
+	struct str_vec *locs;
 };
 
 static int lower_struct_return(struct lower_state *s, struct ast *n, size_t o,
@@ -540,7 +550,7 @@ static int lower_struct_return(struct lower_state *s, struct ast *n, size_t o,
 
 	char *type = size == 1 ? "i9" : "i27";
 	char *rname = build_str("%s_%zd", h->name, o);
-	vect_append(char *, *h->locs, &rname);
+	str_vec_append(h->locs, rname);
 	printf("%s %s << %s %zd;\n", type, rname, h->name, o);
 	return 0;
 }
@@ -579,19 +589,19 @@ static int lower_return(struct lower_state *s, struct ast *r,
 	}
 
 	assert(r->t->k == TYPE_STRUCT);
-	struct vec locs = vec_create(sizeof(char *));
+	struct str_vec locs = str_vec_create(0);
 	struct struct_return_helper h = {name, &locs};
 	if (visit_struct(s, r->t->d, 0, (visit_struct_t)lower_struct_return,
 	                 &h) < 0)
 		return -1;
 
 	printf("=> (");
-	foreach_vec(li, locs) {
-		char *l = vect_at(char *, locs, li);
-		printf("%s, ", l);
-		free(l);
+	foreach(str_vec, l, &locs) {
+		printf("%s, ", *l);
+		free(*l);
 	}
-	vec_destroy(&locs);
+
+	str_vec_destroy(&locs);
 	printf(");\n");
 	return 0;
 }
@@ -773,7 +783,7 @@ static int lower_comparison(struct lower_state *s, struct ast *i,
 }
 
 static int lower_simple_arg(struct lower_state *s, struct ast *c,
-                            struct vec *retval)
+                            struct retval_vec *retval)
 {
 	struct retval arg = retval_create();
 	if (lower_expr(s, c, &arg)) {
@@ -781,13 +791,13 @@ static int lower_simple_arg(struct lower_state *s, struct ast *c,
 		return -1;
 	}
 
-	vec_append(retval, &arg);
+	retval_vec_append(retval, arg);
 	return 0;
 }
 
 struct struct_arg_helper {
 	char *name;
-	struct vec *args;
+	struct retval_vec *args;
 };
 
 static int collect_struct_arg(struct lower_state *s, struct ast *n,
@@ -801,12 +811,12 @@ static int collect_struct_arg(struct lower_state *s, struct ast *n,
 	printf("%s %s << %s %zd;\n", type, tmp, h->name, offset);
 
 	struct retval r = build_retval(size == 1 ? REG_I9 : REG_I27, tmp);
-	vect_append(struct retval, *h->args, &r);
+	retval_vec_append(h->args, r);
 	return 0;
 }
 
 static int lower_struct_arg(struct lower_state *s, struct ast *c,
-                            struct vec *args)
+                            struct retval_vec *args)
 {
 	struct retval arg = retval_create();
 	if (lower_expr(s, c, &arg)) {
@@ -817,15 +827,16 @@ static int lower_struct_arg(struct lower_state *s, struct ast *c,
 	struct ast *def = c->t->d;
 	char *name = arg.s;
 	struct struct_arg_helper h = {name, args};
-	int ret = visit_struct(s, def, 0, (visit_struct_t)collect_struct_arg,
-	                       &h) < 0;
+	int ret = visit_struct(s, def, 0,
+			(visit_struct_t)collect_struct_arg, &h) < 0;
+
 	retval_destroy(&arg);
 	return ret;
 }
 
 struct struct_retval_helper {
 	char *rbuf;
-	struct vec *stores;
+	struct str_vec *stores;
 };
 
 static int collect_struct_retval(struct lower_state *s, struct ast *n,
@@ -840,7 +851,7 @@ static int collect_struct_retval(struct lower_state *s, struct ast *n,
 
 	char *store = build_str("%s >> %s %s %zd;\n", tmp, type, h->rbuf,
 	                        offset);
-	vect_append(char *, *h->stores, &store);
+	str_vec_append(h->stores, store);
 	free(tmp);
 	return 0;
 }
@@ -849,23 +860,22 @@ static void lower_struct_retval(struct lower_state *s, struct type *rtype,
                                 char *rbuf, struct retval *retval)
 {
 	struct ast *def = rtype->d;
-	struct vec stores = vec_create(sizeof(char *));
+	struct str_vec stores = str_vec_create(0);
 
 	printf("(");
 	struct struct_retval_helper h = {rbuf, &stores};
 	if (visit_struct(s, def, 0, (visit_struct_t)collect_struct_retval,
 	                 &h) < 0) {
-		vec_destroy(&stores);
+		str_vec_destroy(&stores);
 		return;
 	}
 	printf(");\n");
 
-	foreach_vec(si, stores) {
-		char *store = vect_at(char *, stores, si);
-		printf("%s", store);
-		free(store);
+	foreach(str_vec, store, &stores) {
+		printf("%s", *store);
+		free(*store);
 	}
-	vec_destroy(&stores);
+	str_vec_destroy(&stores);
 
 	*retval = build_retval(REG_I27, rbuf);
 }
@@ -934,11 +944,11 @@ static int lower_call(struct lower_state *s, struct ast *c,
 	}
 
 	/* collect all args */
-	struct vec args = vec_create(sizeof(struct retval));
+	struct retval_vec args = retval_vec_create(0);
 	foreach_node(a, call_args(c)) {
 		if (a->t->k == TYPE_STRUCT) {
 			if (lower_struct_arg(s, a, &args)) {
-				strvec_destroy(&args);
+				destroy_retval_vec(&args);
 				return -1;
 			}
 
@@ -946,7 +956,7 @@ static int lower_call(struct lower_state *s, struct ast *c,
 		}
 
 		if (lower_simple_arg(s, a, &args)) {
-			strvec_destroy(&args);
+			destroy_retval_vec(&args);
 			return -1;
 		}
 	}
@@ -954,12 +964,11 @@ static int lower_call(struct lower_state *s, struct ast *c,
 	printf("%s (", call.s);
 	retval_destroy(&call);
 
-	foreach_vec(ai, args) {
-		struct retval r = vect_at(struct retval, args, ai);
-		printf("%s, ", r.s);
-		free(r.s);
+	foreach(retval_vec, r, &args) {
+		printf("%s, ", r->s);
+		free(r->s);
 	}
-	vec_destroy(&args);
+	retval_vec_destroy(&args);
 
 	printf(") => ");
 
@@ -1191,7 +1200,7 @@ static int lower_block(struct lower_state *s, struct ast *block)
 	 * block, and deallocs_bottom where the parent block's dealloc stack
 	 * is. Stuff like continue and break will probably need this
 	 * information, which is why it's attached to lower_state */
-	size_t deallocs_top = vec_len(&s->dealloc);
+	size_t deallocs_top = str_vec_len(&s->dealloc);
 	size_t deallocs_parent = s->deallocs;
 
 	s->deallocs = deallocs_top;
@@ -1203,12 +1212,12 @@ static int lower_block(struct lower_state *s, struct ast *block)
 	if (lower_deferred(s, block_defers(block)))
 		return -1;
 
-	assert(deallocs_top <= vec_len(&s->dealloc));
+	assert(deallocs_top <= str_vec_len(&s->dealloc));
 	s->deallocs = deallocs_parent;
 
-	while (vec_len(&s->dealloc) > deallocs_top) {
+	while (str_vec_len(&s->dealloc) > deallocs_top) {
 		/* perform all deallocs that were queued within this block */
-		char *dealloc = vect_pop(char *, s->dealloc);
+		char *dealloc = *str_vec_pop(&s->dealloc);
 
 		/* slight hack, top block doesn't need to care about freeing
 		* anything as it must return, this sidesteps the case where qbt
@@ -1318,7 +1327,7 @@ static int lower_proc(struct ast *n)
 	/* args */
 	printf("(");
 
-	struct vec fixups = vec_create(sizeof(char *));
+	struct str_vec fixups = str_vec_create(0);
 	if (lower_params(&state, proc_params(n), &fixups)) {
 		destroy_state(&state);
 		return -1;
@@ -1330,13 +1339,12 @@ static int lower_proc(struct ast *n)
 	/* body */
 	printf("{\n");
 
-	foreach_vec(fi, fixups) {
-		char *f = vect_at(char *, fixups, fi);
-		printf("%s", f);
-		free(f);
+	foreach(str_vec, f, &fixups) {
+		printf("%s", *f);
+		free(*f);
 	}
 
-	vec_destroy(&fixups);
+	str_vec_destroy(&fixups);
 
 	if (lower_block(&state, proc_body(n))) {
 		destroy_state(&state);
@@ -1345,9 +1353,8 @@ static int lower_proc(struct ast *n)
 
 	printf("}\n");
 
-	foreach_vec(pi, state.procs) {
-		struct ast *proc = vect_at(struct ast*, state.procs, pi);
-		if (lower_proc(proc)) {
+	foreach(ast_vec, p, &state.procs) {
+		if (lower_proc(*p)) {
 			destroy_state(&state);
 			return -1;
 		}

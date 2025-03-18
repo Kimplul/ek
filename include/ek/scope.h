@@ -33,7 +33,7 @@ struct visible_tuple {
 #define MAP_TYPE struct ast *
 #define MAP_CMP(a, b) strcmp((a), (b))
 #define MAP_NAME visible
-#include "map.h"
+#include <conts/map.h>
 
 struct expanded_key {
 	struct ast *def;
@@ -54,12 +54,12 @@ static inline int expanded_key_cmp(struct expanded_key a, struct expanded_key b)
 #define MAP_TYPE struct ast *
 #define MAP_CMP(a, b) expanded_key_cmp((a), (b))
 #define MAP_NAME expanded
-#include "map.h"
+#include <conts/map.h>
 
 #define SPTREE_TYPE struct ast *
 #define SPTREE_CMP(a, b) ((uintptr_t)(a) - (uintptr_t)(b))
 #define SPTREE_NAME exported
-#include "sptree.h"
+#include <conts/sptree.h>
 
 /**
  * Scope.

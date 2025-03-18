@@ -113,7 +113,7 @@ static int process(struct scope *scope, const char *file)
 #define MAP_TYPE struct scope *
 #define MAP_CMP(a, b) strcmp((a), (b))
 #define MAP_NAME scopes
-#include "ek/map.h"
+#include <conts/map.h>
 
 /* ugly global for now */
 static struct scopes scopes;

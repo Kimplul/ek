@@ -15,11 +15,18 @@
 #include <math.h>
 
 #include <ek/ast.h>
-#include <ek/vec.h>
 #include <ek/scope.h>
 
-static struct vec nodes = {0};
-static struct vec types = {0};
+#define VEC_NAME ast_vec
+#define VEC_TYPE struct ast *
+#include <conts/vec.h>
+
+#define VEC_NAME type_vec
+#define VEC_TYPE struct type *
+#include <conts/vec.h>
+
+static struct ast_vec nodes;
+static struct type_vec types;
 
 static void destroy_ast_node(struct ast *n)
 {
@@ -45,22 +52,20 @@ static void destroy_type(struct type *n)
 
 void destroy_ast_nodes()
 {
-	foreach_vec(ni, nodes) {
-		struct ast *n = vect_at(struct ast *, nodes, ni);
-		destroy_ast_node(n);
+	foreach(ast_vec, n, &nodes) {
+		destroy_ast_node(*n);
 	}
 
-	vec_destroy(&nodes);
+	ast_vec_destroy(&nodes);
 }
 
 void destroy_types()
 {
-	foreach_vec(ti, types) {
-		struct type *t = vect_at(struct type *, types, ti);
-		destroy_type(t);
+	foreach(type_vec, t, &types) {
+		destroy_type(*t);
 	}
 
-	vec_destroy(&types);
+	type_vec_destroy(&types);
 }
 
 void destroy_allocs()
@@ -71,8 +76,8 @@ void destroy_allocs()
 
 static struct ast *create_empty_ast()
 {
-	if (vec_uninit(nodes)) {
-		nodes = vec_create(sizeof(struct ast *));
+	if (ast_vec_uninit(&nodes)) {
+		nodes = ast_vec_create(0);
 	}
 
 	struct ast *n = calloc(1, sizeof(struct ast));
@@ -81,14 +86,14 @@ static struct ast *create_empty_ast()
 
 	/* just to be safe */
 	n->k = AST_EMPTY;
-	vect_append(struct ast *, nodes, &n);
+	ast_vec_append(&nodes, n);
 	return n;
 }
 
 static struct type *create_empty_type()
 {
-	if (vec_uninit(types)) {
-		types = vec_create(sizeof(struct type *));
+	if (type_vec_uninit(&types)) {
+		types = type_vec_create(0);
 	}
 
 	struct type *n = calloc(1, sizeof(struct type));
@@ -98,7 +103,7 @@ static struct type *create_empty_type()
 	/* just to be safe */
 	n->k = TYPE_VOID;
 	n->size = -1;
-	vect_append(struct ast *, types, &n);
+	type_vec_append(&types, n);
 	return n;
 }
 

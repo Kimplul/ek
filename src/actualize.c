@@ -15,7 +15,6 @@
 #include <ek/actualize.h>
 #include <ek/compiler.h>
 #include <ek/debug.h>
-#include <ek/vec.h>
 
 #define UNUSED(x) do { (void)(x); } while (0)
 #define MAYBE_UNUSED(x) UNUSED(x)
@@ -2796,11 +2795,14 @@ struct init_helper {
 	struct ast *n;
 };
 
-static int init_sort(const struct init_helper *a, const struct init_helper *b)
+static int init_sort(struct init_helper *a, struct init_helper *b)
 {
 	return strcmp(a->id, b->id);
 }
 
+#define VEC_NAME init_helper_vec
+#define VEC_TYPE struct init_helper
+#include <conts/vec.h>
 
 static int actualize_init(struct act_state *state,
                           struct scope *scope, struct ast *node)
@@ -2821,8 +2823,8 @@ static int actualize_init(struct act_state *state,
 	if (!def)
 		return -1;
 
-	struct vec init_args = vec_create(sizeof(struct init_helper));
-	struct vec struct_members = vec_create(sizeof(struct init_helper));
+	struct init_helper_vec init_args = init_helper_vec_create(0);
+	struct init_helper_vec struct_members = init_helper_vec_create(0);
 
 	struct ast *base = chain_base(def);
 	foreach_node(n, struct_body(base)) {
@@ -2830,7 +2832,7 @@ static int actualize_init(struct act_state *state,
 			continue;
 
 		struct init_helper h = {var_id(n), n};
-		vect_append(struct init_helper, struct_members, &h);
+		init_helper_vec_append(&struct_members, h);
 	}
 
 	foreach_node(n, init_body(node)) {
@@ -2841,27 +2843,23 @@ static int actualize_init(struct act_state *state,
 
 		set_type(n, (var_init(n))->t);
 		struct init_helper h = {var_id(n), n};
-		vect_append(struct init_helper, init_args, &h);
+		init_helper_vec_append(&init_args, h);
 	}
 
-	vec_sort(&init_args, (vec_comp_t)init_sort);
-	vec_sort(&struct_members, (vec_comp_t)init_sort);
+	init_helper_vec_sort(&init_args, init_sort);
+	init_helper_vec_sort(&struct_members, init_sort);
 
-	if (vec_len(&init_args) != vec_len(&struct_members)) {
+	if (init_helper_vec_len(&init_args) != init_helper_vec_len(&struct_members)) {
 		semantic_error(scope->fctx, node, "expected %zu args, got %zu",
-		               vec_len(&struct_members),
-		               vec_len(&init_args));
+		               init_helper_vec_len(&struct_members),
+		               init_helper_vec_len(&init_args));
 		goto err;
 	}
 
 	/* not insanely fast but good enough I suppose */
-	foreach_vec(ai, init_args) {
-		struct init_helper arg = vect_at(struct init_helper, init_args,
-		                                 ai);
-
-		struct init_helper mem = vect_at(struct init_helper,
-		                                 struct_members,
-		                                 ai);
+	for (size_t ai = 0; ai < init_helper_vec_len(&init_args); ++ai){
+		struct init_helper arg = *init_helper_vec_at(&init_args, ai);
+		struct init_helper mem = *init_helper_vec_at(&struct_members, ai);
 
 		/* not the best error message but works for now */
 		if (!same_id(arg.id, mem.id)) {
@@ -2876,14 +2874,14 @@ static int actualize_init(struct act_state *state,
 		}
 	}
 
-	vec_destroy(&init_args);
-	vec_destroy(&struct_members);
+	init_helper_vec_destroy(&init_args);
+	init_helper_vec_destroy(&struct_members);
 	set_type(node, def->t);
 	return 0;
 
 err:
-	vec_destroy(&init_args);
-	vec_destroy(&struct_members);
+	init_helper_vec_destroy(&init_args);
+	init_helper_vec_destroy(&struct_members);
 	return -1;
 }
 
