@@ -28,14 +28,14 @@ struct scope *create_scope()
 		return NULL;
 	}
 
-	scope->expanded = expanded_create();
-	scope->symbols = visible_create();
-	scope->macros = visible_create();
-	scope->types = visible_create();
+	scope->expanded = expanded_create(4);
+	scope->symbols = visible_create(4);
+	scope->macros = visible_create(4);
+	scope->types = visible_create(4);
 
-	scope->exported_symbols = exported_create();
-	scope->exported_macros = exported_create();
-	scope->exported_types = exported_create();
+	scope->exported_symbols = exported_create(4);
+	scope->exported_macros = exported_create(4);
+	scope->exported_types = exported_create(4);
 
 	scope->number = counter++;
 	return scope;
@@ -495,7 +495,7 @@ bool is_exported_macro(struct scope *scope, struct ast *def)
 
 int scope_add_exported_symbol(struct scope *scope, struct ast *def)
 {
-	struct ast **inserted = exported_insert(&scope->exported_symbols, def);
+	struct ast **inserted = exported_insert(&scope->exported_symbols, def, def);
 	if (!inserted) {
 		internal_error("failed inserting exported symbol");
 		return -1;
@@ -507,7 +507,7 @@ int scope_add_exported_symbol(struct scope *scope, struct ast *def)
 
 int scope_add_exported_type(struct scope *scope, struct ast *def)
 {
-	struct ast **inserted = exported_insert(&scope->exported_types, def);
+	struct ast **inserted = exported_insert(&scope->exported_types, def, def);
 	if (!inserted) {
 		internal_error("failed inserting exported type");
 		return -1;
@@ -533,7 +533,7 @@ int scope_add_exported_chain(struct scope *scope, struct ast *def)
 	assert(exported_find(&scope->exported_types, def) == NULL);
 	remove_exported_chain(scope, def->chain);
 
-	struct ast **inserted = exported_insert(&scope->exported_types, def);
+	struct ast **inserted = exported_insert(&scope->exported_types, def, def);
 	if (!inserted) {
 		internal_error("failed inserting exported chain");
 		return -1;
@@ -545,7 +545,7 @@ int scope_add_exported_chain(struct scope *scope, struct ast *def)
 
 int scope_add_exported_macro(struct scope *scope, struct ast *def)
 {
-	struct ast **inserted = exported_insert(&scope->exported_macros, def);
+	struct ast **inserted = exported_insert(&scope->exported_macros, def, def);
 	if (!inserted) {
 		internal_error("failed inserting exported macro");
 		return -1;

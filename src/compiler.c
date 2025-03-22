@@ -112,6 +112,7 @@ static int process(struct scope *scope, const char *file)
 #define MAP_KEY char *
 #define MAP_TYPE struct scope *
 #define MAP_CMP(a, b) strcmp((a), (b))
+#define MAP_HASH(a) CONTS_MAP_STR_HASH(a)
 #define MAP_NAME scopes
 #include <conts/map.h>
 
@@ -195,7 +196,7 @@ out:
 }
 
 int compile(const char *input) {
-	scopes = scopes_create();
+	scopes = scopes_create(1);
 
 	int ret = -1;
 	struct scope *root = process_file(input);

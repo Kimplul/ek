@@ -390,7 +390,7 @@ static int copy_var(bool public, struct scope *to, struct ast *def)
 static int copy_symbols(bool public, struct scope *to, struct scope *from)
 {
 	foreach(exported, n, &from->exported_symbols) {
-		struct ast *def = *n;
+		struct ast *def = n->data;
 		switch (def->k) {
 		case AST_PROC_DEF:
 			if (copy_proc(public, to, def))
@@ -499,7 +499,7 @@ static int copy_chain(bool public, struct scope *to, struct ast *def)
 static int copy_types(bool public, struct scope *to, struct scope *from)
 {
 	foreach(exported, n, &from->exported_types) {
-		struct ast *def = *n;
+		struct ast *def = n->data;
 		switch (def->k) {
 		case AST_STRUCT_DEF:
 			if (copy_type(public, to, def, struct_id(def)))
@@ -538,7 +538,7 @@ static int copy_types(bool public, struct scope *to, struct scope *from)
 static int copy_macros(bool public, struct scope *to, struct scope *from)
 {
 	foreach(exported, n, &from->exported_macros) {
-		struct ast *def = *n;
+		struct ast *def = n->data;
 
 		struct ast *exists = file_scope_find_macro(to, macro_def_id(def));
 		if (!exists) {

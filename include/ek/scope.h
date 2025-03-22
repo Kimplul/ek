@@ -11,6 +11,7 @@
  */
 
 #include <string.h>
+#include <stdint.h>
 
 #include "ast.h"
 #include "debug.h"
@@ -25,13 +26,10 @@ enum scope_flags {
 	SCOPE_ROOT = (1 << 2)
 };
 
-struct visible_tuple {
-	struct ast *def;
-};
-
 #define MAP_KEY char *
 #define MAP_TYPE struct ast *
 #define MAP_CMP(a, b) strcmp((a), (b))
+#define MAP_HASH(a) CONTS_MAP_STR_HASH(a)
 #define MAP_NAME visible
 #include <conts/map.h>
 
@@ -50,16 +48,26 @@ static inline int expanded_key_cmp(struct expanded_key a, struct expanded_key b)
 	return !type_lists_match(a.types, b.types);
 }
 
+static inline size_t expanded_key_hash(struct expanded_key a)
+{
+	return (uintptr_t)a.def;
+}
+
 #define MAP_KEY struct expanded_key
 #define MAP_TYPE struct ast *
 #define MAP_CMP(a, b) expanded_key_cmp((a), (b))
+#define MAP_HASH(a) expanded_key_hash(a)
 #define MAP_NAME expanded
 #include <conts/map.h>
 
-#define SPTREE_TYPE struct ast *
-#define SPTREE_CMP(a, b) ((uintptr_t)(a) - (uintptr_t)(b))
-#define SPTREE_NAME exported
-#include <conts/sptree.h>
+/* use map like set, could maybe be added to conts directly with some
+ * convenience wrappers? */
+#define MAP_KEY struct ast *
+#define MAP_TYPE struct ast *
+#define MAP_CMP(a, b) ((uintptr_t)(a) - (uintptr_t)(b))
+#define MAP_HASH(a) ((uintptr_t)(a))
+#define MAP_NAME exported
+#include <conts/map.h>
 
 /**
  * Scope.
